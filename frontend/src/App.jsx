@@ -73,8 +73,8 @@ function App() {
             <Server className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white">MT_DB Manager</h1>
-            <p className="text-[10px] text-slate-500 font-mono">ROOT@{usuario?.username}</p>
+            <h1 className="text-lg font-bold text-white">MT Manager</h1>
+            <p className="text-[10px] text-slate-500 font-mono">{usuario?.username}</p>
             <p className="text-[10px] text-slate-500 font-mono">{usuario?.nombre_completo || 'Operador'}</p>
           </div>
         </div>

@@ -137,7 +137,7 @@ class PortModel(Base):
     contacto_nombre = Column(String(150), nullable=True)
     contacto_telefono = Column(String(50), nullable=True)
 
-# ✨ LÍNEA MÁGICA: Crea las tablas en PostgreSQL si no existen ✨
+# Crea las tablas en PostgreSQL si no existen 
 Base.metadata.create_all(bind=engine)
 
 def get_db():

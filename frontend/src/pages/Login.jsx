@@ -47,7 +47,7 @@ export default function Login({ setToken, setUsuario, setTabActiva }) {
           <div className="mx-auto w-12 h-12 bg-blue-500/10 border border-blue-500/30 rounded-xl flex items-center justify-center text-blue-400">
             <Server className="w-6 h-6" />
           </div>
-          <h2 className="text-xl font-bold text-white tracking-tight">MT_DB Console</h2>
+          <h2 className="text-xl font-bold text-white tracking-tight">Memoria Tecnica - Console</h2>
         </div>
         
         {loginError && (
