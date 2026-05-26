@@ -34,10 +34,10 @@ settings = Settings()
 # DATABASE_URL = "sqlite:///./MT_DB.db"
 
 # Por esto (ejemplo PostgreSQL):
-#DATABASE_URL = "postgresql://usuario:contraseña@servidor.com:5432/nombre_base_datos"
+DATABASE_URL = "postgresql://mt_db_xzmz_user:JH0jb1qWIb045Fglcs5UC4Cv9ZyEFYIb@dpg-d8asns1kh4rs73fk30hg-a/mt_db_xzmz"
 
 
-DATABASE_URL = "sqlite:///./MT_DB.db"
+#DATABASE_URL = "sqlite:///./MT_DB.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
