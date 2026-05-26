@@ -29,11 +29,17 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # ================= CONFIGURACIÓN DE BASE DE DATOS =================
+# En Render, se inyectará automáticamente el DATABASE_URL con PostgreSQL
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://mt_db_xzmz_user:JH0jb1qWIb045Fglcs5UC4Cv9ZyEFYIb@dpg-d8asns1kh4rs73fk30hg-a/mt_db_xzmz")
 
-# Por esto (ejemplo PostgreSQL):
-DATABASE_URL = "postgresql://mt_db_xzmz_user:JH0jb1qWIb045Fglcs5UC4Cv9ZyEFYIb@dpg-d8asns1kh4rs73fk30hg-a/mt_db_xzmz"
+# Corrección automática para la URL de PostgreSQL en Render
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
+# Solo usamos check_same_thread si estamos en desarrollo local con SQLite
+connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -131,7 +137,7 @@ class PortModel(Base):
     contacto_nombre = Column(String(150), nullable=True)
     contacto_telefono = Column(String(50), nullable=True)
 
-
+# ✨ LÍNEA MÁGICA: Crea las tablas en PostgreSQL si no existen ✨
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -240,17 +246,21 @@ class PortUpdate(BaseModel):
     CONTACTO_TELEFONO: str = None
 
 # SEED ADMINISTRADOR
-db_init = SessionLocal()
-if db_init.query(UserModel).count() == 0:
-    db_init.add(UserModel(
-        username="admin", 
-        password_hash=hash_password(settings.admin_default_password), 
-        role="ADMIN", 
-        plazas="*",
-        nombre_completo="Administrador del Sistema"
-    ))
-    db_init.commit()
-db_init.close()
+try:
+    db_init = SessionLocal()
+    if db_init.query(UserModel).count() == 0:
+        db_init.add(UserModel(
+            username="admin", 
+            password_hash=hash_password(settings.admin_default_password), 
+            role="ADMIN", 
+            plazas="*",
+            nombre_completo="Administrador del Sistema"
+        ))
+        db_init.commit()
+    db_init.close()
+except Exception as e:
+    print("Nota: El seed de administrador falló o no era necesario en este punto:", e)
+
 
 app = FastAPI(title="MT_DB Enterprise API")
 
@@ -342,13 +352,9 @@ def get_geography_tree(current_user: UserModel = Depends(get_current_user), db: 
         if ids_permitidos is not None:
             query_ciudades = query_ciudades.filter(CityModel.id.in_(ids_permitidos))
         ciudades = query_ciudades.all()
-        
-        # ❌ ESTA ES LA LÍNEA QUE CAUSABA EL ERROR: if not ciudades: return {}
-        # Fue eliminada para permitir que se muestren regiones vacías.
             
         ids_ciudades_filtradas = [c.id for c in ciudades]
         
-        # ✅ Validación añadida: Solo buscar hubs si hay ciudades filtradas
         hubs = []
         if ids_ciudades_filtradas:
             hubs = db.query(HubMappingModel).filter(HubMappingModel.ciudad_id.in_(ids_ciudades_filtradas)).all()
