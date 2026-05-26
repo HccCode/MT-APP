@@ -14,7 +14,7 @@ export default function Resumen({ estructuraGeografica }) {
   const [detallesClientesHub, setDetallesClientesHub] = useState({}); 
 
   // URL Dinámica
-  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const API_URL = import.meta.env.VITE_API_URL ;
 
   useEffect(() => { localStorage.setItem('mcm_res_reg', resumenReg); }, [resumenReg]);
   useEffect(() => { localStorage.setItem('mcm_res_cd', resumenCd); }, [resumenCd]);

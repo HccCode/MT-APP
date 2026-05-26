@@ -11,7 +11,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [inventarioHub, setInventarioHub] = useState(localStorage.getItem('mcm_inv_hub') || 'TODOS');
 
   // URL Dinámica
-  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const API_URL = import.meta.env.VITE_API_URL ;
 
   useEffect(() => { localStorage.setItem('mcm_inv_reg', inventarioReg); }, [inventarioReg]);
   useEffect(() => { localStorage.setItem('mcm_inv_cd', inventarioCd); }, [inventarioCd]);

@@ -8,7 +8,7 @@ export default function CargaExcel({ token, estructuraGeografica, handleLogout }
   const [subiendoExcel, setSubiendoExcel] = useState(false);
 
   // URL Dinámica
-  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const API_URL = import.meta.env.VITE_API_URL;
 
   const obtenerCiudadesOrdenadas = (region) => {
     if (!region || !estructuraGeografica[region]?.ciudades) return [];

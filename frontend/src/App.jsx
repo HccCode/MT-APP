@@ -41,7 +41,7 @@ function App() {
   const cargarGeographyDB = async () => {
     if (!token) return; 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/geography', {
+      const res = await fetch('https://mt-backend-n9t7.onrender.com/api/geography', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.status === 401) { handleLogout(); return; }
