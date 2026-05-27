@@ -41,7 +41,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
 
   const verAlineacion = async (cabezal) => {
     setCabezalSeleccionado(cabezal);
-    setEditandoCanalId(null); // Resetear edición si cambia
+    setEditandoCanalId(null);
     try {
       const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${cabezal.id}/alineacion`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -207,24 +207,24 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           📡 Control Central de Cabezales
         </h1>
-        {puedeCargar && (
+        {puedoCargar && (
           <button 
             onClick={() => { setArchivo(null); setModalCarga(true); setStatusCarga({ loading: false, msg: '', type: '' }); }} 
             className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-white font-bold flex items-center gap-2 transition"
           >
-            <UploadCloud className="w-5 h-5" /> Importar Excel
+            <UploadCloud className="w-5 h-5" /> Importación Única Excel
           </button>
         )}
       </div>
 
       <div className="flex gap-4 mb-4 bg-[#0b132b] p-4 rounded-lg border border-slate-800">
         <input 
-          type="text" placeholder="Filtrar por ID" 
+          type="text" placeholder="Filtrar por ID de Equipo..." 
           className="bg-[#050814] border border-slate-700 text-white rounded px-3 py-2 text-sm w-48 focus:border-cyan-500 outline-none"
           value={filtroId} onChange={(e) => setFiltroId(e.target.value)}
         />
         <input 
-          type="text" placeholder="Filtrar por Ciudad" 
+          type="text" placeholder="Filtrar por Ciudad..." 
           className="bg-[#050814] border border-slate-700 text-white rounded px-3 py-2 text-sm w-48 focus:border-cyan-500 outline-none"
           value={filtroCiudad} onChange={(e) => setFiltroCiudad(e.target.value)}
         />
@@ -256,7 +256,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                   <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-cyan-400 font-mono text-xs" value={editForm.id_equipo || ''} onChange={e => setEditForm({...editForm, id_equipo: e.target.value})} /></td>
                   <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.servicio || ''} onChange={e => setEditForm({...editForm, servicio: e.target.value})} /></td>
                   <td className="p-2 text-center"><span className="text-slate-500 text-xs">Bloqueado</span></td>
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.gestion_qam || ''} onChange={e => setEditForm({...editForm, gestion_qam: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editForm.gestion_qam || ''} onChange={e => setEditForm({...editForm, gestion_qam: e.target.value})} /></td>
                   <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.marca || ''} onChange={e => setEditForm({...editForm, marca: e.target.value})} /></td>
                   <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} /></td>
                   <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.serie || ''} onChange={e => setEditForm({...editForm, serie: e.target.value})} /></td>
@@ -275,7 +275,21 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                       <Eye className="w-4 h-4"/> Desplegar Canales
                     </button>
                   </td>
-                  <td className="p-4">{cab.gestion_qam || '---'}</td>
+                  {/* COLUMNA GESTION QAM CONFIGURADA COMO HIPERVÍNCULO HTTP */}
+                  <td className="p-4">
+                    {cab.gestion_qam ? (
+                      <a 
+                        href={`http://${cab.gestion_qam}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-cyan-400 hover:text-cyan-300 hover:underline font-mono"
+                      >
+                        {cab.gestion_qam}
+                      </a>
+                    ) : (
+                      '---'
+                    )}
+                  </td>
                   <td className="p-4">{cab.marca || '---'}</td>
                   <td className="p-4">{cab.modelo || '---'}</td>
                   <td className="p-4 font-mono text-xs">{cab.serie || '---'}</td>
@@ -290,6 +304,9 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                 </tr>
               )
             ))}
+            {cabezales.length === 0 && (
+              <tr><td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -319,7 +336,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
         </div>
       )}
 
-      {/* MODAL ALINEACIÓN ACTUALIZADO (AQUÍ SE RECOGE LO MOSTRADO EN TU IMAGEN) */}
+      {/* MODAL ALINEACIÓN */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-7xl w-full flex flex-col max-h-[85vh] shadow-2xl">
@@ -348,7 +365,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                 <tbody className="divide-y divide-slate-800">
                   {alineacionActual.map((al, idx) => (
                     editandoCanalId === al.id ? (
-                      /* RENGLÓN EN MODO EDICIÓN DENTRO DEL MODAL */
                       <tr key={al.id || idx} className="bg-slate-800/90">
                         <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editCanalForm.portadora || ''} onChange={e => setEditCanalForm({...editCanalForm, portadora: e.target.value})} /></td>
                         <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editCanalForm.formato || ''} onChange={e => setEditCanalForm({...editCanalForm, formato: e.target.value})} /></td>
@@ -364,7 +380,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                         </td>
                       </tr>
                     ) : (
-                      /* RENGLÓN EN MODO VISUALIZACIÓN */
                       <tr key={al.id || idx} className="hover:bg-slate-800/30 transition">
                         <td className="p-3 font-mono text-xs text-slate-400">{al.portadora || '---'}</td>
                         <td className="p-3 text-xs">{al.formato || '---'}</td>
