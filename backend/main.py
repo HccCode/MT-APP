@@ -265,7 +265,6 @@ class PortUpdate(BaseModel):
     CONTACTO_NOMBRE: str = None
     CONTACTO_TELEFONO: str = None
 
-# ESQUEMA ACTUALIZADO DE CABEZALES (AQUÍ ESTABA EL ERROR DE INDENTACIÓN)
 class CabezalUpdate(BaseModel):
     id_equipo: str = None
     ciudad: str = None
@@ -274,6 +273,17 @@ class CabezalUpdate(BaseModel):
     marca: str = None
     modelo: str = None
     serie: str = None
+
+# NUEVO ESQUEMA CORRECTAMENTE INDENTADO PARA ACTUALIZAR CANALES
+class AlineacionUpdate(BaseModel):
+    portadora: str = None
+    formato: str = None
+    canal_num: str = None
+    nombre_canal: str = None
+    mcast_ip: str = None
+    source_ip: str = None
+    udp: str = None
+    sid: str = None
 
 # SEED ADMINISTRADOR
 try:
@@ -471,12 +481,6 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
         db.commit()
     return {"status": "success"}
 
-MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
-ALLOWED_EXCEL_MIME_TYPES = {
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel"
-}
-
 @app.post("/api/hubs/upload-excel")
 def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
@@ -568,8 +572,8 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
         puertos_lista = []
         for p in query_ports:
             puertos_lista.append({
-                "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto, "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca, "SERVICIO": p.servicio, "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio, "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta, "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, "DISTANCIA_CLIENTE": p.distancia_cliente, "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, "SERIE_SFP_HUB": p.serie_sfp_hub, "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie, "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,"CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono
-            })
+                "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto, "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca, "SERVICIO": p.servicio, "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio, "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta, "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, "DISTANCIA_CLIENTE": p.distancia_cliente, "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, "SERIE_SFP_HUB": p.serie_sfp_hub, "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie, "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,"CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono}
+            )
         total_disp = sum(1 for x in puertos_lista if str(x["ESTATUS"]).strip().upper() in ["DISPONIBLE GI", "DISPONIBLE TE"])
         return {
             "status": "success", "hub": id_hub, 
@@ -613,18 +617,14 @@ def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depen
 
 @app.get("/api/cabezales/{cabezal_id}/alineacion")
 def get_alineacion(cabezal_id: int, db: Session = Depends(get_db)):
-    alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).all()
+    alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
     return {"status": "success", "data": alineaciones}
 
 @app.put("/api/cabezales/{cabezal_id}")
 def update_cabezal(cabezal_id: int, data: CabezalUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-        
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-    if not cabezal: 
-        raise HTTPException(status_code=404, detail="Cabezal no encontrado")
-
+    if not cabezal: raise HTTPException(status_code=404, detail="Cabezal no encontrado")
     for key, val in data.model_dump(exclude_unset=True).items(): 
         setattr(cabezal, key, val)
     db.commit()
@@ -632,14 +632,33 @@ def update_cabezal(cabezal_id: int, data: CabezalUpdate, current_user: UserModel
 
 @app.delete("/api/cabezales/{cabezal_id}")
 def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-        
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
     if cabezal:
         db.delete(cabezal)
         db.commit()
     return {"status": "success"}
+
+# ================= ENPOINTS NUEVOS: CONTROL INDIVIDUAL DE ALINEACIONES / CANALES =================
+@app.put("/api/alineaciones/{alineacion_id}")
+def update_alineacion(alineacion_id: int, data: AlineacionUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    alineacion = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.id == alineacion_id).first()
+    if not alineacion: raise HTTPException(status_code=404, detail="Renglón de canal no encontrado")
+    for key, val in data.model_dump(exclude_unset=True).items():
+        setattr(alineacion, key, val)
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/alineaciones/{alineacion_id}")
+def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    alineacion = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.id == alineacion_id).first()
+    if alineacion:
+        db.delete(alineacion)
+        db.commit()
+    return {"status": "success"}
+
 
 @app.post("/api/cabezales/upload-excel")
 def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
