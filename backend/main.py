@@ -498,33 +498,6 @@ def get_clients_status(db: Session = Depends(get_db)):
 # ---> ENDPOINTS PARA CABEZALES <---
 # ==============================================================================
 
-@app.get("/api/cabezales")
-def get_cabezales(db: Session = Depends(get_db)):
-    try:
-        cabezales = db.query(CabezalModel).all()
-        alineaciones = db.query(AlineacionModel).all()
-        
-        alineaciones_dict = {}
-        for a in alineaciones:
-            if a.cabezal_id not in alineaciones_dict: alineaciones_dict[a.cabezal_id] = []
-            alineaciones_dict[a.cabezal_id].append({
-                "portadora": a.portadora, "formato": a.formato, "canal": a.canal, 
-                "nombre_servicio": a.nombre_servicio, "mcast_ip": a.mcast_ip, 
-                "source_ip": a.source_ip, "udp": a.udp, "sid": a.sid
-            })
-            
-        resultado = []
-        for c in cabezales:
-            resultado.append({
-                "id": c.id, "ciudad": c.ciudad, "servicio": c.servicio, 
-                "gestion_qam": c.gestion_qam, "marca": c.marca, "modelo": c.modelo, "serie": c.serie,
-                "alineacion": alineaciones_dict.get(c.id, [])
-            })
-            
-        return {"status": "success", "data": resultado}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
-
 @app.post("/api/cabezales/upload-excel")
 def upload_cabezales_excel(
     file: UploadFile = File(...), 
@@ -541,14 +514,21 @@ def upload_cabezales_excel(
         contents = file.file.read()
         df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
         
+        # Convertimos el DataFrame a una lista de listas nativa de Python
+        # Esto evita el problema de AttributeError y lee el Excel sin importar el formato visual
+        data_matrix = df.values.tolist()
+        
+        if not data_matrix:
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo Excel está vacío."})
+            
         header_row_idx = 0
-        for idx, row in df.iterrows():
-            if "ID" in [str(cell).upper().strip() for cell in row.values]:
+        for idx, row_list in enumerate(data_matrix):
+            if "ID" in [str(cell).upper().strip() for cell in row_list]:
                 header_row_idx = idx
                 break
                 
-        column_headers = [str(cell).upper().strip() for cell in df.iloc[header_row_idx].values]
-        df_data = df.iloc[header_row_idx + 1:]
+        column_headers = [str(cell).upper().strip() for cell in data_matrix[header_row_idx]]
+        data_rows = data_matrix[header_row_idx + 1:]
         
         def get_index(targets):
             for t in targets:
@@ -578,8 +558,7 @@ def upload_cabezales_excel(
         cabezales_dict = {}
         alineaciones_list = []
 
-        for _, row in df_data.iterrows():
-            vals = list(row.values)
+        for vals in data_rows:
             if idx_id >= len(vals): continue
             
             c_id = str(vals[idx_id]).strip()
@@ -626,11 +605,10 @@ def upload_cabezales_excel(
     
     except Exception as e:
         db.rollback()
-        # Esto nos permite atrapar errores matemáticos o de base de datos extraños y mostrarlos completos en Render
+        import traceback
         error_detallado = traceback.format_exc()
         print(f"\n--- ERROR AL SUBIR EXCEL DE CABEZALES ---\n{error_detallado}\n---------------------------------------\n")
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo procesando Excel: {str(e)}"})
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
