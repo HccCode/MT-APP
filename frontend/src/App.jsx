@@ -8,6 +8,7 @@ import Resumen from './pages/Resumen';
 import Geografia from './pages/Geografia';
 import CargaExcel from './pages/CargaExcel';
 import Usuarios from './pages/Usuarios';
+import Cabezales from './pages/Cabezales';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
@@ -87,6 +88,14 @@ function App() {
             📋 Servicios Dedicados
           </button>
           
+          {/* BOTÓN CABEZALES */}
+          <button 
+            onClick={() => setTabActiva('cabezales')} 
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            📡 Cabezales
+          </button>
+
           {!esRnoc && (
             <button 
               onClick={() => setTabActiva('resumen')} 
@@ -145,6 +154,14 @@ function App() {
             esMcmNoc={esMcmNoc} 
             esAdmin={esAdmin} 
             estructuraGeografica={estructuraGeografica} 
+            handleLogout={handleLogout} 
+          />
+        )}
+
+        {/* BLOQUE CABEZALES */}
+        {tabActiva === 'cabezales' && (
+          <Cabezales 
+            token={token} 
             handleLogout={handleLogout} 
           />
         )}
