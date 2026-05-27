@@ -163,6 +163,7 @@ function App() {
           <Cabezales 
             token={token} 
             handleLogout={handleLogout} 
+            puedeCargar={puedeCargar}
           />
         )}
 
