@@ -574,8 +574,12 @@ def upload_cabezales_excel(
 
         db.commit()
         return {"status": "success", "detail": "Cabezales cargados y actualizados exitosamente."}
+    
     except Exception as e:
         db.rollback()
+        import traceback
+        error_detallado = traceback.format_exc()
+        print(f"\n=== ERROR FATAL AL SUBIR EXCEL CABEZALES ===\n{error_detallado}\n============================================\n")
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 
