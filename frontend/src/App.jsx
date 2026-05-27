@@ -87,14 +87,6 @@ function App() {
           >
             📋 Servicios Dedicados
           </button>
-          
-          {/* BOTÓN CABEZALES */}
-          <button 
-            onClick={() => setTabActiva('cabezales')} 
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            📡 Cabezales
-          </button>
 
           {!esRnoc && (
             <button 
@@ -104,6 +96,14 @@ function App() {
               📊 Disponibilidad de Puertos
             </button>
           )}
+
+          {/* BOTÓN CABEZALES */}
+          <button 
+            onClick={() => setTabActiva('cabezales')} 
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            📡 Cabezales
+          </button>
           
           {esAdmin && (
             <button 
