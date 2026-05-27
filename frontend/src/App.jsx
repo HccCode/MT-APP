@@ -1,24 +1,21 @@
 import { useState, useEffect } from 'react';
 import { Server, LogOut } from 'lucide-react';
 
-// IMPORTACIÓN DE LOS MÓDULOS SEPARADOS
 import Login from './pages/Login';
 import Inventario from './pages/Inventario';
 import Resumen from './pages/Resumen';
 import Geografia from './pages/Geografia';
 import CargaExcel from './pages/CargaExcel';
 import Usuarios from './pages/Usuarios';
-
+import Cabezales from './pages/Cabezales'; // NUEVA IMPORTACIÓN
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
   const [usuario, setUsuario] = useState(JSON.parse(localStorage.getItem('mcm_user')) || null);
   
-  // ESTADOS GLOBALES (Estructura Geográfica y Navegación)
   const [estructuraGeografica, setEstructuraGeografica] = useState({});
   const [tabActiva, setTabActiva] = useState('inventario'); 
 
-  // ================= SISTEMA DE PERMISOS GRANULARES =================
   const roleStr = String(usuario?.role).trim().toUpperCase();
   const userStr = String(usuario?.username).trim().toLowerCase();
   
@@ -29,7 +26,6 @@ function App() {
 
   const puedeEditar = esAdmin || esMcmNoc || esMcmIng;
   const puedeCargar = esAdmin || esMcmIng;
-  // ==================================================================
 
   const handleLogout = () => {
     localStorage.clear(); 
@@ -53,17 +49,14 @@ function App() {
     } catch (e) { console.error(e); }
   };
 
-  // Cargar geografía global al iniciar sesión
   useEffect(() => { 
     if (token) cargarGeographyDB(); 
   }, [token]);
 
-  // Si no hay token, mostrar Login
   if (!token) {
     return <Login setToken={setToken} setUsuario={setUsuario} setTabActiva={setTabActiva} />;
   }
 
-  // Si hay token, renderizar Aplicación Principal
   return (
     <div className="h-screen w-screen bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
@@ -88,12 +81,20 @@ function App() {
             📋 Servicios Dedicados
           </button>
           
+          {/* NUEVO BOTÓN PARA CABEZALES */}
+          <button 
+            onClick={() => setTabActiva('cabezales')} 
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+          >
+            📡 Cabezales
+          </button>
+
           {!esRnoc && (
             <button 
               onClick={() => setTabActiva('resumen')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              📊 Disponibilidad de Puertos
+              📊 Disponibilidad
             </button>
           )}
           
@@ -134,53 +135,32 @@ function App() {
         </button>
       </header>
 
-      {/* CONTENEDOR CENTRAL: RENDERIZADO CONDICIONAL DE MÓDULOS */}
+      {/* CONTENEDOR CENTRAL */}
       <div className="flex-1 flex flex-col overflow-hidden">
         
         {tabActiva === 'inventario' && (
-          <Inventario 
-            token={token} 
-            usuario={usuario} 
-            puedeEditar={puedeEditar} 
-            esRnoc={esRnoc} 
-            esMcmNoc={esMcmNoc} 
-            esAdmin={esAdmin} 
-            estructuraGeografica={estructuraGeografica} 
-            handleLogout={handleLogout} 
-          />
+          <Inventario token={token} usuario={usuario} puedeEditar={puedeEditar} esRnoc={esRnoc} esMcmNoc={esMcmNoc} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
+        )}
+
+        {/* NUEVA VISTA PARA CABEZALES */}
+        {tabActiva === 'cabezales' && (
+          <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} />
         )}
 
         {tabActiva === 'resumen' && !esRnoc && (
-          <Resumen 
-            estructuraGeografica={estructuraGeografica} 
-          />
+          <Resumen estructuraGeografica={estructuraGeografica} />
         )}
 
         {tabActiva === 'geografia' && esAdmin && (
-          <Geografia 
-            token={token} 
-            estructuraGeografica={estructuraGeografica} 
-            cargarGeographyDB={cargarGeographyDB} 
-            handleLogout={handleLogout} 
-          />
+          <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
         )}
 
         {tabActiva === 'carga_excel' && puedeCargar && (
-          <CargaExcel 
-            token={token} 
-            estructuraGeografica={estructuraGeografica} 
-            handleLogout={handleLogout} 
-          />
+          <CargaExcel token={token} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
 
         {tabActiva === 'usuarios' && esAdmin && (
-          <Usuarios 
-            token={token} 
-            usuario={usuario} 
-            esAdmin={esAdmin} 
-            estructuraGeografica={estructuraGeografica} 
-            handleLogout={handleLogout} 
-          />
+          <Usuarios token={token} usuario={usuario} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
 
       </div>
