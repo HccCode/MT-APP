@@ -661,12 +661,18 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
 
 
 @app.post("/api/cabezales/upload-excel")
-def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))):
+async def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_upload_excel(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    # Prevenir fallos si el archivo no tiene nombre válido
+    filename = file.filename or ""
+    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido (.xlsx o .xls)."})
+    
     try:
-        contents = file.file.read()
+        # Lectura asíncrona segura para evitar bloqueos del servidor
+        contents = await file.read() 
         df = pd.read_excel(io.BytesIO(contents)).fillna("")
         column_headers = [str(col).upper().strip() for col in df.columns]
 
@@ -738,10 +744,14 @@ def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel
                 ))
         db.commit()
         return {"status": "success", "detail": f"Proceso completado. Se estructuraron {len(cabezales_procesados)} cabezales."}
+    
     except Exception as e:
-        db.rollback()
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error parseando el archivo maestro: {str(e)}"})
-    finally: file.file.close()
+        # Prevenir que el rollback rompa el servidor si no hay conexión
+        try:
+            db.rollback()
+        except:
+            pass
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error interno importando archivo: {str(e)}"})
 
 if __name__ == "__main__":
     import uvicorn
