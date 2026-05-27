@@ -134,7 +134,7 @@ class PortModel(Base):
 
 # ================= MODELOS SECCIÓN INDEPENDIENTE: CABEZALES =================
 class CabezalModel(Base):
-    __tablename__ = "inventario_cabezales"  # <-- NOMBRE CAMBIADO AQUÍ
+    __tablename__ = "inventario_cabezales"
     id = Column(Integer, primary_key=True, index=True)
     id_equipo = Column(String(50), index=True, nullable=False)
     ciudad = Column(String(50), index=True, nullable=False)
@@ -145,12 +145,9 @@ class CabezalModel(Base):
     serie = Column(String(100), nullable=True)
 
 class AlineacionCabezalModel(Base):
-    __tablename__ = "inventario_alineacion_cabezales"  # <-- NOMBRE CAMBIADO AQUÍ
+    __tablename__ = "inventario_alineacion_cabezales"
     id = Column(Integer, primary_key=True, index=True)
-    
-    # <-- LA REFERENCIA AHORA APUNTA AL NUEVO NOMBRE DE LA TABLA
-    cabezal_id = Column(Integer, ForeignKey("inventario_cabezales.id", ondelete="CASCADE"), nullable=False) 
-    
+    cabezal_id = Column(Integer, ForeignKey("inventario_cabezales.id", ondelete="CASCADE"), nullable=False)
     portadora = Column(String(50), nullable=True)
     formato = Column(String(50), nullable=True)
     canal_num = Column(String(50), nullable=True)
@@ -268,14 +265,15 @@ class PortUpdate(BaseModel):
     CONTACTO_NOMBRE: str = None
     CONTACTO_TELEFONO: str = None
 
-    class CabezalUpdate(BaseModel):
-    id_equipo: str = None    
-    ciudad: str = None    
-    servicio: str = None    
-    gestion_qam: str = None    
-    marca: str = None    
-    modelo: str = None    
-    serie: str = None    
+# ESQUEMA ACTUALIZADO DE CABEZALES (AQUÍ ESTABA EL ERROR DE INDENTACIÓN)
+class CabezalUpdate(BaseModel):
+    id_equipo: str = None
+    ciudad: str = None
+    servicio: str = None
+    gestion_qam: str = None
+    marca: str = None
+    modelo: str = None
+    serie: str = None
 
 # SEED ADMINISTRADOR
 try:
@@ -605,6 +603,7 @@ def get_clients_status(db: Session = Depends(get_db)):
 
 
 # ================= ENDPOINTS EXCLUSIVOS: SECCIÓN CABEZALES MAESTRO =================
+
 @app.get("/api/cabezales")
 def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depends(get_db)):
     query = db.query(CabezalModel)
@@ -616,6 +615,31 @@ def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depen
 def get_alineacion(cabezal_id: int, db: Session = Depends(get_db)):
     alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).all()
     return {"status": "success", "data": alineaciones}
+
+@app.put("/api/cabezales/{cabezal_id}")
+def update_cabezal(cabezal_id: int, data: CabezalUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+        
+    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
+    if not cabezal: 
+        raise HTTPException(status_code=404, detail="Cabezal no encontrado")
+
+    for key, val in data.model_dump(exclude_unset=True).items(): 
+        setattr(cabezal, key, val)
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/cabezales/{cabezal_id}")
+def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+        
+    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
+    if cabezal:
+        db.delete(cabezal)
+        db.commit()
+    return {"status": "success"}
 
 @app.post("/api/cabezales/upload-excel")
 def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -694,36 +718,11 @@ def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel
                     source_ip=read_val(idx_source), udp=read_val(idx_udp), sid=read_val(idx_sid)
                 ))
         db.commit()
-        return {"status": "success", "detail": f"Proceso completado. Se estructuraron {len(cabezales_procesados)} cabezales independientes con sus alineaciones."}
+        return {"status": "success", "detail": f"Proceso completado. Se estructuraron {len(cabezales_procesados)} cabezales."}
     except Exception as e:
         db.rollback()
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error parseando el archivo maestro: {str(e)}"})
     finally: file.file.close()
-
-    @app.put("/api/cabezales/{cabezal_id}")
-def update_cabezal(cabezal_id: int, data: CabezalUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-        
-    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-    if not cabezal: raise HTTPException(status_code=404)
-
-    for key, val in data.model_dump(exclude_unset=True).items(): 
-        setattr(cabezal, key, val)
-    db.commit()
-    return {"status": "success"}
-
-@app.delete("/api/cabezales/{cabezal_id}")
-def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-        
-    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-    if cabezal:
-        db.delete(cabezal)
-        db.commit()
-    return {"status": "success"}
-
 
 if __name__ == "__main__":
     import uvicorn
