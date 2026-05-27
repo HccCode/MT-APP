@@ -549,13 +549,14 @@ def upload_cabezales_excel(
         idx_src = get_index(["SOURCE IP", "IP SOURCE"])
         idx_udp = get_index(["UDP"])
         idx_sid = get_index(["SID"])
+        idx_accion = get_index(["ACCION", "ACCIÓN"]) # <--- NUEVO
 
         if idx_id == -1: 
             return JSONResponse(status_code=400, content={"status": "error", "detail": "El Excel no contiene la columna 'ID'."})
 
         cabezales_dict = {}
         alineaciones_list = []
-        ids_con_alineaciones = set() # <--- Para proteger canales existentes
+        ids_con_alineaciones = set()
 
         for vals in data_rows:
             if idx_id >= len(vals): continue
@@ -566,7 +567,7 @@ def upload_cabezales_excel(
             def read_val(idx):
                 return "" if idx == -1 or idx >= len(vals) or str(vals[idx]).strip().upper() == "NAN" else str(vals[idx]).strip()
 
-            # Guardamos lo que viene en el Excel. Si el ID tiene múltiples filas, consolidamos los datos no vacíos
+            # Guardamos lo que viene en el Excel (se sobreescribirá en el diccionario si hay múltiples filas, consolidando el último registro para las columnas no vacías)
             if c_id not in cabezales_dict:
                 cabezales_dict[c_id] = {
                     "ciudad": read_val(idx_ciudad), "servicio": read_val(idx_servicio),
@@ -587,39 +588,60 @@ def upload_cabezales_excel(
             
             # Si la fila trae datos de canal, la agregamos a la lista
             if portadora or canal or n_servicio:
-                ids_con_alineaciones.add(c_id) # Registramos que este ID trae canales en el Excel
+                ids_con_alineaciones.add(c_id)
                 alineaciones_list.append({
                     "cabezal_id": c_id, "portadora": portadora, "formato": read_val(idx_form),
                     "canal": canal, "nombre_servicio": n_servicio, "mcast_ip": read_val(idx_mcast),
-                    "source_ip": read_val(idx_src), "udp": read_val(idx_udp), "sid": read_val(idx_sid)
+                    "source_ip": read_val(idx_src), "udp": read_val(idx_udp), "sid": read_val(idx_sid),
+                    "accion": read_val(idx_accion).upper() if idx_accion != -1 else "" # <--- NUEVO
                 })
 
-        # ================= ACTUALIZACIÓN INTELIGENTE =================
+        # ================= ACTUALIZACIÓN DESDE EXCEL (SIN BORRAR CANALES MASIVAMENTE) =================
         for c_id, datos_excel in cabezales_dict.items():
             cabezal_db = db.query(CabezalModel).filter(CabezalModel.id == c_id).first()
             
             if cabezal_db:
-                # 1. SI YA EXISTE: Solo actualizamos si el Excel NO viene vacío
-                if datos_excel["ciudad"]: cabezal_db.ciudad = datos_excel["ciudad"]
-                if datos_excel["servicio"]: cabezal_db.servicio = datos_excel["servicio"]
-                if datos_excel["gestion_qam"]: cabezal_db.gestion_qam = datos_excel["gestion_qam"]
-                if datos_excel["marca"]: cabezal_db.marca = datos_excel["marca"]
-                if datos_excel["modelo"]: cabezal_db.modelo = datos_excel["modelo"]
-                if datos_excel["serie"]: cabezal_db.serie = datos_excel["serie"]
+                # 1. ACTUALIZAR CABEZAL: Sobreescribimos directamente con lo que viene en el Excel
+                cabezal_db.ciudad = datos_excel["ciudad"]
+                cabezal_db.servicio = datos_excel["servicio"]
+                cabezal_db.gestion_qam = datos_excel["gestion_qam"]
+                cabezal_db.marca = datos_excel["marca"]
+                cabezal_db.modelo = datos_excel["modelo"]
+                cabezal_db.serie = datos_excel["serie"]
             else:
-                # 2. SI NO EXISTE: Se crea completamente nuevo
+                # 2. CREAR NUEVO CABEZAL: Si el ID no existe en la BD
                 db.add(CabezalModel(id=c_id, **datos_excel))
 
-            # 3. CANALES: Solo borramos los previos si el Excel traía canales nuevos
-            if c_id in ids_con_alineaciones:
-                db.query(AlineacionModel).filter(AlineacionModel.cabezal_id == c_id).delete()
-
-        # Insertamos todas las alineaciones leídas
+        # 3. PROCESAR CANALES (AGREGAR NUEVOS, MODIFICAR EXISTENTES O ELIMINAR)
         for a_data in alineaciones_list:
-            db.add(AlineacionModel(**a_data))
+            # Extraemos la acción solicitada y la quitamos del diccionario de datos
+            accion = a_data.pop("accion", "")
+            
+            existing_alineacion = db.query(AlineacionModel).filter(
+                AlineacionModel.cabezal_id == a_data["cabezal_id"],
+                AlineacionModel.canal == a_data["canal"],
+                AlineacionModel.nombre_servicio == a_data["nombre_servicio"]
+            ).first()
+
+            # Verificamos si el usuario solicitó eliminar la fila
+            if accion in ["ELIMINAR", "BORRAR"]:
+                if existing_alineacion:
+                    db.delete(existing_alineacion)
+            else:
+                if existing_alineacion:
+                    # Si el canal YA EXISTE, modificamos/actualizamos sus valores con los del Excel
+                    existing_alineacion.portadora = a_data["portadora"]
+                    existing_alineacion.formato = a_data["formato"]
+                    existing_alineacion.mcast_ip = a_data["mcast_ip"]
+                    existing_alineacion.source_ip = a_data["source_ip"]
+                    existing_alineacion.udp = a_data["udp"]
+                    existing_alineacion.sid = a_data["sid"]
+                else:
+                    # Si el canal NO EXISTE (es nuevo), lo agregamos a la base de datos
+                    db.add(AlineacionModel(**a_data))
 
         db.commit()
-        return {"status": "success", "detail": "Cabezales cargados y actualizados exitosamente."}
+        return {"status": "success", "detail": "Datos procesados: Se agregaron, actualizaron y/o eliminaron registros según el archivo Excel."}
     
     except Exception as e:
         db.rollback()
