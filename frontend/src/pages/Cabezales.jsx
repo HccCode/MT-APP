@@ -197,6 +197,21 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
     }
   };
 
+  // FUNCIÓN AUXILIAR PARA FORZAR VENTANA INDEPENDIENTE POPUP
+  const abrirEnVentanaNueva = (ip) => {
+    const ancho = 1200;
+    const alto = 800;
+    // Centrar la ventana nueva en la pantalla del operador
+    const izquierda = (window.screen.width - ancho) / 2;
+    const arriba = (window.screen.height - alto) / 2;
+    
+    window.open(
+      `http://${ip}`, 
+      '_blank', 
+      `width=${ancho},height=${alto},top=${arriba},left=${izquierda},resizable=yes,scrollbars=yes,status=yes`
+    );
+  };
+
   useEffect(() => {
     buscarCabezales();
   }, []);
@@ -207,7 +222,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           📡 Control Central de Cabezales
         </h1>
-        {puedoCargar && (
+        {puedeCargar && (
           <button 
             onClick={() => { setArchivo(null); setModalCarga(true); setStatusCarga({ loading: false, msg: '', type: '' }); }} 
             className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-white font-bold flex items-center gap-2 transition"
@@ -275,17 +290,15 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                       <Eye className="w-4 h-4"/> Desplegar Canales
                     </button>
                   </td>
-                  {/* COLUMNA GESTION QAM CONFIGURADA COMO HIPERVÍNCULO HTTP */}
+                  {/* COLUMNA GESTION QAM ACTUALIZADA A ACCIÓN DE ACCESO EN VENTANA NUEVA */}
                   <td className="p-4">
                     {cab.gestion_qam ? (
-                      <a 
-                        href={`http://${cab.gestion_qam}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-cyan-400 hover:text-cyan-300 hover:underline font-mono"
+                      <button 
+                        onClick={() => abrirEnVentanaNueva(cab.gestion_qam)}
+                        className="text-cyan-400 hover:text-cyan-300 hover:underline font-mono bg-transparent border-0 p-0 cursor-pointer text-left focus:outline-none"
                       >
                         {cab.gestion_qam}
-                      </a>
+                      </button>
                     ) : (
                       '---'
                     )}
