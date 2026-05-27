@@ -134,7 +134,7 @@ class PortModel(Base):
 
 # ================= MODELOS SECCIÓN INDEPENDIENTE: CABEZALES =================
 class CabezalModel(Base):
-    __tablename__ = "cabezales"
+    __tablename__ = "inventario_cabezales"  # <-- NOMBRE CAMBIADO AQUÍ
     id = Column(Integer, primary_key=True, index=True)
     id_equipo = Column(String(50), index=True, nullable=False)
     ciudad = Column(String(50), index=True, nullable=False)
@@ -145,9 +145,12 @@ class CabezalModel(Base):
     serie = Column(String(100), nullable=True)
 
 class AlineacionCabezalModel(Base):
-    __tablename__ = "cabezales_alineacion"
+    __tablename__ = "inventario_alineacion_cabezales"  # <-- NOMBRE CAMBIADO AQUÍ
     id = Column(Integer, primary_key=True, index=True)
-    cabezal_id = Column(Integer, ForeignKey("cabezales.id", ondelete="CASCADE"), nullable=False)
+    
+    # <-- LA REFERENCIA AHORA APUNTA AL NUEVO NOMBRE DE LA TABLA
+    cabezal_id = Column(Integer, ForeignKey("inventario_cabezales.id", ondelete="CASCADE"), nullable=False) 
+    
     portadora = Column(String(50), nullable=True)
     formato = Column(String(50), nullable=True)
     canal_num = Column(String(50), nullable=True)
