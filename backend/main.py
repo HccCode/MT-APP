@@ -13,6 +13,7 @@ import bcrypt
 import pandas as pd
 import io
 import os
+import traceback # Importante para ver los errores exactos del Excel
 
 # ================= CONFIGURACIÓN DE ENTORNO =================
 class Settings(BaseSettings):
@@ -84,7 +85,6 @@ class UserModel(Base):
     role = Column(String(50), default="RNOC")
     plazas = Column(String(500), default="*")
     nombre_completo = Column(String(150), nullable=False)
-    
     num_empleado = Column(String(50), nullable=True)
     correo = Column(String(100), nullable=True)
     area_org = Column(String(100), nullable=True)
@@ -97,7 +97,6 @@ class PortModel(Base):
     region = Column(String(50), index=True)
     ciudad = Column(String(50), index=True)
     hub_id = Column(String(50), index=True, nullable=False)
-    
     estatus = Column(String(50))
     puerto = Column(String(100), nullable=False)
     equipo_hotel_id = Column(String(100))
@@ -135,7 +134,7 @@ class PortModel(Base):
 # ---> NUEVAS TABLAS PARA CABEZALES Y ALINEACIONES <---
 class CabezalModel(Base):
     __tablename__ = "cabezales"
-    id = Column(String(100), primary_key=True, index=True) # El ID será manual
+    id = Column(String(100), primary_key=True, index=True)
     ciudad = Column(String(150))
     servicio = Column(String(150))
     gestion_qam = Column(String(100))
@@ -156,6 +155,7 @@ class AlineacionModel(Base):
     udp = Column(String(100))
     sid = Column(String(100))
 
+# ✨ LÍNEA MÁGICA: Crea las tablas en PostgreSQL si no existen ✨
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -185,17 +185,13 @@ def can_upload_excel(user: UserModel):
 
 # ================= ESQUEMAS PYDANTIC =================
 class UserLogin(BaseModel): username: str; password: str
-class UserRegister(BaseModel):
-    username: str; password: str; role: str; nombre_completo: str; plazas: str = "*"; num_empleado: str = None; correo: str = None; area_org: str = None; region_asignacion: str = None; puesto: str = None
-class UserUpdate(BaseModel):
-    username: str = None; password: str = None; role: str = None; nombre_completo: str = None; plazas: str = None; num_empleado: str = None; correo: str = None; area_org: str = None; region_asignacion: str = None; puesto: str = None
+class UserRegister(BaseModel): username: str; password: str; role: str; nombre_completo: str; plazas: str = "*"; num_empleado: str = None; correo: str = None; area_org: str = None; region_asignacion: str = None; puesto: str = None
+class UserUpdate(BaseModel): username: str = None; password: str = None; role: str = None; nombre_completo: str = None; plazas: str = None; num_empleado: str = None; correo: str = None; area_org: str = None; region_asignacion: str = None; puesto: str = None
 class GeographyRegionCreate(BaseModel): nombre: str
 class GeographyCityCreate(BaseModel): id: str; nombre: str; region_id: int
 class GeographyHubCreate(BaseModel): id: str; nombre: str; ciudad_id: str; direccion: str = None; coordenadas: str = None
-class PortUpdate(BaseModel):
-    ESTATUS: str = None; PUERTO: str = None; EQUIPO_HOTEL_ID: str = None; IP_HUB: str = None; NOMBRE_CORTO: str = None; ID_MCA: str = None; SERVICIO: str = None; POTENCIA_HUB: str = None; POTENCIA_CPE: str = None; TIPO_SERVICIO: str = None; MBPS: str = None; IP_GESTION: str = None; IP_CLIENTE: str = None; BDI: str = None; RUTA: str = None; BUFFER: str = None; HILOS: str = None; PARCHEO: str = None; LAMBDAS: str = None; DISTANCIA_CLIENTE: str = None; MARCA_CPE: str = None; MODELO_CPE: str = None; SERIE_CPE: str = None; FECHA_DE_ENTREGA: str = None; SERIE_SFP_HUB: str = None; SERIE_SFP_CLIENTE: str = None; EQUIPAMIENTO: str = None; SERIE: str = None; DIRECCION: str = None; COORDENADAS: str = None; COMENTARIOS: str = None; CONTACTO_NOMBRE: str = None; CONTACTO_TELEFONO: str = None
+class PortUpdate(BaseModel): ESTATUS: str = None; PUERTO: str = None; EQUIPO_HOTEL_ID: str = None; IP_HUB: str = None; NOMBRE_CORTO: str = None; ID_MCA: str = None; SERVICIO: str = None; POTENCIA_HUB: str = None; POTENCIA_CPE: str = None; TIPO_SERVICIO: str = None; MBPS: str = None; IP_GESTION: str = None; IP_CLIENTE: str = None; BDI: str = None; RUTA: str = None; BUFFER: str = None; HILOS: str = None; PARCHEO: str = None; LAMBDAS: str = None; DISTANCIA_CLIENTE: str = None; MARCA_CPE: str = None; MODELO_CPE: str = None; SERIE_CPE: str = None; FECHA_DE_ENTREGA: str = None; SERIE_SFP_HUB: str = None; SERIE_SFP_CLIENTE: str = None; EQUIPAMIENTO: str = None; SERIE: str = None; DIRECCION: str = None; COORDENADAS: str = None; COMENTARIOS: str = None; CONTACTO_NOMBRE: str = None; CONTACTO_TELEFONO: str = None
 
-# SEED ADMINISTRADOR
 try:
     db_init = SessionLocal()
     if db_init.query(UserModel).count() == 0:
@@ -206,9 +202,7 @@ except Exception as e: print("Seed admin falló:", e)
 
 app = FastAPI(title="MT_DB Enterprise API")
 
-app.add_middleware(
-    CORSMiddleware, allow_origins=settings.cors_origins_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"]
-)
+app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 @app.post("/api/auth/login")
 def login(data: UserLogin, db: Session = Depends(get_db)):
@@ -344,12 +338,13 @@ ALLOWED_EXCEL_MIME_TYPES = {"application/vnd.openxmlformats-officedocument.sprea
 
 @app.post("/api/hubs/upload-excel")
 def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    # EL CÓDIGO ORIGINAL DEL INVENTARIO SE MANTIENE INTACTO
-    if not can_upload_excel(current_user): raise HTTPException(status_code=403)
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))): return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel."})
+    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    is_valid_mime = file.content_type in ALLOWED_EXCEL_MIME_TYPES
+    is_valid_ext = file.filename.lower().endswith(('.xlsx', '.xls'))
+    if not (is_valid_mime or is_valid_ext): return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido (.xlsx o .xls)."})
     try:
         contents = file.file.read()
-        if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera 5MB."})
+        if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera el límite permitido de 5MB."})
         df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
         
         header_row_idx = 0
@@ -365,88 +360,150 @@ def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), cur
         ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
         region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
         
-        def get_idx(targets, headers):
+        def get_index(targets, headers):
             for t in targets:
                 if t in headers: return headers.index(t)
             return -1
 
-        i_st = get_idx(["STATUS", "ESTATUS"], column_headers)
-        i_prt = get_idx(["PUERTO"], column_headers)
-        if i_prt == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
+        idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
+        idx_puerto = get_index(["PUERTO"], column_headers)
+        idx_equipo = get_index(["EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID"], column_headers)
+        idx_iphub = get_index(["IP HUB", "IP_HUB"], column_headers)
+        idx_ncorto = get_index(["NOMBRE CORTO", "NOMBRE_CORTO"], column_headers)
+        idx_idmca = get_index(["ID MCA", "ID_MCA"], column_headers)
+        idx_serv = get_index(["SERVICIO"], column_headers)
+        idx_pothub = get_index(["POTENCIA HUB", "POTENCIA_HUB"], column_headers)
+        idx_potcpe = get_index(["POTENCIA CPE", "POTENCIA_CPE"], column_headers)
+        idx_tserv = get_index(["TIPO SERVICIO", "TIPO_SERVICIO"], column_headers)
+        idx_mbps = get_index(["MBPS"], column_headers)
+        idx_ipgest = get_index(["IP GESTION", "IP_GESTION"], column_headers)
+        idx_ipcli = get_index(["IP CLIENTE", "IP_CLIENTE"], column_headers)
+        idx_bdi = get_index(["BDI"], column_headers)
+        idx_ruta = get_index(["RUTA"], column_headers)
+        idx_buff = get_index(["BUFFER"], column_headers)
+        idx_hilos = get_index(["HILOS"], column_headers)
+        idx_parch = get_index(["PARCHEO"], column_headers)
+        idx_lamb = get_index(["LAMBDAS"], column_headers)
+        idx_dist = get_index(["DISTANCIA CLIENTE", "DISTANCIA"], column_headers)
+        idx_mcpe = get_index(["MARCA CPE", "MARCA_CPE"], column_headers)
+        idx_mocpe = get_index(["MODELO CPE", "MODELO_CPE"], column_headers)
+        idx_secpe = get_index(["SERIE CPE", "SERIE_CPE"], column_headers)
+        idx_fentre = get_index(["FECHA DE ENTREGA", "FECHA_ENTREGA"], column_headers)
+        idx_sfphub = get_index(["SERIE SFP HUB", "SERIE_SFP_HUB"], column_headers)
+        idx_sfpcli = get_index(["SERIE SFP CLIENTE", "SERIE_SFP_CLIENTE"], column_headers)
+        idx_equip = get_index(["EQUIPAMIENTO"], column_headers)
+        idx_serie = get_index(["SERIE"], column_headers)
+        idx_direccion = get_index(["DIRECCIÓN", "DIRECCION"], column_headers)  
+        idx_coordenadas = get_index(["COORDENADAS", "COORDENADA"], column_headers)  
+        idx_comentarios = get_index(["COMENTARIOS", "OBSERVACIONES"], column_headers)
+        idx_contacto_nombre = get_index(["CONTACTO NOMBRE", "NOMBRE CONTACTO", "CONTACTO"], column_headers)
+        idx_contacto_telefono = get_index(["CONTACTO TELEFONO", "TELEFONO CONTACTO", "TELEFONO", "TELÉFONO"], column_headers)
+
+        if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
         
         db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
         for _, row in df_data.iterrows():
             vals = list(row.values)
-            if i_prt >= len(vals): continue
-            p_val = str(vals[i_prt]).strip()
-            if not p_val or p_val.upper() == "NAN": continue
-            def rv(i): return "" if i == -1 or i >= len(vals) or str(vals[i]).strip().upper() == "NAN" else str(vals[i]).strip()
+            if idx_puerto >= len(vals): continue
+            p_val = str(vals[idx_puerto]).strip()
+            if not p_val or p_val.upper() == "NAN" or p_val == "": continue
             
+            def read_val(idx):
+                if idx != -1 and idx < len(vals):
+                    s = str(vals[idx]).strip()
+                    return "" if s.upper() == "NAN" else s
+                return ""
+
+            status_raw = read_val(idx_status).upper()
+            status_val = status_raw if status_raw else "DISPONIBLE GI"
+
             db.add(PortModel(
-                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(),
-                estatus=rv(i_st) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=rv(get_idx(["EQUIPO/HOTEL ID", "EQUIPO"], column_headers)),
-                ip_hub=rv(get_idx(["IP HUB", "IP_HUB"], column_headers)), nombre_corto=rv(get_idx(["NOMBRE CORTO"], column_headers)),
-                id_mca=rv(get_idx(["ID MCA"], column_headers)), servicio=rv(get_idx(["SERVICIO"], column_headers)),
-                potencia_hub=rv(get_idx(["POTENCIA HUB"], column_headers)), potencia_cpe=rv(get_idx(["POTENCIA CPE"], column_headers)),
-                tipo_servicio=rv(get_idx(["TIPO SERVICIO"], column_headers)), mbps=rv(get_idx(["MBPS"], column_headers)),
-                ip_gestion=rv(get_idx(["IP GESTION"], column_headers)), ip_cliente=rv(get_idx(["IP CLIENTE"], column_headers)),
-                bdi=rv(get_idx(["BDI"], column_headers)), ruta=rv(get_idx(["RUTA"], column_headers)), buffer=rv(get_idx(["BUFFER"], column_headers)),
-                hilos=rv(get_idx(["HILOS"], column_headers)), parcheo=rv(get_idx(["PARCHEO"], column_headers)),
-                lambdas=rv(get_idx(["LAMBDAS"], column_headers)), distancia_cliente=rv(get_idx(["DISTANCIA CLIENTE"], column_headers)),
-                marca_cpe=rv(get_idx(["MARCA CPE"], column_headers)), modelo_cpe=rv(get_idx(["MODELO CPE"], column_headers)),
-                serie_cpe=rv(get_idx(["SERIE CPE"], column_headers)), fecha_entrega=rv(get_idx(["FECHA DE ENTREGA"], column_headers)),
-                serie_sfp_hub=rv(get_idx(["SERIE SFP HUB"], column_headers)), serie_sfp_client=rv(get_idx(["SERIE SFP CLIENTE"], column_headers)),
-                equipamiento=rv(get_idx(["EQUIPAMIENTO"], column_headers)), serie=rv(get_idx(["SERIE"], column_headers)), 
-                direccion=rv(get_idx(["DIRECCIÓN", "DIRECCION"], column_headers)), coordenadas=rv(get_idx(["COORDENADAS"], column_headers)), 
-                comentarios=rv(get_idx(["COMENTARIOS", "OBSERVACIONES"], column_headers)), contacto_nombre=rv(get_idx(["CONTACTO NOMBRE", "CONTACTO"], column_headers)), contacto_telefono=rv(get_idx(["CONTACTO TELEFONO", "TELEFONO"], column_headers))
+                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), estatus=status_val,
+                puerto=p_val, equipo_hotel_id=read_val(idx_equipo), ip_hub=read_val(idx_iphub), nombre_corto=read_val(idx_ncorto),
+                id_mca=read_val(idx_idmca), servicio=read_val(idx_serv), potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe),
+                tipo_servicio=read_val(idx_tserv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli),
+                bdi=read_val(idx_bdi), ruta=read_val(idx_ruta), buffer=read_val(idx_buff), hilos=read_val(idx_hilos), parcheo=read_val(idx_parch),
+                lambdas=read_val(idx_lamb), distancia_cliente=read_val(idx_dist), marca_cpe=read_val(idx_mcpe), modelo_cpe=read_val(idx_mocpe),
+                serie_cpe=read_val(idx_secpe), fecha_entrega=read_val(idx_fentre), serie_sfp_hub=read_val(idx_sfphub), serie_sfp_client=read_val(idx_sfpcli),
+                equipamiento=read_val(idx_equip), serie=read_val(idx_serie), direccion=read_val(idx_direccion), coordenadas=read_val(idx_coordenadas),
+                comentarios=read_val(idx_comentarios), contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono)
             ))
         db.commit()
         return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
-    except Exception as e: db.rollback(); return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+    except Exception as e: 
+        db.rollback()
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
+    finally:
+        file.file.close()
 
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
     try:
-        puertos = db.query(PortModel).filter(PortModel.hub_id == str(id_hub).strip()).all()
-        lista = [{c.name: getattr(p, c.name) for c in p.__table__.columns} for p in puertos]
-        total_disp = sum(1 for x in lista if str(x.get("estatus", "")).strip().upper() in ["DISPONIBLE GI", "DISPONIBLE TE"])
+        query_ports = db.query(PortModel).filter(PortModel.hub_id == str(id_hub).strip()).all()
+        puertos_lista = []
+        for p in query_ports:
+            puertos_lista.append({
+                "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto,
+                "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca,
+                "SERVICIO": p.servicio, "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio,
+                "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta,
+                "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, "DISTANCIA_CLIENTE": p.distancia_cliente,
+                "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega,
+                "SERIE_SFP_HUB": p.serie_sfp_hub, "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie,
+                "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,"CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono
+            })
+        
+        total_disp = sum(1 for x in puertos_lista if str(x["ESTATUS"]).strip().upper() in ["DISPONIBLE GI", "DISPONIBLE TE"])
+        
         return {
             "status": "success", "hub": id_hub, 
-            "resumen": { "total": len(lista), "disponibles": total_disp, "activos": sum(1 for x in lista if "ACTIVO" in str(x.get("estatus")).upper()), "suspendidos": sum(1 for x in lista if "SUSPENDIDO" in str(x.get("estatus")).upper()), "troncales": sum(1 for x in lista if "TRONCAL" in str(x.get("estatus")).upper()) }, 
-            "puertos": [{k.upper(): v for k, v in p.items()} for p in lista]
+            "resumen": {"total": len(puertos_lista), "disponibles": total_disp, "activos": sum(1 for x in puertos_lista if "ACTIVO" in str(x["ESTATUS"]).upper()), "suspendidos": sum(1 for x in puertos_lista if "SUSPENDIDO" in str(x["ESTATUS"]).upper()), "troncales": sum(1 for x in puertos_lista if "TRONCAL" in str(x["ESTATUS"]).upper())}, 
+            "puertos": puertos_lista
         }
     except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 @app.put("/api/ports/{port_id}")
 def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): raise HTTPException(status_code=403)
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
     if not db_port: raise HTTPException(status_code=404)
     for key, val in data.model_dump(exclude_unset=True).items(): 
-        attr_name = key.lower().replace("fecha_de_entrega", "fecha_entrega").replace("serie_sfp_cliente", "serie_sfp_client")
+        attr_name = key.lower()
+        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
+        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
         setattr(db_port, attr_name, val)
-    db.commit(); return {"status": "success"}
+    db.commit()
+    return {"status": "success"}
 
 @app.get("/api/ports/clients")
 def get_clients_status(db: Session = Depends(get_db)):
     try:
         activos = db.query(PortModel).filter(PortModel.estatus == "ACTIVO").all()
         suspendidos = db.query(PortModel).filter(PortModel.estatus == "SUSPENDIDO").all()
-        return {"status": "success", "activos": [{k.upper(): v for k, v in p.__dict__.items() if not k.startswith("_")} for p in activos], "suspendidos": [{k.upper(): v for k, v in p.__dict__.items() if not k.startswith("_")} for p in suspendidos]}
+        def port_to_dict(p):
+            return {
+                "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto,
+                "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca,
+                "SERVICIO": p.servicio, "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio,
+                "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta,
+                "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, "DISTANCIA_CLIENTE": p.distancia_cliente,
+                "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega,
+                "SERIE_SFP_HUB": p.serie_sfp_hub, "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie,
+                "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,"CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono
+            }
+        return {"status": "success", "activos": [port_to_dict(p) for p in activos], "suspendidos": [port_to_dict(p) for p in suspendidos]}
     except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 # ==============================================================================
-# ---> NUEVOS ENDPOINTS PARA CABEZALES <---
+# ---> ENDPOINTS PARA CABEZALES <---
 # ==============================================================================
 
 @app.get("/api/cabezales")
 def get_cabezales(db: Session = Depends(get_db)):
-    """Obtiene todos los cabezales y empareja sus alineaciones como un array interno."""
     try:
         cabezales = db.query(CabezalModel).all()
         alineaciones = db.query(AlineacionModel).all()
         
-        # Agrupar alineaciones por el ID del cabezal
         alineaciones_dict = {}
         for a in alineaciones:
             if a.cabezal_id not in alineaciones_dict: alineaciones_dict[a.cabezal_id] = []
@@ -461,7 +518,7 @@ def get_cabezales(db: Session = Depends(get_db)):
             resultado.append({
                 "id": c.id, "ciudad": c.ciudad, "servicio": c.servicio, 
                 "gestion_qam": c.gestion_qam, "marca": c.marca, "modelo": c.modelo, "serie": c.serie,
-                "alineacion": alineaciones_dict.get(c.id, []) # Añadir el arreglo de alineaciones
+                "alineacion": alineaciones_dict.get(c.id, [])
             })
             
         return {"status": "success", "data": resultado}
@@ -474,7 +531,6 @@ def upload_cabezales_excel(
     current_user: UserModel = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    """Sube un Excel masivo de cabezales y su alineación."""
     if not can_upload_excel(current_user): 
         raise HTTPException(status_code=403, detail="Permisos insuficientes")
         
@@ -485,7 +541,6 @@ def upload_cabezales_excel(
         contents = file.file.read()
         df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
         
-        # Buscar en qué fila están las columnas
         header_row_idx = 0
         for idx, row in df.iterrows():
             if "ID" in [str(cell).upper().strip() for cell in row.values]:
@@ -528,19 +583,17 @@ def upload_cabezales_excel(
             if idx_id >= len(vals): continue
             
             c_id = str(vals[idx_id]).strip()
-            if not c_id or c_id.upper() == "NAN": continue
+            if not c_id or c_id.upper() == "NAN" or c_id == "": continue
             
             def read_val(idx):
                 return "" if idx == -1 or idx >= len(vals) or str(vals[idx]).strip().upper() == "NAN" else str(vals[idx]).strip()
 
-            # Guardar/Sobrescribir datos del cabezal para asegurar que los metadatos principales se guarden
             cabezales_dict[c_id] = {
                 "ciudad": read_val(idx_ciudad), "servicio": read_val(idx_servicio),
                 "gestion_qam": read_val(idx_gqam), "marca": read_val(idx_marca),
                 "modelo": read_val(idx_modelo), "serie": read_val(idx_serie)
             }
             
-            # Si hay una portadora o canal o nombre de servicio en la fila, agregarlo a las alineaciones
             portadora = read_val(idx_port)
             canal = read_val(idx_can)
             n_servicio = read_val(idx_nserv)
@@ -552,12 +605,10 @@ def upload_cabezales_excel(
                     "source_ip": read_val(idx_src), "udp": read_val(idx_udp), "sid": read_val(idx_sid)
                 })
 
-        # Para los IDs presentes en el Excel, eliminamos sus datos antiguos para meter los nuevos (Upsert)
         for c_id in cabezales_dict.keys():
             db.query(AlineacionModel).filter(AlineacionModel.cabezal_id == c_id).delete()
             cabezal_db = db.query(CabezalModel).filter(CabezalModel.id == c_id).first()
             if cabezal_db:
-                # Update
                 cabezal_db.ciudad = cabezales_dict[c_id]["ciudad"]
                 cabezal_db.servicio = cabezales_dict[c_id]["servicio"]
                 cabezal_db.gestion_qam = cabezales_dict[c_id]["gestion_qam"]
@@ -565,10 +616,8 @@ def upload_cabezales_excel(
                 cabezal_db.modelo = cabezales_dict[c_id]["modelo"]
                 cabezal_db.serie = cabezales_dict[c_id]["serie"]
             else:
-                # Insert
                 db.add(CabezalModel(id=c_id, **cabezales_dict[c_id]))
 
-        # Insertar todas las alineaciones
         for a_data in alineaciones_list:
             db.add(AlineacionModel(**a_data))
 
@@ -577,11 +626,10 @@ def upload_cabezales_excel(
     
     except Exception as e:
         db.rollback()
-        import traceback
+        # Esto nos permite atrapar errores matemáticos o de base de datos extraños y mostrarlos completos en Render
         error_detallado = traceback.format_exc()
-        print(f"\n=== ERROR FATAL AL SUBIR EXCEL CABEZALES ===\n{error_detallado}\n============================================\n")
-        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
-
+        print(f"\n--- ERROR AL SUBIR EXCEL DE CABEZALES ---\n{error_detallado}\n---------------------------------------\n")
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo procesando Excel: {str(e)}"})
 
 if __name__ == "__main__":
     import uvicorn
