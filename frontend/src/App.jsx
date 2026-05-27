@@ -72,63 +72,63 @@ function App() {
           </div>
         </div>
 
-        {/* NAVEGACIÓN - ORDEN REQUERIDO */}
+        {/* NAVEGACIÓN - ICONOS 1PX MÁS GRANDES Y ALINEADOS */}
         <div className="flex bg-[#050814] p-1 rounded-xl border border-slate-800 flex-wrap justify-center gap-2.5">
           <button 
             onClick={() => setTabActiva('inventario')} 
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
           >
-            📋 Servicios Dedicados
+            <span className="text-[13px]">📋</span> Servicios Dedicados
           </button>
           
           {!esRnoc && (
             <button 
               onClick={() => setTabActiva('resumen')} 
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              📊 Disponibilidad de Puertos
+              <span className="text-[13px]">📊</span> Disponibilidad de Puertos
             </button>
           )}
 
           {/* TERCERA POSICIÓN ASIGNADA A CABEZALES */}
           <button 
             onClick={() => setTabActiva('cabezales')} 
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
           >
-            📡 Cabezales
+            <span className="text-[13px]">📡</span> Cabezales
           </button>
           
           {esAdmin && (
             <button 
               onClick={() => setTabActiva('geografia')} 
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'geografia' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'geografia' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              🌐 Configuración Red
+              <span className="text-[13px]">🌐</span> Configuración Red
             </button>
           )}
           
           {puedeCargar && (
             <button 
               onClick={() => setTabActiva('carga_excel')} 
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              📤 Carga Masiva
+              <span className="text-[13px]">📤</span> Carga Masiva
             </button>
           )}
 
           {esAdmin && (
             <button 
               onClick={() => setTabActiva('usuarios')} 
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'usuarios' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'usuarios' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              👥 Usuarios
+              <span className="text-[13px]">👥</span> Usuarios
             </button>
           )}
         </div>
 
         <button 
           onClick={handleLogout} 
-          className="p-2 bg-red-950/30 border border-red-900/40 rounded-lg text-red-400 hover:bg-red-900/50 cursor-pointer transition-colors"
+          className="p-2 bg-red-950/30 border border-red-900/40 rounded-lg text-red-400 hover:bg-red-900/50 cursor-pointer transition-colors flex shrink-0"
           title="Cerrar Sesión"
         >
           <LogOut className="w-4 h-4" />
