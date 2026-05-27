@@ -659,6 +659,12 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
         db.commit()
     return {"status": "success"}
 
+# ================= CONSTANTES DE ARCHIVOS =================
+MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
+ALLOWED_EXCEL_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel"
+}
 
 @app.post("/api/cabezales/upload-excel")
 async def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
