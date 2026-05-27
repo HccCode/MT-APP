@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, Edit, Trash2, Check, X } from 'lucide-react';
 
 export default function Cabezales({ token, handleLogout, puedeCargar }) {
   const [cabezales, setCabezales] = useState([]);
@@ -13,6 +13,10 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
   const [modalCarga, setModalCarga] = useState(false);
   const [archivo, setArchivo] = useState(null);
   const [statusCarga, setStatusCarga] = useState({ loading: false, msg: '', type: '' });
+
+  // ESTADOS PARA EDICIÓN EN LÍNEA
+  const [editandoId, setEditandoId] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const buscarCabezales = async () => {
     try {
@@ -75,6 +79,67 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
     }
   };
 
+  // FUNCIONES DE EDICIÓN Y ELIMINACIÓN
+  const iniciarEdicion = (cabezal) => {
+    setEditandoId(cabezal.id);
+    setEditForm({ ...cabezal });
+  };
+
+  const cancelarEdicion = () => {
+    setEditandoId(null);
+    setEditForm({});
+  };
+
+  const guardarEdicion = async (id) => {
+    try {
+      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          ciudad: editForm.ciudad,
+          id_equipo: editForm.id_equipo,
+          servicio: editForm.servicio,
+          gestion_qam: editForm.gestion_qam,
+          marca: editForm.marca,
+          modelo: editForm.modelo,
+          serie: editForm.serie
+        })
+      });
+      
+      if (res.ok) {
+        setEditandoId(null);
+        buscarCabezales(); // Refrescar datos
+      } else {
+        alert("Error al actualizar el cabezal. Verifica tus permisos.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Fallo de conexión al guardar.");
+    }
+  };
+
+  const eliminarCabezal = async (id) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este cabezal? Se borrará también toda su alineación de canales de forma permanente.")) return;
+    
+    try {
+      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        buscarCabezales();
+      } else {
+        alert("Error al eliminar el cabezal.");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     buscarCabezales();
   }, []);
@@ -95,7 +160,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
         )}
       </div>
 
-      {/* PANEL DE FILTROS */}
       <div className="flex gap-4 mb-4 bg-[#0b132b] p-4 rounded-lg border border-slate-800">
         <input 
           type="text" placeholder="Filtrar por ID de Equipo..." 
@@ -112,7 +176,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
         </button>
       </div>
 
-      {/* CONTENEDOR DE LA GRID */}
       <div className="flex-1 overflow-auto border border-slate-800 rounded-lg">
         <table className="w-full text-left text-sm text-slate-300">
           <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
@@ -125,27 +188,55 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
               <th className="p-4 border-b border-slate-700">MARCA</th>
               <th className="p-4 border-b border-slate-700">MODELO</th>
               <th className="p-4 border-b border-slate-700">SERIE</th>
+              {puedeCargar && <th className="p-4 border-b border-slate-700 text-center">ACCIONES</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-[#050814]">
             {cabezales.map(cab => (
-              <tr key={cab.id} className="hover:bg-slate-800/50 transition">
-                <td className="p-4 font-semibold text-white">{cab.ciudad}</td>
-                <td className="p-4 text-cyan-400 font-mono">{cab.id_equipo}</td>
-                <td className="p-4">{cab.servicio}</td>
-                <td className="p-4 text-center">
-                  <button onClick={() => verAlineacion(cab)} className="bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 px-3 py-1 rounded flex items-center gap-2 mx-auto hover:bg-indigo-600 hover:text-white transition-colors">
-                    <Eye className="w-4 h-4"/> Desplegar Canales
-                  </button>
-                </td>
-                <td className="p-4">{cab.gestion_qam || '---'}</td>
-                <td className="p-4">{cab.marca || '---'}</td>
-                <td className="p-4">{cab.modelo || '---'}</td>
-                <td className="p-4 font-mono text-xs">{cab.serie || '---'}</td>
-              </tr>
+              editandoId === cab.id ? (
+                /* FILA EN MODO EDICIÓN */
+                <tr key={cab.id} className="bg-slate-800/80">
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.ciudad || ''} onChange={e => setEditForm({...editForm, ciudad: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-cyan-400 font-mono text-xs" value={editForm.id_equipo || ''} onChange={e => setEditForm({...editForm, id_equipo: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.servicio || ''} onChange={e => setEditForm({...editForm, servicio: e.target.value})} /></td>
+                  <td className="p-2 text-center"><span className="text-slate-500 text-xs">Deshabilitado</span></td>
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.gestion_qam || ''} onChange={e => setEditForm({...editForm, gestion_qam: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.marca || ''} onChange={e => setEditForm({...editForm, marca: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.serie || ''} onChange={e => setEditForm({...editForm, serie: e.target.value})} /></td>
+                  <td className="p-2 text-center flex justify-center gap-3 mt-1">
+                    <button onClick={() => guardarEdicion(cab.id)} className="text-emerald-400 hover:text-emerald-300 transition" title="Guardar"><Check className="w-5 h-5"/></button>
+                    <button onClick={cancelarEdicion} className="text-red-400 hover:text-red-300 transition" title="Cancelar"><X className="w-5 h-5"/></button>
+                  </td>
+                </tr>
+              ) : (
+                /* FILA NORMAL (SOLO LECTURA) */
+                <tr key={cab.id} className="hover:bg-slate-800/50 transition">
+                  <td className="p-4 font-semibold text-white">{cab.ciudad}</td>
+                  <td className="p-4 text-cyan-400 font-mono">{cab.id_equipo}</td>
+                  <td className="p-4">{cab.servicio}</td>
+                  <td className="p-4 text-center">
+                    <button onClick={() => verAlineacion(cab)} className="bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 px-3 py-1 rounded flex items-center gap-2 mx-auto hover:bg-indigo-600 hover:text-white transition-colors">
+                      <Eye className="w-4 h-4"/> Desplegar Canales
+                    </button>
+                  </td>
+                  <td className="p-4">{cab.gestion_qam || '---'}</td>
+                  <td className="p-4">{cab.marca || '---'}</td>
+                  <td className="p-4">{cab.modelo || '---'}</td>
+                  <td className="p-4 font-mono text-xs">{cab.serie || '---'}</td>
+                  {puedeCargar && (
+                    <td className="p-4 text-center">
+                      <div className="flex justify-center gap-4">
+                        <button onClick={() => iniciarEdicion(cab)} className="text-blue-400 hover:text-blue-300 transition" title="Editar"><Edit className="w-4 h-4"/></button>
+                        <button onClick={() => eliminarCabezal(cab.id)} className="text-red-400 hover:text-red-300 transition" title="Eliminar"><Trash2 className="w-4 h-4"/></button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              )
             ))}
             {cabezales.length === 0 && (
-              <tr><td colSpan="8" className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda estructurados.</td></tr>
+              <tr><td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda.</td></tr>
             )}
           </tbody>
         </table>
@@ -157,7 +248,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
           <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h2 className="text-xl font-bold text-white mb-2">Procesar Archivo Maestro</h2>
             <p className="text-slate-400 text-xs mb-5 leading-relaxed">
-              El sistema estructurará el inventario analizando las columnas <span className="text-white font-mono">CIUDAD</span>, <span className="text-white font-mono">ID</span> y <span className="text-white font-mono">SERVICIO</span> contenidas dentro de cada fila del documento de manera unificada.
+              El sistema estructurará el inventario analizando las columnas <span className="text-white font-mono">CIUDAD</span>, <span className="text-white font-mono">ID</span> y <span className="text-white font-mono">SERVICIO</span> contenidas dentro de cada fila del documento.
             </p>
             <div className="space-y-4">
               <div className="border-2 border-dashed border-slate-700 rounded-xl p-4 text-center bg-[#050814]/50 hover:border-slate-500 transition relative">

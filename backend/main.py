@@ -268,6 +268,15 @@ class PortUpdate(BaseModel):
     CONTACTO_NOMBRE: str = None
     CONTACTO_TELEFONO: str = None
 
+    class CabezalUpdate(BaseModel):
+    id_equipo: str = None
+    ciudad: str = None
+    servicio: str = None
+    gestion_qam: str = None
+    marca: str = None
+    modelo: str = None
+    serie: str = None
+
 # SEED ADMINISTRADOR
 try:
     db_init = SessionLocal()
@@ -690,6 +699,31 @@ def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel
         db.rollback()
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error parseando el archivo maestro: {str(e)}"})
     finally: file.file.close()
+
+    @app.put("/api/cabezales/{cabezal_id}")
+def update_cabezal(cabezal_id: int, data: CabezalUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+        
+    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
+    if not cabezal: raise HTTPException(status_code=404)
+
+    for key, val in data.model_dump(exclude_unset=True).items(): 
+        setattr(cabezal, key, val)
+    db.commit()
+    return {"status": "success"}
+
+@app.delete("/api/cabezales/{cabezal_id}")
+def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+        
+    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
+    if cabezal:
+        db.delete(cabezal)
+        db.commit()
+    return {"status": "success"}
+    
 
 if __name__ == "__main__":
     import uvicorn
