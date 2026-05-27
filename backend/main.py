@@ -269,13 +269,13 @@ class PortUpdate(BaseModel):
     CONTACTO_TELEFONO: str = None
 
     class CabezalUpdate(BaseModel):
-    id_equipo: str = None
-    ciudad: str = None
-    servicio: str = None
-    gestion_qam: str = None
-    marca: str = None
-    modelo: str = None
-    serie: str = None
+    id_equipo: str = None    
+    ciudad: str = None    
+    servicio: str = None    
+    gestion_qam: str = None    
+    marca: str = None    
+    modelo: str = None    
+    serie: str = None    
 
 # SEED ADMINISTRADOR
 try:
@@ -723,7 +723,7 @@ def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_curren
         db.delete(cabezal)
         db.commit()
     return {"status": "success"}
-    
+
 
 if __name__ == "__main__":
     import uvicorn
