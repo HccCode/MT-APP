@@ -334,13 +334,38 @@ def upload_cabezales_excel(
             cabezal.ciudad = ciudad
             db.commit()
 
-        # Limpiamos alineación anterior de este cabezal
-        db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal.id).delete()
-        
         def get_index(targets):
             for t in targets:
                 if t in column_headers: return column_headers.index(t)
             return -1
+
+        # ================= NUEVO: LEER DATOS DEL EQUIPO =================
+        idx_gestion = get_index(["GESTION QAM", "GESTIÓN QAM"])
+        idx_marca = get_index(["MARCA"])
+        idx_modelo = get_index(["MODELO"])
+        idx_serie = get_index(["SERIE"])
+
+        # Tomamos los datos del equipo de la primera fila del Excel (si existen)
+        if len(df) > 0:
+            primera_fila = list(df.iloc[0].values)
+            def read_first(idx):
+                return str(primera_fila[idx]).strip() if idx != -1 and idx < len(primera_fila) else ""
+            
+            val_gestion = read_first(idx_gestion)
+            val_marca = read_first(idx_marca)
+            val_modelo = read_first(idx_modelo)
+            val_serie = read_first(idx_serie)
+
+            if val_gestion: cabezal.gestion_qam = val_gestion
+            if val_marca: cabezal.marca = val_marca
+            if val_modelo: cabezal.modelo = val_modelo
+            if val_serie: cabezal.serie = val_serie
+            
+            db.commit()
+
+        # ================= LEER DATOS DE ALINEACIÓN =================
+        # Limpiamos alineación anterior de este cabezal para evitar duplicados
+        db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal.id).delete()
 
         idx_portadora = get_index(["PORTADORA"])
         idx_formato = get_index(["FORMATO"])
@@ -356,25 +381,31 @@ def upload_cabezales_excel(
             def read_val(idx):
                 return str(vals[idx]).strip() if idx != -1 and idx < len(vals) else ""
             
-            db.add(AlineacionCabezalModel(
-                cabezal_id=cabezal.id,
-                portadora=read_val(idx_portadora),
-                formato=read_val(idx_formato),
-                canal_num=read_val(idx_canal),
-                nombre_canal=read_val(idx_nombre),
-                mcast_ip=read_val(idx_mcast),
-                source_ip=read_val(idx_source),
-                udp=read_val(idx_udp),
-                sid=read_val(idx_sid)
-            ))
+            # Solo agregar si hay datos de canal (evita filas en blanco)
+            canal_val = read_val(idx_canal)
+            nombre_val = read_val(idx_nombre)
+            
+            if canal_val or nombre_val:
+                db.add(AlineacionCabezalModel(
+                    cabezal_id=cabezal.id,
+                    portadora=read_val(idx_portadora),
+                    formato=read_val(idx_formato),
+                    canal_num=canal_val,
+                    nombre_canal=nombre_val,
+                    mcast_ip=read_val(idx_mcast),
+                    source_ip=read_val(idx_source),
+                    udp=read_val(idx_udp),
+                    sid=read_val(idx_sid)
+                ))
             
         db.commit()
-        return {"status": "success", "detail": "Cabezal y Alineación cargados exitosamente."}
+        return {"status": "success", "detail": "Datos del Cabezal y Alineación cargados exitosamente."}
     except Exception as e: 
         db.rollback()
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
     finally:
         file.file.close()
+
 
 if __name__ == "__main__":
     import uvicorn
