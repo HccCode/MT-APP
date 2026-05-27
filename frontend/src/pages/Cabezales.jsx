@@ -212,7 +212,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
             onClick={() => { setArchivo(null); setModalCarga(true); setStatusCarga({ loading: false, msg: '', type: '' }); }} 
             className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-white font-bold flex items-center gap-2 transition"
           >
-            <UploadCloud className="w-5 h-5" /> Importación Única Excel
+            <UploadCloud className="w-5 h-5" /> Importar Excel
           </button>
         )}
       </div>
