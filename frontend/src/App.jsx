@@ -78,7 +78,7 @@ function App() {
             onClick={() => setTabActiva('inventario')} 
             className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
           >
-            <span className="text-[13px]">📋</span> Servicios Dedicados
+            <span className="text-[16px]">📋</span> Servicios Dedicados
           </button>
           
           {!esRnoc && (
@@ -86,7 +86,7 @@ function App() {
               onClick={() => setTabActiva('resumen')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[13px]">📊</span> Disponibilidad de Puertos
+              <span className="text-[16px]">📊</span> Disponibilidad de Puertos
             </button>
           )}
 
@@ -95,7 +95,7 @@ function App() {
             onClick={() => setTabActiva('cabezales')} 
             className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
           >
-            <span className="text-[13px]">📡</span> Cabezales
+            <span className="text-[16px]">📡</span> Cabezales
           </button>
           
           {esAdmin && (
@@ -103,7 +103,7 @@ function App() {
               onClick={() => setTabActiva('geografia')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'geografia' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[13px]">🌐</span> Configuración Red
+              <span className="text-[16px]">🌐</span> Configuración Red
             </button>
           )}
           
@@ -112,7 +112,7 @@ function App() {
               onClick={() => setTabActiva('carga_excel')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[13px]">📤</span> Carga Masiva
+              <span className="text-[16px]">📤</span> Carga Masiva
             </button>
           )}
 
@@ -121,7 +121,7 @@ function App() {
               onClick={() => setTabActiva('usuarios')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'usuarios' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[13px]">👥</span> Usuarios
+              <span className="text-[16px]">👥</span> Usuarios
             </button>
           )}
         </div>
