@@ -219,12 +219,12 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
 
       <div className="flex gap-4 mb-4 bg-[#0b132b] p-4 rounded-lg border border-slate-800">
         <input 
-          type="text" placeholder="Filtrar por ID de Equipo..." 
+          type="text" placeholder="Filtrar por ID" 
           className="bg-[#050814] border border-slate-700 text-white rounded px-3 py-2 text-sm w-48 focus:border-cyan-500 outline-none"
           value={filtroId} onChange={(e) => setFiltroId(e.target.value)}
         />
         <input 
-          type="text" placeholder="Filtrar por Ciudad..." 
+          type="text" placeholder="Filtrar por Ciudad" 
           className="bg-[#050814] border border-slate-700 text-white rounded px-3 py-2 text-sm w-48 focus:border-cyan-500 outline-none"
           value={filtroCiudad} onChange={(e) => setFiltroCiudad(e.target.value)}
         />
