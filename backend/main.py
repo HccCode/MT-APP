@@ -514,8 +514,6 @@ def upload_cabezales_excel(
         contents = file.file.read()
         df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
         
-        # Convertimos el DataFrame a una lista de listas nativa de Python
-        # Esto evita el problema de AttributeError y lee el Excel sin importar el formato visual
         data_matrix = df.values.tolist()
         
         if not data_matrix:
@@ -557,6 +555,7 @@ def upload_cabezales_excel(
 
         cabezales_dict = {}
         alineaciones_list = []
+        ids_con_alineaciones = set() # <--- Para proteger canales existentes
 
         for vals in data_rows:
             if idx_id >= len(vals): continue
@@ -567,36 +566,55 @@ def upload_cabezales_excel(
             def read_val(idx):
                 return "" if idx == -1 or idx >= len(vals) or str(vals[idx]).strip().upper() == "NAN" else str(vals[idx]).strip()
 
-            cabezales_dict[c_id] = {
-                "ciudad": read_val(idx_ciudad), "servicio": read_val(idx_servicio),
-                "gestion_qam": read_val(idx_gqam), "marca": read_val(idx_marca),
-                "modelo": read_val(idx_modelo), "serie": read_val(idx_serie)
-            }
+            # Guardamos lo que viene en el Excel. Si el ID tiene múltiples filas, consolidamos los datos no vacíos
+            if c_id not in cabezales_dict:
+                cabezales_dict[c_id] = {
+                    "ciudad": read_val(idx_ciudad), "servicio": read_val(idx_servicio),
+                    "gestion_qam": read_val(idx_gqam), "marca": read_val(idx_marca),
+                    "modelo": read_val(idx_modelo), "serie": read_val(idx_serie)
+                }
+            else:
+                if read_val(idx_ciudad): cabezales_dict[c_id]["ciudad"] = read_val(idx_ciudad)
+                if read_val(idx_servicio): cabezales_dict[c_id]["servicio"] = read_val(idx_servicio)
+                if read_val(idx_gqam): cabezales_dict[c_id]["gestion_qam"] = read_val(idx_gqam)
+                if read_val(idx_marca): cabezales_dict[c_id]["marca"] = read_val(idx_marca)
+                if read_val(idx_modelo): cabezales_dict[c_id]["modelo"] = read_val(idx_modelo)
+                if read_val(idx_serie): cabezales_dict[c_id]["serie"] = read_val(idx_serie)
             
             portadora = read_val(idx_port)
             canal = read_val(idx_can)
             n_servicio = read_val(idx_nserv)
             
+            # Si la fila trae datos de canal, la agregamos a la lista
             if portadora or canal or n_servicio:
+                ids_con_alineaciones.add(c_id) # Registramos que este ID trae canales en el Excel
                 alineaciones_list.append({
                     "cabezal_id": c_id, "portadora": portadora, "formato": read_val(idx_form),
                     "canal": canal, "nombre_servicio": n_servicio, "mcast_ip": read_val(idx_mcast),
                     "source_ip": read_val(idx_src), "udp": read_val(idx_udp), "sid": read_val(idx_sid)
                 })
 
-        for c_id in cabezales_dict.keys():
-            db.query(AlineacionModel).filter(AlineacionModel.cabezal_id == c_id).delete()
+        # ================= ACTUALIZACIÓN INTELIGENTE =================
+        for c_id, datos_excel in cabezales_dict.items():
             cabezal_db = db.query(CabezalModel).filter(CabezalModel.id == c_id).first()
+            
             if cabezal_db:
-                cabezal_db.ciudad = cabezales_dict[c_id]["ciudad"]
-                cabezal_db.servicio = cabezales_dict[c_id]["servicio"]
-                cabezal_db.gestion_qam = cabezales_dict[c_id]["gestion_qam"]
-                cabezal_db.marca = cabezales_dict[c_id]["marca"]
-                cabezal_db.modelo = cabezales_dict[c_id]["modelo"]
-                cabezal_db.serie = cabezales_dict[c_id]["serie"]
+                # 1. SI YA EXISTE: Solo actualizamos si el Excel NO viene vacío
+                if datos_excel["ciudad"]: cabezal_db.ciudad = datos_excel["ciudad"]
+                if datos_excel["servicio"]: cabezal_db.servicio = datos_excel["servicio"]
+                if datos_excel["gestion_qam"]: cabezal_db.gestion_qam = datos_excel["gestion_qam"]
+                if datos_excel["marca"]: cabezal_db.marca = datos_excel["marca"]
+                if datos_excel["modelo"]: cabezal_db.modelo = datos_excel["modelo"]
+                if datos_excel["serie"]: cabezal_db.serie = datos_excel["serie"]
             else:
-                db.add(CabezalModel(id=c_id, **cabezales_dict[c_id]))
+                # 2. SI NO EXISTE: Se crea completamente nuevo
+                db.add(CabezalModel(id=c_id, **datos_excel))
 
+            # 3. CANALES: Solo borramos los previos si el Excel traía canales nuevos
+            if c_id in ids_con_alineaciones:
+                db.query(AlineacionModel).filter(AlineacionModel.cabezal_id == c_id).delete()
+
+        # Insertamos todas las alineaciones leídas
         for a_data in alineaciones_list:
             db.add(AlineacionModel(**a_data))
 
@@ -609,6 +627,7 @@ def upload_cabezales_excel(
         error_detallado = traceback.format_exc()
         print(f"\n--- ERROR AL SUBIR EXCEL DE CABEZALES ---\n{error_detallado}\n---------------------------------------\n")
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo procesando Excel: {str(e)}"})
+        
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
