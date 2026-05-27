@@ -7,7 +7,7 @@ import Resumen from './pages/Resumen';
 import Geografia from './pages/Geografia';
 import CargaExcel from './pages/CargaExcel';
 import Usuarios from './pages/Usuarios';
-import Cabezales from './pages/Cabezales'; // NUEVA IMPORTACIÓN
+import Cabezales from './pages/Cabezales';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
@@ -43,7 +43,6 @@ function App() {
       });
       if (res.status === 401) { handleLogout(); return; }
       if (!res.ok) return;
-
       const data = await res.json(); 
       setEstructuraGeografica(data);
     } catch (e) { console.error(e); }
@@ -60,7 +59,7 @@ function App() {
   return (
     <div className="h-screen w-screen bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
-      {/* NAVBAR */}
+      {/* NAVBAR GLOBAL */}
       <header className="bg-[#0b132b] border-b border-slate-800 px-6 py-4 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20">
@@ -73,6 +72,7 @@ function App() {
           </div>
         </div>
 
+        {/* NAVEGACIÓN - ORDEN REQUERIDO */}
         <div className="flex bg-[#050814] p-1 rounded-xl border border-slate-800 flex-wrap justify-center gap-2.5">
           <button 
             onClick={() => setTabActiva('inventario')} 
@@ -86,19 +86,18 @@ function App() {
               onClick={() => setTabActiva('resumen')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              📊 Disponibilidad
+              📊 Disponibilidad de Puertos
             </button>
           )}
-          
-           {/* BOTÓN PARA CABEZALES */}
+
+          {/* TERCERA POSICIÓN ASIGNADA A CABEZALES */}
           <button 
             onClick={() => setTabActiva('cabezales')} 
             className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
           >
             📡 Cabezales
           </button>
-
-
+          
           {esAdmin && (
             <button 
               onClick={() => setTabActiva('geografia')} 
@@ -136,14 +135,12 @@ function App() {
         </button>
       </header>
 
-      {/* CONTENEDOR CENTRAL */}
+      {/* ÁREA DE CONTENIDO */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        
         {tabActiva === 'inventario' && (
           <Inventario token={token} usuario={usuario} puedeEditar={puedeEditar} esRnoc={esRnoc} esMcmNoc={esMcmNoc} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
 
-        {/* NUEVA VISTA PARA CABEZALES */}
         {tabActiva === 'cabezales' && (
           <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} />
         )}
@@ -163,7 +160,6 @@ function App() {
         {tabActiva === 'usuarios' && esAdmin && (
           <Usuarios token={token} usuario={usuario} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
-
       </div>
     </div>
   );
