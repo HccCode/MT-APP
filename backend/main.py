@@ -160,7 +160,6 @@ class ConfigCiudadModel(Base):
     ciudad_nombre = Column(String(100), primary_key=True, index=True)
     ancho_banda_total = Column(String(50), nullable=True)
 
-# Crea todas las tablas en la Base de Datos
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -179,7 +178,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None: raise credentials_exception
     return user
 
-# ================= RUTINAS DE VALIDACIÓN DE ROLES MULTI-SELECCIÓN =================
 def is_admin(user: UserModel):
     roles = [r.strip().upper() for r in str(user.role).split(",")]
     return user.username.lower() == "admin" or "ADMIN" in roles
@@ -297,14 +295,12 @@ class AlineacionUpdate(BaseModel):
 class ConfigCiudadUpdate(BaseModel):
     ancho_banda_total: str
 
-# ================= CONSTANTES DE VALIDACIÓN EXCEL =================
 MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
 ALLOWED_EXCEL_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.ms-excel"
 }
 
-# SEED ADMINISTRADOR AUTOMÁTICO
 try:
     db_init = SessionLocal()
     if db_init.query(UserModel).count() == 0:
@@ -393,27 +389,44 @@ def delete_user_profile(user_id: int, current_user: UserModel = Depends(get_curr
 @app.get("/api/geography")
 def get_geography_tree(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        ids_permitidos = None if current_user.plazas == "*" else [x.strip().upper() for x in current_user.plazas.split(",") if x.strip()]
+        # LOS ADMINISTRADORES IGNORAN LAS RESTRICCIONES DE PLAZA Y VEN TODA LA RED
+        if is_admin(current_user) or current_user.plazas == "*":
+            ids_permitidos = None
+        else:
+            ids_permitidos = [x.strip().upper() for x in current_user.plazas.split(",") if x.strip()]
+            
         regiones = db.query(RegionModel).all()
         query_ciudades = db.query(CityModel)
-        if ids_permitidos is not None: query_ciudades = query_ciudades.filter(CityModel.id.in_(ids_permitidos))
+        
+        if ids_permitidos is not None: 
+            query_ciudades = query_ciudades.filter(CityModel.id.in_(ids_permitidos))
+            
         ciudades = query_ciudades.all()
         ids_ciudades_filtradas = [c.id for c in ciudades]
+        
         hubs = []
-        if ids_ciudades_filtradas: hubs = db.query(HubMappingModel).filter(HubMappingModel.ciudad_id.in_(ids_ciudades_filtradas)).all()
+        if ids_ciudades_filtradas or ids_permitidos is None:
+            query_hubs = db.query(HubMappingModel)
+            if ids_permitidos is not None:
+                query_hubs = query_hubs.filter(HubMappingModel.ciudad_id.in_(ids_ciudades_filtradas))
+            hubs = query_hubs.all()
+            
         hubs_por_ciudad = {}
         for h in hubs:
             if h.ciudad_id not in hubs_por_ciudad: hubs_por_ciudad[h.ciudad_id] = []
             hubs_por_ciudad[h.ciudad_id].append({"id": h.id, "nombre": h.nombre, "direccion": h.direccion, "coordenadas": h.coordenadas})
+            
         ciudades_por_region = {}
         for c in ciudades:
             if c.region_id not in ciudades_por_region: ciudades_por_region[c.region_id] = []
             ciudades_por_region[c.region_id].append({"id": c.id, "nombre": c.nombre, "hubs": hubs_por_ciudad.get(c.id, [])})
+            
         tree = {}
         for r in regiones:
             ciudades_region = ciudades_por_region.get(r.id, [])
             if ids_permitidos is not None and not ciudades_region: continue
             tree[r.nombre] = {"id": r.id, "ciudades": {c["nombre"]: {"id": c["id"], "hubs": c["hubs"]} for c in ciudades_region}}
+            
         return tree
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error leyendo topología: {str(e)}"})
@@ -423,11 +436,9 @@ def create_region(data: GeographyRegionCreate, current_user: UserModel = Depends
     if not is_admin(current_user): 
         raise HTTPException(status_code=403, detail="Permisos insuficientes")
     
-    # --- NUEVA VALIDACIÓN: Verificar si la región ya existe ---
     region_existente = db.query(RegionModel).filter(RegionModel.nombre == data.nombre.strip()).first()
     if region_existente:
         raise HTTPException(status_code=400, detail=f"La región '{data.nombre}' ya se encuentra registrada.")
-    # ----------------------------------------------------------
 
     nueva = RegionModel(nombre=data.nombre.strip())
     db.add(nueva)
@@ -463,7 +474,6 @@ def create_city(data: GeographyCityCreate, current_user: UserModel = Depends(get
     if not is_admin(current_user): 
         return JSONResponse(status_code=200, content={"status": "error", "detail": "Permisos insuficientes"})
     
-    # En lugar de usar "raise HTTPException(status_code=400...", devolvemos un 200 simulado
     if db.query(CityModel).filter(CityModel.id == data.id.upper().strip()).first(): 
         return JSONResponse(status_code=200, content={"status": "error", "detail": "El ID de Ciudad ya se encuentra registrado."})
     
