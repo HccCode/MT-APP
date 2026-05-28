@@ -155,12 +155,12 @@ class AlineacionCabezalModel(Base):
     udp = Column(String(50), nullable=True)
     sid = Column(String(50), nullable=True)
 
-# NUEVO MODELO PARA GUARDAR ANCHO DE BANDA POR CIUDAD CORRECTAMENTE INDENTADO
 class ConfigCiudadModel(Base):
     __tablename__ = "config_ciudades"
     ciudad_nombre = Column(String(100), primary_key=True, index=True)
     ancho_banda_total = Column(String(50), nullable=True)
 
+# Crea todas las tablas en la Base de Datos
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -179,6 +179,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None: raise credentials_exception
     return user
 
+# ================= RUTINAS DE VALIDACIÓN DE ROLES MULTI-SELECCIÓN =================
 def is_admin(user: UserModel):
     roles = [r.strip().upper() for r in str(user.role).split(",")]
     return user.username.lower() == "admin" or "ADMIN" in roles
@@ -296,6 +297,14 @@ class AlineacionUpdate(BaseModel):
 class ConfigCiudadUpdate(BaseModel):
     ancho_banda_total: str
 
+# ================= CONSTANTES DE VALIDACIÓN EXCEL =================
+MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
+ALLOWED_EXCEL_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel"
+}
+
+# SEED ADMINISTRADOR AUTOMÁTICO
 try:
     db_init = SessionLocal()
     if db_init.query(UserModel).count() == 0:
@@ -310,8 +319,9 @@ try:
         db_init.commit()
     db_init.close()
 except Exception as e:
-    print("Nota: El seed falló:", e)
+    print("Nota: Semilla de administrador omitida:", e)
 
+# ================= INICIALIZACIÓN API =================
 app = FastAPI(title="MT_DB Enterprise API")
 
 app.add_middleware(
@@ -322,6 +332,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
+# ================= RUTAS DE AUTENTICACIÓN Y USUARIOS =================
 @app.post("/api/auth/login")
 def login(data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.username == data.username).first()
@@ -378,6 +389,7 @@ def delete_user_profile(user_id: int, current_user: UserModel = Depends(get_curr
     db.commit()
     return {"status": "success"}
 
+# ================= TOPOLOGÍA DE RED Y GEOGRAFÍA =================
 @app.get("/api/geography")
 def get_geography_tree(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
@@ -492,97 +504,7 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
         db.commit()
     return {"status": "success"}
 
-MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
-ALLOWED_EXCEL_MIME_TYPES = {
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel"
-}
-
-@app.post("/api/hubs/upload-excel")
-async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    filename = file.filename or ""
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
-        return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido."})
-    try:
-        contents = await file.read()
-        if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera los 5MB."})
-        df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
-        header_row_idx = 0
-        for idx, row in df.iterrows():
-            if "PUERTO" in [str(cell).upper().strip() for cell in row.values]:
-                header_row_idx = idx
-                break
-        column_headers = [str(cell).upper().strip() for cell in df.iloc[header_row_idx].values]
-        df_data = df.iloc[header_row_idx + 1:]
-        hub_cfg = db.query(HubMappingModel).filter(HubMappingModel.id == str(id_hub).upper().strip()).first()
-        if not hub_cfg: return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
-        ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
-        region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
-        def get_index(targets, headers):
-            for t in targets:
-                if t in headers: return headers.index(t)
-            return -1
-        idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
-        idx_puerto = get_index(["PUERTO"], column_headers)
-        idx_equipo = get_index(["EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID"], column_headers)
-        idx_iphub = get_index(["IP HUB", "IP_HUB"], column_headers)
-        idx_ncorto = get_index(["NOMBRE CORTO", "NOMBRE_CORTO"], column_headers)
-        idx_idmca = get_index(["ID MCA", "ID_MCA"], column_headers)
-        idx_serv = get_index(["SERVICIO"], column_headers)
-        idx_pothub = get_index(["POTENCIA HUB", "POTENCIA_HUB"], column_headers)
-        idx_potcpe = get_index(["POTENCIA CPE", "POTENCIA_CPE"], column_headers)
-        idx_tserv = get_index(["TIPO SERVICIO", "TIPO_SERVICIO"], column_headers)
-        idx_mbps = get_index(["MBPS"], column_headers)
-        idx_ipgest = get_index(["IP GESTION", "IP_GESTION"], column_headers)
-        idx_ipcli = get_index(["IP CLIENTE", "IP_CLIENTE"], column_headers)
-        idx_bdi = get_index(["BDI"], column_headers)
-        idx_ruta = get_index(["RUTA"], column_headers)
-        idx_buff = get_index(["BUFFER"], column_headers)
-        idx_hilos = get_index(["HILOS"], column_headers)
-        idx_parch = get_index(["PARCHEO"], column_headers)
-        idx_lamb = get_index(["LAMBDAS"], column_headers)
-        idx_dist = get_index(["DISTANCIA CLIENTE", "DISTANCIA"], column_headers)
-        idx_mcpe = get_index(["MARCA CPE", "MARCA_CPE"], column_headers)
-        idx_mocpe = get_index(["MODELO CPE", "MODELO_CPE"], column_headers)
-        idx_secpe = get_index(["SERIE CPE", "SERIE_CPE"], column_headers)
-        idx_fentre = get_index(["FECHA DE ENTREGA", "FECHA_ENTREGA"], column_headers)
-        idx_sfphub = get_index(["SERIE SFP HUB", "SERIE_SFP_HUB"], column_headers)
-        idx_sfpcli = get_index(["SERIE SFP CLIENTE", "SERIE_SFP_CLIENTE"], column_headers)
-        idx_equip = get_index(["EQUIPAMIENTO"], column_headers)
-        idx_serie = get_index(["SERIE"], column_headers)
-        idx_direccion = get_index(["DIRECCIÓN", "DIRECCION"], column_headers)  
-        idx_coordenadas = get_index(["COORDENADAS", "COORDENADA"], column_headers)  
-        idx_comentarios = get_index(["COMENTARIOS", "OBSERVACIONES"], column_headers)
-        idx_contacto_nombre = get_index(["CONTACTO NOMBRE", "NOMBRE CONTACTO", "CONTACTO"], column_headers)
-        idx_contacto_telefono = get_index(["CONTACTO TELEFONO", "TELEFONO CONTACTO", "TELEFONO", "TELÉFONO"], column_headers)
-
-        if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
-        db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
-        
-        for _, row in df_data.iterrows():
-            vals = list(row.values)
-            if idx_puerto >= len(vals): continue
-            p_val = str(vals[idx_puerto]).strip()
-            if not p_val or p_val.upper() == "NAN" or p_val == "": continue
-            def read_val(idx):
-                if idx != -1 and idx < len(vals):
-                    s = str(vals[idx]).strip()
-                    return "" if s.upper() == "NAN" else s
-                return ""
-            status_raw = read_val(idx_status).upper()
-            status_val = status_raw if status_raw else "DISPONIBLE GI"
-
-            db.add(PortModel(
-                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), estatus=status_val, puerto=p_val, equipo_hotel_id=read_val(idx_equipo), ip_hub=read_val(idx_iphub), nombre_corto=read_val(idx_ncorto), id_mca=read_val(idx_idmca), servicio=read_val(idx_serv), potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), tipo_servicio=read_val(idx_tserv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), ruta=read_val(idx_ruta), buffer=read_val(idx_buff), hilos=read_val(idx_hilos), parcheo=read_val(idx_parch), lambdas=read_val(idx_lamb), distancia_cliente=read_val(idx_dist), marca_cpe=read_val(idx_mcpe), modelo_cpe=read_val(idx_mocpe), serie_cpe=read_val(idx_secpe), fecha_entrega=read_val(idx_fentre), serie_sfp_hub=read_val(idx_sfphub), serie_sfp_client=read_val(idx_sfpcli), equipamiento=read_val(idx_equip), serie=read_val(idx_serie), direccion=read_val(idx_direccion), coordenadas=read_val(idx_coordenadas), comentarios=read_val(idx_comentarios), contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono)
-            ))
-        db.commit()
-        return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
-    except Exception as e:
-        try: db.rollback() 
-        except: pass
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
-
+# ================= INTERFAZ DE PUERTOS (SERVICIOS DEDICADOS) =================
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
     try:
@@ -613,16 +535,66 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
     db.commit()
     return {"status": "success"}
 
-@app.get("/api/ports/clients")
-def get_clients_status(db: Session = Depends(get_db)):
+@app.post("/api/hubs/upload-excel")
+async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    filename = file.filename or ""
+    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
+        return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido."})
     try:
-        activos = db.query(PortModel).filter(PortModel.estatus == "ACTIVO").all()
-        suspendidos = db.query(PortModel).filter(PortModel.estatus == "SUSPENDIDO").all()
-        def port_to_dict(p):
-            return {"ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto, "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca, "SERVICIO": p.servicio, "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio, "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta, "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, "DISTANCIA_CLIENTE": p.distancia_cliente, "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, "SERIE_SFP_HUB": p.serie_sfp_hub, "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie, "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,"CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono}
-        return {"status": "success", "activos": [port_to_dict(p) for p in activos], "suspendidos": [port_to_dict(p) for p in suspendidos]}
-    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+        contents = await file.read()
+        if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera los 5MB."})
+        df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
+        header_row_idx = 0
+        for idx, row in df.iterrows():
+            if "PUERTO" in [str(cell).upper().strip() for cell in row.values]:
+                header_row_idx = idx
+                break
+        column_headers = [str(cell).upper().strip() for cell in df.iloc[header_row_idx].values]
+        df_data = df.iloc[header_row_idx + 1:]
+        hub_cfg = db.query(HubMappingModel).filter(HubMappingModel.id == str(id_hub).upper().strip()).first()
+        if not hub_cfg: return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
+        ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
+        region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
+        
+        def get_index(targets, headers):
+            for t in targets:
+                if t in headers: return headers.index(t)
+            return -1
 
+        idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
+        idx_puerto = get_index(["PUERTO"], column_headers)
+        idx_equipo = get_index(["EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID"], column_headers)
+        idx_iphub = get_index(["IP HUB", "IP_HUB"], column_headers)
+        idx_serv = get_index(["SERVICIO"], column_headers)
+        idx_mbps = get_index(["MBPS"], column_headers)
+        idx_ipgest = get_index(["IP GESTION", "IP_GESTION"], column_headers)
+        idx_ipcli = get_index(["IP CLIENTE", "IP_CLIENTE"], column_headers)
+        idx_bdi = get_index(["BDI"], column_headers)
+        idx_potcpe = get_index(["POTENCIA CPE"], column_headers)
+        idx_pothub = get_index(["POTENCIA HUB"], column_headers)
+
+        if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
+        db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
+        
+        for _, row in df_data.iterrows():
+            vals = list(row.values)
+            if idx_puerto >= len(vals): continue
+            p_val = str(vals[idx_puerto]).strip()
+            if not p_val or p_val.upper() == "NAN" or p_val == "": continue
+            def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
+            
+            db.add(PortModel(
+                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe)
+            ))
+        db.commit()
+        return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
+    except Exception as e:
+        try: db.rollback() 
+        except: pass
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
+
+# ================= ENDPOINTS EXCLUSIVOS: SECCIÓN CABEZALES =================
 @app.get("/api/cabezales")
 def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depends(get_db)):
     query = db.query(CabezalModel)
@@ -696,7 +668,6 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         idx_marca = get_idx(["MARCA"])
         idx_modelo = get_idx(["MODELO"])
         idx_serie = get_idx(["SERIE"])
-        
         idx_portadora = get_idx(["PORTADORA"])
         idx_formato = get_idx(["FORMATO"])
         idx_canal = get_idx(["# CANAL", "CANAL NUM", "CANAL"])
@@ -707,7 +678,7 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         idx_sid = get_idx(["SID"])
 
         if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1:
-            return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe contener obligatoriamente las columnas: 'CIUDAD', 'ID' y 'SERVICIO'."})
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes."})
 
         cabezales_procesados = set()
 
@@ -736,7 +707,6 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
                 if idx_modelo != -1: cabezal.modelo = read_val(idx_modelo)
                 if idx_serie != -1: cabezal.serie = read_val(idx_serie)
                 db.commit()
-
                 db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal.id).delete()
                 db.commit()
                 cabezales_procesados.add(cabezal_key)
@@ -750,33 +720,24 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
                     source_ip=read_val(idx_source), udp=read_val(idx_udp), sid=read_val(idx_sid)
                 ))
         db.commit()
-        return {"status": "success", "detail": f"Proceso completado. Se estructuraron {len(cabezales_procesados)} cabezales."}
+        return {"status": "success", "detail": f"Proceso completado. {len(cabezales_procesados)} cabezales."}
     except Exception as e:
         try: db.rollback() 
         except: pass
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error interno importando archivo: {str(e)}"})
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}"})
 
-# ================= ENDPOINTS CONFIGURACIÓN CIUDADES =================
+# ================= ENDPOINTS ANCHO DE BANDA CIUDADES =================
 @app.get("/api/config-ciudades/{ciudad_nombre}")
 def get_config_ciudad(ciudad_nombre: str, db: Session = Depends(get_db)):
     config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
-    if config:
-        return {"status": "success", "data": {"ancho_banda_total": config.ancho_banda_total}}
-    else:
-        return {"status": "success", "data": {"ancho_banda_total": None}}
+    return {"status": "success", "data": {"ancho_banda_total": config.ancho_banda_total if config else None}}
 
 @app.put("/api/config-ciudades/{ciudad_nombre}")
 def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
-    if config:
-        config.ancho_banda_total = data.ancho_banda_total
-    else:
-        nueva_config = ConfigCiudadModel(ciudad_nombre=ciudad_nombre, ancho_banda_total=data.ancho_banda_total)
-        db.add(nueva_config)
-    
+    if config: config.ancho_banda_total = data.ancho_banda_total
+    else: db.add(ConfigCiudadModel(ciudad_nombre=ciudad_nombre, ancho_banda_total=data.ancho_banda_total))
     db.commit()
     return {"status": "success"}
 
