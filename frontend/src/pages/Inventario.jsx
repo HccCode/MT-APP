@@ -201,16 +201,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto custom-scrollbar">
-            {/* SE AÑADIÓ MIN-W-MAX Y WHITESPACE-NOWRAP PARA MOSTRAR TODO SIN ENCIMAR */}
-            <table className="min-w-max w-full text-xs text-slate-300 text-left border-collapse whitespace-nowrap">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <table className="w-full text-xs text-slate-300 text-left border-collapse table-fixed">
               <thead className="bg-[#0b132b] text-slate-400 uppercase font-bold sticky top-0 border-b border-slate-800 z-10">
-                <tr>
-                  <th className="p-3">ESTATUS</th>
-                  <th className="p-3">INTERFAZ</th>
-                  <th className="p-3">EQUIPO ID</th>
-                  <th className="p-3">SERVICIO</th>
-                </tr>
+                <tr><th className="p-3 w-32">ESTATUS</th><th className="p-3 w-40">INTERFAZ</th><th className="p-3 w-56">EQUIPO ID</th><th className="p-3">SERVICIO</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
                 {cargando ? <tr><td colSpan="4" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
@@ -230,13 +224,14 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                           {p.ESTATUS}
                         </span>
                       </td>
-                      {/* SE REMOVIERON LOS TRUNCATE DE LAS CELDAS PARA MOSTRAR TODO */}
-                      <td className="p-3 font-mono text-white">{p.PUERTO}</td>
-                      <td className="p-3 text-slate-400 font-mono">
+                      <td className="p-3 font-mono text-white truncate">{p.PUERTO}</td>
+                      <td className="p-3 text-slate-400 font-mono truncate">
                         {p.EQUIPO_HOTEL_ID || '-'}
-                        {/* SE ELIMINÓ EL TEXTO DE NODO/HUB_PERTENENCIA */}
+                        {inventarioHub === 'TODOS' && p.HUB_PERTENENCIA && (
+                          <div className="text-[9px] text-blue-400 mt-0.5 font-bold">NODO: {p.HUB_PERTENENCIA}</div>
+                        )}
                       </td>
-                      <td className="p-3 text-slate-200 font-medium">{p.SERVICIO || '-'}</td>
+                      <td className="p-3 text-slate-200 truncate font-medium">{p.SERVICIO || '-'}</td>
                     </tr>
                   );
                 })}
