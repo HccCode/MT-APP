@@ -156,6 +156,11 @@ class AlineacionCabezalModel(Base):
     udp = Column(String(50), nullable=True)
     sid = Column(String(50), nullable=True)
 
+    class ConfigCiudadModel(Base):
+    __tablename__ = "config_ciudades"
+    ciudad_nombre = Column(String(100), primary_key=True, index=True)
+    ancho_banda_total = Column(String(50), nullable=True) # Guardará el string, ej: "40G", "100G"
+
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -287,6 +292,9 @@ class AlineacionUpdate(BaseModel):
     source_ip: str = None
     udp: str = None
     sid: str = None
+
+    class ConfigCiudadUpdate(BaseModel):
+    ancho_banda_total: str
 
 try:
     db_init = SessionLocal()
@@ -747,6 +755,34 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         try: db.rollback() 
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error interno importando archivo: {str(e)}"})
+
+        # ================= ENDPOINTS CONFIGURACIÓN CIUDADES =================
+@app.get("/api/config-ciudades/{ciudad_nombre}")
+def get_config_ciudad(ciudad_nombre: str, db: Session = Depends(get_db)):
+    config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
+    if config:
+        return {"status": "success", "data": {"ancho_banda_total": config.ancho_banda_total}}
+    else:
+        # Si no existe, devolvemos un valor por defecto que el frontend pueda manejar (o null)
+        return {"status": "success", "data": {"ancho_banda_total": None}}
+
+@app.put("/api/config-ciudades/{ciudad_nombre}")
+def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
+    if config:
+        config.ancho_banda_total = data.ancho_banda_total
+    else:
+        nueva_config = ConfigCiudadModel(ciudad_nombre=ciudad_nombre, ancho_banda_total=data.ancho_banda_total)
+        db.add(nueva_config)
+    
+    db.commit()
+    return {"status": "success"}
+
+# if __name__ == "__main__":
+# ...
 
 if __name__ == "__main__":
     import uvicorn
