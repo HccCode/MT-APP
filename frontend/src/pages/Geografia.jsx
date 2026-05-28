@@ -46,15 +46,21 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
         body: JSON.stringify({ nombre: regName.trim() }) 
       });
       
-      if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) { 
-        setRegName(''); 
-        setIdRegionEditando(null); 
-        alert(idRegionEditando ? "Región actualizada." : "Región creada."); 
-        await cargarGeographyDB(); 
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(`⚠️ Error: ${data.detail || 'Fallo al procesar la región.'}`);
+        if (res.status === 401) handleLogout();
+        return;
       }
+      
+      setRegName(''); 
+      setIdRegionEditando(null); 
+      alert(idRegionEditando ? "✅ Región actualizada." : "✅ Región creada."); 
+      await cargarGeographyDB(); 
+      
     } catch { 
-      alert("Error de comunicación."); 
+      alert("⚠️ Error de comunicación con el servidor."); 
     }
   };
 
@@ -90,9 +96,12 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
         ? `${API_URL}/api/geography/cities/${idCiudadEditando}` 
         : `${API_URL}/api/geography/cities`;
         
-      const payload = idCiudadEditando 
-        ? { nombre: citName.trim(), region_id: parseInt(citRegId) } 
-        : { id: citCode.trim().toUpperCase(), nombre: citName.trim(), region_id: parseInt(citRegId) };
+      // Se asegura el envío del ID en ambos casos para evitar errores 422 de validación
+      const payload = { 
+        id: citCode.trim().toUpperCase(), 
+        nombre: citName.trim(), 
+        region_id: parseInt(citRegId) 
+      };
         
       const res = await fetch(url, { 
         method, 
@@ -103,17 +112,23 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
         body: JSON.stringify(payload) 
       });
       
-      if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) { 
-        setCitCode(''); 
-        setCitName(''); 
-        setCitRegId(''); 
-        setIdCiudadEditando(null); 
-        alert("Ciudad guardada."); 
-        await cargarGeographyDB(); 
-      } 
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(`⚠️ Error: ${data.detail || 'Fallo al registrar la ciudad. Verifica que el ID no esté duplicado.'}`);
+        if (res.status === 401) handleLogout();
+        return;
+      }
+      
+      setCitCode(''); 
+      setCitName(''); 
+      setCitRegId(''); 
+      setIdCiudadEditando(null); 
+      alert("✅ Ciudad guardada con éxito."); 
+      await cargarGeographyDB(); 
+      
     } catch { 
-      alert("Error de comunicación."); 
+      alert("⚠️ Error de comunicación con el servidor."); 
     }
   };
 
@@ -160,16 +175,22 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
         }) 
       });
       
-      if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) { 
-        const ciudadGuardada = hubCitId; 
-        handleCancelarEdicionHub(); 
-        alert("HUB guardado."); 
-        await cargarGeographyDB(); 
-        setHubCitId(ciudadGuardada); 
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(`⚠️ Error: ${data.detail || 'Fallo al intentar registrar el HUB.'}`);
+        if (res.status === 401) handleLogout();
+        return;
       }
+      
+      const ciudadGuardada = hubCitId; 
+      handleCancelarEdicionHub(); 
+      alert("✅ HUB guardado con éxito."); 
+      await cargarGeographyDB(); 
+      setHubCitId(ciudadGuardada); 
+      
     } catch { 
-      alert("Error de comunicación."); 
+      alert("⚠️ Error de comunicación con el servidor."); 
     }
   };
 
@@ -220,7 +241,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
               value={regName} 
               onChange={e=>setRegName(e.target.value)} 
               required 
-              className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white" 
+              className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white outline-none focus:border-indigo-500" 
             />
             
             {idRegionEditando ? (
@@ -270,7 +291,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
               {idCiudadEditando ? '✏️ Editar Ciudad' : '2. Alta Ciudad'}
             </h3>
             
-            <select value={citRegId} onChange={e=>setCitRegId(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-slate-200">
+            <select value={citRegId} onChange={e=>setCitRegId(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-slate-200 outline-none focus:border-emerald-500">
               <option value="">-- Elige Región --</option>
               {Object.keys(estructuraGeografica).map(r => (
                 <option key={estructuraGeografica[r].id} value={estructuraGeografica[r].id}>{r}</option>
@@ -285,7 +306,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
                 onChange={e=>setCitCode(e.target.value)} 
                 required 
                 disabled={!!idCiudadEditando} 
-                className="bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white uppercase disabled:opacity-50 disabled:cursor-not-allowed" 
+                className="bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white uppercase disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:border-emerald-500" 
               />
               <input 
                 type="text" 
@@ -293,7 +314,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
                 value={citName} 
                 onChange={e=>setCitName(e.target.value)} 
                 required 
-                className="bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white" 
+                className="bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white outline-none focus:border-emerald-500" 
               />
             </div>
             
@@ -360,16 +381,16 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
               {idHubEditando ? '✏️ Editar HUB' : '3. Instalar HUB'}
             </h3>
             
-            <select value={hubCitId} onChange={e=>setHubCitId(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-slate-200">
+            <select value={hubCitId} onChange={e=>setHubCitId(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-slate-200 outline-none focus:border-amber-500">
               <option value="">-- Ciudad Destino --</option>
               {Object.keys(estructuraGeografica).map(r => Object.keys(estructuraGeografica[r]?.ciudades || {}).map(c => (
                 <option key={estructuraGeografica[r].ciudades[c].id} value={estructuraGeografica[r].ciudades[c].id}>{r} ➔ {c}</option>
               )))}
             </select>
             
-            <input type="text" placeholder="Nombre del HUB / Hotel" value={hubName} onChange={e=>setHubName(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white" />
-            <input type="text" placeholder="Dirección" value={hubDireccion} onChange={e=>setHubDireccion(e.target.value)} className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white" />
-            <input type="text" placeholder="GPS" value={hubCoordenadas} onChange={e=>setHubCoordenadas(e.target.value)} className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-amber-500 font-mono" />
+            <input type="text" placeholder="Nombre del HUB / Hotel" value={hubName} onChange={e=>setHubName(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white outline-none focus:border-amber-500" />
+            <input type="text" placeholder="Dirección" value={hubDireccion} onChange={e=>setHubDireccion(e.target.value)} className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white outline-none focus:border-amber-500" />
+            <input type="text" placeholder="GPS" value={hubCoordenadas} onChange={e=>setHubCoordenadas(e.target.value)} className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-amber-500 font-mono outline-none focus:border-amber-500" />
             
             <div className="flex gap-2">
               <button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">
