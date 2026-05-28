@@ -55,17 +55,33 @@ function App() {
     setEstructuraGeografica({});
   };
 
-  const cargarGeographyDB = async () => {
+const cargarGeographyDB = async () => {
     if (!token) return; 
     try {
-      const res = await fetch('https://mt-backend-2ox8.onrender.com/api/geography', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      // 1. Añadimos un timestamp a la URL (?t=...) para que el navegador crea que es una página nueva siempre
+      const urlFetch = `https://mt-backend-2ox8.onrender.com/api/geography?t=${new Date().getTime()}`;
+      
+      const res = await fetch(urlFetch, {
+        method: 'GET',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          // 2. Forzamos cabeceras para romper cualquier caché
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        // 3. Instrucción directa al motor de fetch para saltarse el caché
+        cache: 'no-store'
       });
+
       if (res.status === 401) { handleLogout(); return; }
       if (!res.ok) return;
+      
       const data = await res.json(); 
       setEstructuraGeografica(data);
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error("Error descargando geografía:", e); 
+    }
   };
 
   useEffect(() => { 
