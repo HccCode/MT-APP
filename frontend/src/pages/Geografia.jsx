@@ -48,8 +48,8 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       
       const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        alert(`⚠️ Error: ${data.detail || 'Fallo al procesar la región.'}`);
+     if (!res.ok || data.status === 'error') {
+        alert(`⚠️ Error: ${data.detail || 'Fallo al intentar registrar la ciudad.'}`);
         if (res.status === 401) handleLogout();
         return;
       }

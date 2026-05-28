@@ -452,8 +452,13 @@ def delete_region(region_id: int, current_user: UserModel = Depends(get_current_
 
 @app.post("/api/geography/cities")
 def create_city(data: GeographyCityCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    if db.query(CityModel).filter(CityModel.id == data.id.upper().strip()).first(): raise HTTPException(status_code=400, detail="El ID de Ciudad ya se encuentra registrado.")
+    if not is_admin(current_user): 
+        return JSONResponse(status_code=200, content={"status": "error", "detail": "Permisos insuficientes"})
+    
+    # En lugar de usar "raise HTTPException(status_code=400...", devolvemos un 200 simulado
+    if db.query(CityModel).filter(CityModel.id == data.id.upper().strip()).first(): 
+        return JSONResponse(status_code=200, content={"status": "error", "detail": "El ID de Ciudad ya se encuentra registrado."})
+    
     db.add(CityModel(id=data.id.upper().strip(), nombre=data.nombre.strip(), region_id=data.region_id))
     db.commit()
     return {"status": "success"}
