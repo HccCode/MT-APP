@@ -76,15 +76,16 @@ class HubMappingModel(Base):
     direccion = Column(Text, nullable=True)
     coordenadas = Column(String(100), nullable=True)
 
+# NUEVO MODELO DE USUARIOS CON CAMPO PESTAÑAS Y TABLA RENOMBRADA PARA EVITAR CONFLICTOS
 class UserModel(Base):
-    __tablename__ = "usuarios"
+    __tablename__ = "sys_usuarios"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    role = Column(String(50), default="RNOC")
+    role = Column(String(50), default="LECTURA")
     plazas = Column(String(500), default="*")
+    pestanas = Column(String(500), default="*") 
     nombre_completo = Column(String(150), nullable=False)
-    
     num_empleado = Column(String(50), nullable=True)
     correo = Column(String(100), nullable=True)
     area_org = Column(String(100), nullable=True)
@@ -97,7 +98,6 @@ class PortModel(Base):
     region = Column(String(50), index=True)
     ciudad = Column(String(50), index=True)
     hub_id = Column(String(50), index=True, nullable=False)
-    
     estatus = Column(String(50))
     puerto = Column(String(100), nullable=False)
     equipo_hotel_id = Column(String(100))
@@ -132,7 +132,6 @@ class PortModel(Base):
     contacto_nombre = Column(String(150), nullable=True)
     contacto_telefono = Column(String(50), nullable=True)
 
-# ================= MODELOS SECCIÓN INDEPENDIENTE: CABEZALES =================
 class CabezalModel(Base):
     __tablename__ = "inventario_cabezales"
     id = Column(Integer, primary_key=True, index=True)
@@ -157,7 +156,6 @@ class AlineacionCabezalModel(Base):
     udp = Column(String(50), nullable=True)
     sid = Column(String(50), nullable=True)
 
-# Crea todas las tablas en PostgreSQL/SQLite
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -176,15 +174,19 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if user is None: raise credentials_exception
     return user
 
-# ================= RUTINAS DE VALIDACIÓN DE ROLES =================
 def is_admin(user: UserModel):
-    return user.username.lower() == "admin" or str(user.role).strip().upper() == "ADMIN"
+    roles = [r.strip().upper() for r in str(user.role).split(",")]
+    return user.username.lower() == "admin" or "ADMIN" in roles
 
 def can_edit_ports(user: UserModel):
-    return is_admin(user) or str(user.role).strip().upper() in ["MCM NOC", "MCM INGENIERIA"]
+    if is_admin(user): return True
+    roles = [r.strip().upper() for r in str(user.role).split(",")]
+    return "ESCRITURA" in roles or any(r in roles for r in ["MCM NOC", "MCM INGENIERIA"])
 
 def can_upload_excel(user: UserModel):
-    return is_admin(user) or str(user.role).strip().upper() == "MCM INGENIERIA"
+    if is_admin(user): return True
+    roles = [r.strip().upper() for r in str(user.role).split(",")]
+    return "CARGA" in roles or "MCM INGENIERIA" in roles
 
 # ================= ESQUEMAS PYDANTIC =================
 class UserLogin(BaseModel):
@@ -197,6 +199,7 @@ class UserRegister(BaseModel):
     role: str
     nombre_completo: str
     plazas: str = "*"
+    pestanas: str = "*"
     num_empleado: str = None
     correo: str = None
     area_org: str = None
@@ -209,6 +212,7 @@ class UserUpdate(BaseModel):
     role: str = None
     nombre_completo: str = None
     plazas: str = None
+    pestanas: str = None
     num_empleado: str = None
     correo: str = None
     area_org: str = None
@@ -274,7 +278,6 @@ class CabezalUpdate(BaseModel):
     modelo: str = None
     serie: str = None
 
-# NUEVO ESQUEMA CORRECTAMENTE INDENTADO PARA ACTUALIZAR CANALES
 class AlineacionUpdate(BaseModel):
     portadora: str = None
     formato: str = None
@@ -285,7 +288,6 @@ class AlineacionUpdate(BaseModel):
     udp: str = None
     sid: str = None
 
-# SEED ADMINISTRADOR
 try:
     db_init = SessionLocal()
     if db_init.query(UserModel).count() == 0:
@@ -294,13 +296,13 @@ try:
             password_hash=hash_password(settings.admin_default_password), 
             role="ADMIN", 
             plazas="*",
+            pestanas="*",
             nombre_completo="Administrador del Sistema"
         ))
         db_init.commit()
     db_init.close()
 except Exception as e:
-    print("Nota: El seed de administrador falló o no era necesario en este punto:", e)
-
+    print("Nota: El seed falló:", e)
 
 app = FastAPI(title="MT_DB Enterprise API")
 
@@ -318,14 +320,14 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
     if not user or not verify_password(data.password, user.password_hash):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "Credenciales inválidas"})
     access_token = jwt.encode({"sub": user.username, "role": user.role, "plazas": user.plazas, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
-    return {"status": "success", "token": access_token, "user": {"username": user.username, "role": user.role, "plazas": user.plazas,"nombre_completo": user.nombre_completo}}
+    return {"status": "success", "token": access_token, "user": {"username": user.username, "role": user.role, "plazas": user.plazas, "pestanas": user.pestanas, "nombre_completo": user.nombre_completo}}
 
 @app.post("/api/auth/register")
 def register(data: UserRegister, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     if db.query(UserModel).filter(UserModel.username == data.username.strip()).first(): raise HTTPException(status_code=400, detail="El usuario ya existe")
     db.add(UserModel(
-        username=data.username.strip(), password_hash=hash_password(data.password), role=data.role, plazas=data.plazas,
+        username=data.username.strip(), password_hash=hash_password(data.password), role=data.role, plazas=data.plazas, pestanas=data.pestanas,
         nombre_completo=data.nombre_completo.strip(),num_empleado=data.num_empleado, correo=data.correo, area_org=data.area_org,
         region_asignacion=data.region_asignacion, puesto=data.puesto
     ))
@@ -336,7 +338,7 @@ def register(data: UserRegister, current_user: UserModel = Depends(get_current_u
 def list_all_users(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     return [{
-        "id": u.id, "username": u.username, "role": u.role, "plazas": u.plazas,
+        "id": u.id, "username": u.username, "role": u.role, "plazas": u.plazas, "pestanas": u.pestanas,
         "nombre_completo": u.nombre_completo,"num_empleado": u.num_empleado, "correo": u.correo, "area_org": u.area_org,
         "region_asignacion": u.region_asignacion, "puesto": u.puesto
     } for u in db.query(UserModel).all()]
@@ -350,6 +352,7 @@ def update_user_profile(user_id: int, data: UserUpdate, current_user: UserModel 
     if data.role: user.role = data.role
     if data.nombre_completo: user.nombre_completo = data.nombre_completo.strip()
     if data.plazas is not None: user.plazas = data.plazas
+    if data.pestanas is not None: user.pestanas = data.pestanas
     if data.num_empleado is not None: user.num_empleado = data.num_empleado
     if data.correo is not None: user.correo = data.correo
     if data.area_org is not None: user.area_org = data.area_org
@@ -481,13 +484,20 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
         db.commit()
     return {"status": "success"}
 
+MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
+ALLOWED_EXCEL_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel"
+}
+
 @app.post("/api/hubs/upload-excel")
-def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))):
+    filename = file.filename or ""
+    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido."})
     try:
-        contents = file.file.read()
+        contents = await file.read()
         if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera los 5MB."})
         df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
         header_row_idx = 0
@@ -561,9 +571,9 @@ def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), cur
         db.commit()
         return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
     except Exception as e:
-        db.rollback()
+        try: db.rollback() 
+        except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
-    finally: file.file.close()
 
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
@@ -605,9 +615,6 @@ def get_clients_status(db: Session = Depends(get_db)):
         return {"status": "success", "activos": [port_to_dict(p) for p in activos], "suspendidos": [port_to_dict(p) for p in suspendidos]}
     except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
-
-# ================= ENDPOINTS EXCLUSIVOS: SECCIÓN CABEZALES MAESTRO =================
-
 @app.get("/api/cabezales")
 def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depends(get_db)):
     query = db.query(CabezalModel)
@@ -639,7 +646,6 @@ def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_curren
         db.commit()
     return {"status": "success"}
 
-# ================= ENPOINTS NUEVOS: CONTROL INDIVIDUAL DE ALINEACIONES / CANALES =================
 @app.put("/api/alineaciones/{alineacion_id}")
 def update_alineacion(alineacion_id: int, data: AlineacionUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
@@ -659,26 +665,14 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
         db.commit()
     return {"status": "success"}
 
-# ================= CONSTANTES DE ARCHIVOS =================
-MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
-ALLOWED_EXCEL_MIME_TYPES = {
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel"
-}
-
 @app.post("/api/cabezales/upload-excel")
 async def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_upload_excel(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    
-    # Prevenir fallos si el archivo no tiene nombre válido
+    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     filename = file.filename or ""
     if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido (.xlsx o .xls)."})
-    
     try:
-        # Lectura asíncrona segura para evitar bloqueos del servidor
-        contents = await file.read() 
+        contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents)).fillna("")
         column_headers = [str(col).upper().strip() for col in df.columns]
 
@@ -718,7 +712,6 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
             val_ciudad = read_val(idx_ciudad)
 
             if not val_id or not val_servicio or not val_ciudad: continue
-
             cabezal_key = f"{val_id.upper()}_{val_servicio.upper()}"
 
             cabezal = db.query(CabezalModel).filter(CabezalModel.id_equipo == val_id, CabezalModel.servicio == val_servicio).first()
@@ -750,13 +743,9 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
                 ))
         db.commit()
         return {"status": "success", "detail": f"Proceso completado. Se estructuraron {len(cabezales_procesados)} cabezales."}
-    
     except Exception as e:
-        # Prevenir que el rollback rompa el servidor si no hay conexión
-        try:
-            db.rollback()
-        except:
-            pass
+        try: db.rollback() 
+        except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error interno importando archivo: {str(e)}"})
 
 if __name__ == "__main__":

@@ -16,16 +16,36 @@ function App() {
   const [estructuraGeografica, setEstructuraGeografica] = useState({});
   const [tabActiva, setTabActiva] = useState('inventario'); 
 
-  const roleStr = String(usuario?.role).trim().toUpperCase();
-  const userStr = String(usuario?.username).trim().toLowerCase();
+  // ================= SISTEMA DE PERMISOS GRANULARES =================
+  const roleStr = String(usuario?.role || '').trim().toUpperCase();
+  const userStr = String(usuario?.username || '').trim().toLowerCase();
+  const permisos = roleStr.split(',').map(p => p.trim());
+  const esAdmin = userStr === 'admin' || roleStr === 'ADMIN' || permisos.includes('ADMIN');
   
-  const esAdmin = userStr === 'admin' || roleStr === 'ADMIN';
-  const esMcmNoc = roleStr === 'MCM NOC';
-  const esMcmIng = roleStr === 'MCM INGENIERIA';
-  const esRnoc = roleStr === 'RNOC';
+  const puedeEditar = esAdmin || roleStr === 'MCM NOC' || roleStr === 'MCM INGENIERIA' || permisos.includes('ESCRITURA');
+  const puedeCargar = esAdmin || roleStr === 'MCM INGENIERIA' || permisos.includes('CARGA');
+  
+  const esMcmNoc = puedeEditar && !puedeCargar && !esAdmin; 
+  const esMcmIng = puedeCargar && !esAdmin;
+  const esRnoc = !puedeEditar && !esAdmin && !puedeCargar;
 
-  const puedeEditar = esAdmin || esMcmNoc || esMcmIng;
-  const puedeCargar = esAdmin || esMcmIng;
+  // VISIBILIDAD DE PESTAÑAS (TABS)
+  const pestanasStr = String(usuario?.pestanas || '*');
+  const arrayPestanas = pestanasStr.split(',').map(p => p.trim());
+
+  const puedeVerTab = (tabId, checkLegacyFallback) => {
+    if (esAdmin || pestanasStr === '*') return true;
+    if (pestanasStr && pestanasStr !== '') return arrayPestanas.includes(tabId);
+    return checkLegacyFallback;
+  };
+
+  const mostrarInventario = puedeVerTab('inventario', true);
+  const mostrarResumen = puedeVerTab('resumen', !esRnoc);
+  const mostrarCabezales = puedeVerTab('cabezales', true);
+  const mostrarGeografia = puedeVerTab('geografia', esAdmin);
+  const mostrarCarga = puedeVerTab('carga_excel', puedeCargar);
+  const mostrarUsuarios = puedeVerTab('usuarios', esAdmin);
+  // ==================================================================
 
   const handleLogout = () => {
     localStorage.clear(); 
@@ -72,56 +92,59 @@ function App() {
           </div>
         </div>
 
-        {/* NAVEGACIÓN - ICONOS 1PX MÁS GRANDES Y ALINEADOS */}
         <div className="flex bg-[#050814] p-1 rounded-xl border border-slate-800 flex-wrap justify-center gap-2.5">
-          <button 
-            onClick={() => setTabActiva('inventario')} 
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <span className="text-[16px]">📋</span> Servicios Dedicados
-          </button>
+          {mostrarInventario && (
+            <button 
+              onClick={() => setTabActiva('inventario')} 
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <span className="text-[13px]">📋</span> Servicios Dedicados
+            </button>
+          )}
           
-          {!esRnoc && (
+          {mostrarResumen && (
             <button 
               onClick={() => setTabActiva('resumen')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[16px]">📊</span> Disponibilidad de Puertos
+              <span className="text-[13px]">📊</span> Disponibilidad de Puertos
             </button>
           )}
 
-          {/* TERCERA POSICIÓN ASIGNADA A CABEZALES */}
-          <button 
-            onClick={() => setTabActiva('cabezales')} 
-            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-          >
-            <span className="text-[16px]">📡</span> Cabezales
-          </button>
+          {/* POSICIÓN 3 OBLIGATORIA: CABEZALES */}
+          {mostrarCabezales && (
+            <button 
+              onClick={() => setTabActiva('cabezales')} 
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <span className="text-[13px]">📡</span> Cabezales
+            </button>
+          )}
           
-          {esAdmin && (
+          {mostrarGeografia && (
             <button 
               onClick={() => setTabActiva('geografia')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'geografia' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[16px]">🌐</span> Configuración Red
+              <span className="text-[13px]">🌐</span> Configuración Red
             </button>
           )}
           
-          {puedeCargar && (
+          {mostrarCarga && (
             <button 
               onClick={() => setTabActiva('carga_excel')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[16px]">📤</span> Carga Masiva
+              <span className="text-[13px]">📤</span> Carga Masiva
             </button>
           )}
 
-          {esAdmin && (
+          {mostrarUsuarios && (
             <button 
               onClick={() => setTabActiva('usuarios')} 
               className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'usuarios' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
-              <span className="text-[16px]">👥</span> Usuarios
+              <span className="text-[13px]">👥</span> Usuarios
             </button>
           )}
         </div>
@@ -140,24 +163,19 @@ function App() {
         {tabActiva === 'inventario' && (
           <Inventario token={token} usuario={usuario} puedeEditar={puedeEditar} esRnoc={esRnoc} esMcmNoc={esMcmNoc} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
-
         {tabActiva === 'cabezales' && (
           <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} />
         )}
-
-        {tabActiva === 'resumen' && !esRnoc && (
+        {tabActiva === 'resumen' && (
           <Resumen estructuraGeografica={estructuraGeografica} />
         )}
-
-        {tabActiva === 'geografia' && esAdmin && (
+        {tabActiva === 'geografia' && (
           <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
         )}
-
-        {tabActiva === 'carga_excel' && puedeCargar && (
+        {tabActiva === 'carga_excel' && (
           <CargaExcel token={token} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
-
-        {tabActiva === 'usuarios' && esAdmin && (
+        {tabActiva === 'usuarios' && (
           <Usuarios token={token} usuario={usuario} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
       </div>
