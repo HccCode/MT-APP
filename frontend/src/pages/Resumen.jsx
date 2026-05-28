@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Download, Edit2, Check, X, Zap } from 'lucide-react';
-import * as XLSX from 'xlsx';
 
 export default function Resumen({ estructuraGeografica }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
@@ -89,24 +88,37 @@ export default function Resumen({ estructuraGeografica }) {
     } catch (e) { alert("Error al guardar"); } finally { setGuardando(false); }
   };
 
-  const exportarAExcel = () => {
+  // NATIVA EXPORTACIÓN A CSV (REEMPLAZA A LA LIBRERÍA XLSX)
+  const exportarAExcelNativo = () => {
     if (datosHubs.length === 0) return;
-    const dataAExportar = datosHubs.map(h => ({
-      'CIUDAD': ciudadSelec,
-      'NODO / HUB': h.nombre,
-      'ACTIVOS': h.activos,
-      'SUSPENDIDOS': h.suspendidos,
-      'TRONCALES': h.troncales,
-      'TOTAL DISPONIBLES': h.total_disp,
-      'TOTAL PUERTOS': h.total,
-      'ANCHO BANDA BACKBONE': capacidadTotal,
-      'CONSUMO ACTUAL PLAZA (Gbps)': (stats.trafico_mbps / 1000).toFixed(2)
-    }));
+    
+    // 1. Definir los encabezados
+    const headers = [
+      'CIUDAD', 'NODO / HUB', 'ACTIVOS', 'SUSPENDIDOS', 'TRONCALES', 
+      'TOTAL DISPONIBLES', 'TOTAL PUERTOS', 'ANCHO BANDA BACKBONE', 'CONSUMO ACTUAL PLAZA (Gbps)'
+    ];
 
-    const ws = XLSX.utils.json_to_sheet(dataAExportar);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Disponibilidad");
-    XLSX.writeFile(wb, `Reporte_Disponibilidad_${ciudadSelec}.xlsx`);
+    // 2. Extraer y formatear los datos
+    const filas = datosHubs.map(h => [
+      ciudadSelec, h.nombre, h.activos, h.suspendidos, h.troncales, 
+      h.total_disp, h.total, capacidadTotal, (stats.trafico_mbps / 1000).toFixed(2)
+    ]);
+
+    // 3. Unir todo en formato CSV
+    const contenidoCSV = [
+      headers.join(','),
+      ...filas.map(fila => fila.map(campo => `"${campo}"`).join(','))
+    ].join('\n');
+
+    // 4. Crear el archivo descargable
+    const blob = new Blob([contenidoCSV], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.setAttribute('href', url);
+    enlace.setAttribute('download', `Reporte_Disponibilidad_${ciudadSelec}.csv`);
+    document.body.appendChild(enlace);
+    enlace.click();
+    document.body.removeChild(enlace);
   };
 
   // LÓGICA DE PORCENTAJES DE ANCHO DE BANDA
@@ -128,8 +140,8 @@ export default function Resumen({ estructuraGeografica }) {
             </select>
         </div>
         {datosHubs.length > 0 && (
-          <button onClick={exportarAExcel} className="bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg cursor-pointer">
-            <Download className="w-4 h-4" /> Exportar Reporte Excel
+          <button onClick={exportarAExcelNativo} className="bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg cursor-pointer">
+            <Download className="w-4 h-4" /> Exportar Reporte
           </button>
         )}
       </div>
