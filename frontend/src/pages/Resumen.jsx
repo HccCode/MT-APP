@@ -28,6 +28,7 @@ export default function Resumen({ estructuraGeografica }) {
       const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`);
       if (res.ok) {
         const data = await res.json();
+        // Si existe en BD, lo usamos, si no, mostramos "40G" por defecto
         if (data.data && data.data.ancho_banda_total) {
           setCapacidadOriginal(data.data.ancho_banda_total);
         } else {
@@ -48,7 +49,7 @@ export default function Resumen({ estructuraGeografica }) {
     }
 
     setCargando(true);
-    cargarConfigCiudad(ciudadSelec); 
+    cargarConfigCiudad(ciudadSelec); // Cargar el ancho de banda al cambiar de ciudad
 
     try {
       const hubs = estructuraGeografica[regionSelec]?.ciudades?.[ciudadSelec]?.hubs || [];
@@ -103,6 +104,7 @@ export default function Resumen({ estructuraGeografica }) {
 
   useEffect(() => { procesarResumen(); }, [regionSelec, ciudadSelec]);
 
+  // Manejadores para la edición del Backbone
   const iniciarEdicionCapacidad = () => {
     setEditCapacidad(capacidadOriginal);
     setModoEdicionCapacidad(true);
@@ -140,6 +142,7 @@ export default function Resumen({ estructuraGeografica }) {
       setGuardandoCapacidad(false);
     }
   };
+
 
   const exportarAExcel = () => {
     if (datosHubs.length === 0) return;
@@ -200,6 +203,7 @@ export default function Resumen({ estructuraGeografica }) {
           <div className="flex justify-center items-center h-40 text-slate-500 italic text-sm">Seleccione Región y Ciudad para generar el resumen.</div>
         ) : (
           <>
+            {/* KPI PRINCIPALES */}
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
               <div className="col-span-2 lg:col-span-1 bg-[#1c2541] border border-blue-500/30 p-4 rounded-xl shadow-lg relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-blue-500/10 rounded-bl-full"></div>
@@ -238,6 +242,7 @@ export default function Resumen({ estructuraGeografica }) {
               </div>
             </div>
 
+            {/* SECCIÓN ANCHO DE BANDA CON EDICIÓN */}
             <div className="bg-[#0b132b]/50 border border-slate-800 rounded-xl p-5 flex flex-col md:flex-row justify-between items-center gap-4">
               <div>
                 <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
@@ -278,6 +283,7 @@ export default function Resumen({ estructuraGeografica }) {
                     <p className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 font-mono tracking-wider">
                       {capacidadOriginal}
                     </p>
+                    {/* Botón de edición visible al hacer hover en el contenedor o siempre presente */}
                     <button 
                       onClick={iniciarEdicionCapacidad}
                       className="text-slate-500 hover:text-blue-400 transition-colors p-1"
@@ -287,9 +293,11 @@ export default function Resumen({ estructuraGeografica }) {
                     </button>
                   </div>
                 )}
+
               </div>
             </div>
 
+            {/* TABLA DE DETALLE POR NODO */}
             <div className="bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
               <div className="p-4 border-b border-slate-800 bg-[#0b132b]">
                 <h3 className="text-sm font-bold text-slate-200">Desglose de Disponibilidad por Nodo (HUB)</h3>
