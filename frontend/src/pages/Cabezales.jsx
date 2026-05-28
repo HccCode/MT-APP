@@ -201,7 +201,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
   const abrirEnVentanaNueva = (ip) => {
     const ancho = 1200;
     const alto = 800;
-    // Centrar la ventana nueva en la pantalla del operador
     const izquierda = (window.screen.width - ancho) / 2;
     const arriba = (window.screen.height - alto) / 2;
     
@@ -248,12 +247,14 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-auto border border-slate-800 rounded-lg">
-        <table className="w-full text-left text-sm text-slate-300">
+      {/* CONTENEDOR TABLA PRINCIPAL */}
+      <div className="flex-1 overflow-auto border border-slate-800 rounded-lg custom-scrollbar">
+        {/* MODIFICACIÓN: min-w-max y whitespace-nowrap evitan columnas encimadas */}
+        <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
           <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
             <tr>
               <th className="p-4 border-b border-slate-700">CIUDAD</th>
-              <th className="p-4 border-b border-slate-700">ID</th>
+              {/* SE ELIMINÓ LA COLUMNA DE ID/NODO */}
               <th className="p-4 border-b border-slate-700">SERVICIO</th>
               <th className="p-4 border-b border-slate-700 text-center">ALINEACIÓN</th>
               <th className="p-4 border-b border-slate-700">GESTION QAM</th>
@@ -267,14 +268,26 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
             {cabezales.map(cab => (
               editandoId === cab.id ? (
                 <tr key={cab.id} className="bg-slate-800/80">
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.ciudad || ''} onChange={e => setEditForm({...editForm, ciudad: e.target.value})} /></td>
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-cyan-400 font-mono text-xs" value={editForm.id_equipo || ''} onChange={e => setEditForm({...editForm, id_equipo: e.target.value})} /></td>
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.servicio || ''} onChange={e => setEditForm({...editForm, servicio: e.target.value})} /></td>
+                  <td className="p-2">
+                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.ciudad || ''} onChange={e => setEditForm({...editForm, ciudad: e.target.value})} />
+                  </td>
+                  {/* SE ELIMINÓ LA CELDA DE EDICIÓN DEL ID/NODO (Mantiene el dato en memoria) */}
+                  <td className="p-2">
+                    <input type="text" className="w-full min-w-[150px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.servicio || ''} onChange={e => setEditForm({...editForm, servicio: e.target.value})} />
+                  </td>
                   <td className="p-2 text-center"><span className="text-slate-500 text-xs">Bloqueado</span></td>
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editForm.gestion_qam || ''} onChange={e => setEditForm({...editForm, gestion_qam: e.target.value})} /></td>
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.marca || ''} onChange={e => setEditForm({...editForm, marca: e.target.value})} /></td>
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} /></td>
-                  <td className="p-2"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.serie || ''} onChange={e => setEditForm({...editForm, serie: e.target.value})} /></td>
+                  <td className="p-2">
+                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editForm.gestion_qam || ''} onChange={e => setEditForm({...editForm, gestion_qam: e.target.value})} />
+                  </td>
+                  <td className="p-2">
+                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.marca || ''} onChange={e => setEditForm({...editForm, marca: e.target.value})} />
+                  </td>
+                  <td className="p-2">
+                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} />
+                  </td>
+                  <td className="p-2">
+                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.serie || ''} onChange={e => setEditForm({...editForm, serie: e.target.value})} />
+                  </td>
                   <td className="p-2 text-center flex justify-center gap-3 mt-1">
                     <button onClick={() => guardarEdicion(cab.id)} className="text-emerald-400 hover:text-emerald-300 transition"><Check className="w-5 h-5"/></button>
                     <button onClick={cancelarEdicion} className="text-red-400 hover:text-red-300 transition"><X className="w-5 h-5"/></button>
@@ -283,14 +296,13 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
               ) : (
                 <tr key={cab.id} className="hover:bg-slate-800/50 transition">
                   <td className="p-4 font-semibold text-white">{cab.ciudad}</td>
-                  <td className="p-4 text-cyan-400 font-mono">{cab.id_equipo}</td>
+                  {/* SE ELIMINÓ LA CELDA VISUAL DEL ID/NODO */}
                   <td className="p-4">{cab.servicio}</td>
                   <td className="p-4 text-center">
                     <button onClick={() => verAlineacion(cab)} className="bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 px-3 py-1 rounded flex items-center gap-2 mx-auto hover:bg-indigo-600 hover:text-white transition-colors">
                       <Eye className="w-4 h-4"/> Desplegar Canales
                     </button>
                   </td>
-                  {/* COLUMNA GESTION QAM ACTUALIZADA A ACCIÓN DE ACCESO EN VENTANA NUEVA */}
                   <td className="p-4">
                     {cab.gestion_qam ? (
                       <button 
@@ -318,7 +330,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
               )
             ))}
             {cabezales.length === 0 && (
-              <tr><td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda.</td></tr>
+              <tr><td colSpan={puedeCargar ? "8" : "7"} className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda.</td></tr>
             )}
           </tbody>
         </table>
@@ -356,13 +368,14 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
             <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-[#050814] rounded-t-xl">
               <div>
                 <h2 className="text-xl font-bold text-white">Alineación de Canales</h2>
-                <p className="text-slate-400 text-xs mt-1">ID: <span className="text-cyan-400 font-mono font-bold">{cabezalSeleccionado?.id_equipo}</span> | Servicio: {cabezalSeleccionado?.servicio}</p>
+                <p className="text-slate-400 text-xs mt-1">ID (Oculto en tabla): <span className="text-cyan-400 font-mono font-bold">{cabezalSeleccionado?.id_equipo}</span> | Servicio: {cabezalSeleccionado?.servicio}</p>
               </div>
               <button onClick={() => setModalAbierto(false)} className="w-8 h-8 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-red-600 hover:text-white transition font-bold text-sm">✕</button>
             </div>
-            <div className="p-0 overflow-auto flex-1">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead className="bg-[#0b132b] text-slate-400 sticky top-0 shadow z-10">
+            <div className="p-0 overflow-auto flex-1 custom-scrollbar">
+              {/* MODIFICACIÓN: min-w-max y whitespace-nowrap evitan columnas encimadas en el modal */}
+              <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
+                <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
                   <tr>
                     <th className="p-3 border-b border-slate-700">PORTADORA</th>
                     <th className="p-3 border-b border-slate-700">FORMATO</th>
@@ -375,18 +388,18 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                     {puedeCargar && <th className="p-3 border-b border-slate-700 text-center">ACCIONES</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-slate-800 bg-[#050814]/30">
                   {alineacionActual.map((al, idx) => (
                     editandoCanalId === al.id ? (
                       <tr key={al.id || idx} className="bg-slate-800/90">
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editCanalForm.portadora || ''} onChange={e => setEditCanalForm({...editCanalForm, portadora: e.target.value})} /></td>
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editCanalForm.formato || ''} onChange={e => setEditCanalForm({...editCanalForm, formato: e.target.value})} /></td>
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono font-bold" value={editCanalForm.canal_num || ''} onChange={e => setEditCanalForm({...editCanalForm, canal_num: e.target.value})} /></td>
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-cyan-200 text-xs" value={editCanalForm.nombre_canal || ''} onChange={e => setEditCanalForm({...editCanalForm, nombre_canal: e.target.value})} /></td>
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.mcast_ip || ''} onChange={e => setEditCanalForm({...editCanalForm, mcast_ip: e.target.value})} /></td>
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.source_ip || ''} onChange={e => setEditCanalForm({...editCanalForm, source_ip: e.target.value})} /></td>
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.udp || ''} onChange={e => setEditCanalForm({...editCanalForm, udp: e.target.value})} /></td>
-                        <td className="p-1"><input type="text" className="w-full bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.sid || ''} onChange={e => setEditCanalForm({...editCanalForm, sid: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[90px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editCanalForm.portadora || ''} onChange={e => setEditCanalForm({...editCanalForm, portadora: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[90px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editCanalForm.formato || ''} onChange={e => setEditCanalForm({...editCanalForm, formato: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[80px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono font-bold" value={editCanalForm.canal_num || ''} onChange={e => setEditCanalForm({...editCanalForm, canal_num: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[150px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-cyan-200 text-xs" value={editCanalForm.nombre_canal || ''} onChange={e => setEditCanalForm({...editCanalForm, nombre_canal: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[110px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.mcast_ip || ''} onChange={e => setEditCanalForm({...editCanalForm, mcast_ip: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[110px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.source_ip || ''} onChange={e => setEditCanalForm({...editCanalForm, source_ip: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[70px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.udp || ''} onChange={e => setEditCanalForm({...editCanalForm, udp: e.target.value})} /></td>
+                        <td className="p-1"><input type="text" className="w-full min-w-[70px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editCanalForm.sid || ''} onChange={e => setEditCanalForm({...editCanalForm, sid: e.target.value})} /></td>
                         <td className="p-1 text-center flex justify-center gap-2 mt-2">
                           <button onClick={() => guardarEdicionCanal(al.id)} className="text-emerald-400 hover:text-emerald-300 transition" title="Guardar"><Check className="w-4 h-4"/></button>
                           <button onClick={cancelarEdicionCanal} className="text-red-400 hover:text-red-300 transition" title="Cancelar"><X className="w-4 h-4"/></button>
