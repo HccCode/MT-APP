@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Edit, Trash2 } from 'lucide-react';
+import { Search, Edit, Trash2, Map } from 'lucide-react';
 
 export default function Geografia({ token, estructuraGeografica, cargarGeographyDB, handleLogout }) {
   const [filtroBusquedaRegion, setFiltroBusquedaRegion] = useState('');
@@ -20,6 +20,10 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
   const [hubCitId, setHubCitId] = useState('');
   const [hubDireccion, setHubDireccion] = useState('');
   const [hubCoordenadas, setHubCoordenadas] = useState('');
+
+  // ESTADOS DE NAVEGACIÓN (Para explorar las listas haciendo clic)
+  const [regionVista, setRegionVista] = useState(null); // Guarda el nombre de la región seleccionada
+  const [ciudadVista, setCiudadVista] = useState(null); // Guarda el ID de la ciudad seleccionada
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
@@ -63,12 +67,15 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
   };
 
   const handleEliminarRegion = async (id, nombre) => {
-    if (!window.confirm(`¿Borrar la región '${nombre}' permanentemente?`)) return;
+    if (!window.confirm(`ATENCIÓN: ¿Borrar la región '${nombre}' y todo su contenido permanentemente?`)) return;
     const res = await fetch(`${API_URL}/api/geography/regions/${id}`, { 
       method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } 
     });
     if (res.status === 401) { handleLogout(); return; }
-    if (res.ok) await cargarGeographyDB();
+    if (res.ok) {
+      if (regionVista === nombre) { setRegionVista(null); setCiudadVista(null); }
+      await cargarGeographyDB();
+    }
   };
 
   // ==================== 2. CIUDADES ====================
@@ -76,7 +83,6 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
     setIdCiudadEditando(null); 
     setCitCode(''); 
     setCitName(''); 
-    // NO limpiamos citRegId para mantener la lista visible
   };
 
   const crearCiudad = async (e) => {
@@ -103,7 +109,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(`⚠️ Error: ${data.detail || 'Fallo al registrar la ciudad. Verifica duplicados.'}`);
+        alert(`⚠️ Error: ${data.detail || 'Fallo al registrar la ciudad. Verifica que el ID no esté duplicado.'}`);
         if (res.status === 401) handleLogout();
         return;
       }
@@ -111,7 +117,11 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       setCitCode(''); 
       setCitName(''); 
       setIdCiudadEditando(null); 
-      // NO limpiamos el citRegId para que el usuario vea la ciudad que acaba de agregar
+      
+      // Auto-seleccionar la región donde se inyectó para ver la ciudad de inmediato
+      const regionDelSelect = Object.keys(estructuraGeografica).find(r => estructuraGeografica[r].id === parseInt(citRegId));
+      if (regionDelSelect) setRegionVista(regionDelSelect);
+      
       alert("✅ Ciudad guardada con éxito."); 
       await cargarGeographyDB(); 
     } catch { alert("⚠️ Error de comunicación con el servidor."); }
@@ -123,7 +133,10 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } 
     });
     if (res.status === 401) { handleLogout(); return; }
-    if (res.ok) await cargarGeographyDB();
+    if (res.ok) {
+      if (ciudadVista?.id === id) setCiudadVista(null);
+      await cargarGeographyDB();
+    }
   };
 
   // ==================== 3. HUBS ====================
@@ -132,7 +145,6 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
     setHubName(''); 
     setHubDireccion(''); 
     setHubCoordenadas(''); 
-    // NO limpiamos hubCitId para facilitar la carga continua
   };
 
   const asignarHub = async (e) => {
@@ -187,7 +199,6 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
     if (res.ok) await cargarGeographyDB();
   };
 
-  // ==================== LÓGICA DE RENDERIZADO ====================
   let todosLosHubsGlobal = [];
   Object.keys(estructuraGeografica).forEach(r => { 
     Object.keys(estructuraGeografica[r]?.ciudades || {}).forEach(c => { 
@@ -197,15 +208,20 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       }); 
     }); 
   });
-  
-  const regionFiltroCiudad = Object.keys(estructuraGeografica).find(r => estructuraGeografica[r].id === parseInt(citRegId));
 
   return (
-    <main className="flex-1 p-6 space-y-6 overflow-y-auto">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <main className="flex-1 p-6 space-y-6 overflow-hidden flex flex-col h-full bg-[#070b19]">
+      <div className="border-b border-slate-800 pb-2 shrink-0">
+        <h2 className="text-base font-bold text-white flex items-center gap-2">
+          <Map className="w-5 h-5 text-indigo-400" /> Configuración de Red Geográfica
+        </h2>
+        <p className="text-xs text-slate-500 mt-1">Explora haciendo clic en las regiones y ciudades de las listas.</p>
+      </div>
+
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-hidden">
         
         {/* COLUMNA 1: REGIONES */}
-        <div className="bg-[#0b132b]/50 border border-slate-800 rounded-xl p-5 space-y-4 flex flex-col max-h-[85vh]">
+        <div className="bg-[#0b132b]/50 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-lg h-full">
           <form onSubmit={procesarRegion} className="space-y-3 shrink-0">
             <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
               {idRegionEditando ? '✏️ Editar Región' : '1. Alta Región'}
@@ -213,11 +229,11 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
             <input type="text" placeholder="Nombre Región" value={regName} onChange={e=>setRegName(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white outline-none focus:border-indigo-500" />
             {idRegionEditando ? (
               <div className="flex gap-2 mt-2">
-                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 rounded font-semibold cursor-pointer">Actualizar</button>
-                <button type="button" onClick={handleCancelarEdicionRegion} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded font-semibold cursor-pointer">Cancelar</button>
+                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">Actualizar</button>
+                <button type="button" onClick={handleCancelarEdicionRegion} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">Cancelar</button>
               </div>
             ) : (
-              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 rounded font-semibold cursor-pointer">Añadir</button>
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">Añadir Región</button>
             )}
           </form>
 
@@ -228,32 +244,39 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
 
           <div className="flex-1 overflow-y-auto space-y-1.5 border-t border-slate-800 pt-3 mt-3 custom-scrollbar">
             {Object.keys(estructuraGeografica).length === 0 ? (
-              <p className="text-center text-xs text-slate-500 italic py-4">No hay regiones registradas.</p>
+              <p className="text-center text-xs text-slate-500 italic py-4">No hay regiones disponibles para este usuario.</p>
             ) : (
               Object.keys(estructuraGeografica)
                 .filter(r => r.toLowerCase().includes(filtroBusquedaRegion.toLowerCase()))
-                .map(r => (
-                  <div key={estructuraGeografica[r].id} className="flex justify-between items-center bg-slate-950/60 p-2 rounded text-[11px] group hover:bg-slate-800/40 border border-transparent hover:border-indigo-500/30 transition-colors">
-                    <span className="font-bold text-white truncate pr-2">{r}</span>
-                    <div className="flex gap-1.5 shrink-0">
-                      <button type="button" onClick={() => handleActivarModoEdicionRegion(estructuraGeografica[r].id, r)} className="text-blue-400 hover:bg-blue-500/20 p-1.5 rounded cursor-pointer transition-colors"><Edit className="w-4 h-4" /></button>
-                      <button type="button" onClick={() => handleEliminarRegion(estructuraGeografica[r].id, r)} className="text-red-400 hover:bg-red-500/20 p-1.5 rounded cursor-pointer transition-colors"><Trash2 className="w-4 h-4" /></button>
+                .map(r => {
+                  const isActive = regionVista === r;
+                  return (
+                    <div 
+                      key={estructuraGeografica[r].id} 
+                      onClick={() => { setRegionVista(r); setCiudadVista(null); }}
+                      className={`flex justify-between items-center p-2 rounded text-[11px] group cursor-pointer transition-colors border ${isActive ? 'bg-indigo-600/20 border-indigo-500/50' : 'bg-slate-950/60 border-transparent hover:bg-slate-800/40 hover:border-indigo-500/30'}`}
+                    >
+                      <span className={`font-bold truncate pr-2 ${isActive ? 'text-indigo-300' : 'text-white'}`}>{r}</span>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleActivarModoEdicionRegion(estructuraGeografica[r].id, r); }} className="text-blue-400 hover:bg-blue-500/20 p-1.5 rounded transition-colors" title="Editar"><Edit className="w-3.5 h-3.5" /></button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleEliminarRegion(estructuraGeografica[r].id, r); }} className="text-red-400 hover:bg-red-500/20 p-1.5 rounded transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
             )}
           </div>
         </div>
         
         {/* COLUMNA 2: CIUDADES */}
-        <div className="bg-[#0b132b]/50 border border-slate-800 rounded-xl p-5 space-y-4 flex flex-col max-h-[85vh]">
+        <div className="bg-[#0b132b]/50 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-lg h-full">
           <form onSubmit={crearCiudad} className="space-y-3 shrink-0">
             <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
               {idCiudadEditando ? '✏️ Editar Ciudad' : '2. Alta Ciudad'}
             </h3>
             
             <select value={citRegId} onChange={e=>setCitRegId(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-slate-200 outline-none focus:border-emerald-500">
-              <option value="">-- Elige Región --</option>
+              <option value="">-- Elige Región Destino --</option>
               {Object.keys(estructuraGeografica).map(r => (
                 <option key={estructuraGeografica[r].id} value={estructuraGeografica[r].id}>{r}</option>
               ))}
@@ -265,47 +288,49 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
             </div>
             
             <div className="flex gap-2">
-              <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-2 rounded font-semibold cursor-pointer">{idCiudadEditando ? 'Guardar Cambios' : 'Inyectar'}</button>
-              {idCiudadEditando && (<button type="button" onClick={handleCancelarEdicionCiudad} className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded font-semibold cursor-pointer">Cancelar</button>)}
+              <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">{idCiudadEditando ? 'Guardar Cambios' : 'Inyectar Ciudad'}</button>
+              {idCiudadEditando && (<button type="button" onClick={handleCancelarEdicionCiudad} className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">Cancelar</button>)}
             </div>
           </form>
 
-          {regionFiltroCiudad ? (
-            <>
-              <div className="relative mt-4 shrink-0">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1.5" />
-                <input type="text" placeholder="Buscar ciudad..." value={filtroBusquedaCiudad} onChange={e=>setFiltroBusquedaCiudad(e.target.value)} className="w-full bg-[#050814] border border-slate-800 text-xs py-1.5 pl-8 pr-2 rounded text-slate-300 focus:outline-none focus:border-emerald-500" />
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-1.5 border-t border-slate-800 pt-3 mt-3 custom-scrollbar">
-                {Object.keys(estructuraGeografica[regionFiltroCiudad]?.ciudades || {}).length === 0 ? (
-                  <p className="text-center text-xs text-slate-500 italic py-4">No hay ciudades en esta región.</p>
-                ) : (
-                  Object.keys(estructuraGeografica[regionFiltroCiudad]?.ciudades || {})
-                    .filter(c => c.toLowerCase().includes(filtroBusquedaCiudad.toLowerCase()) || estructuraGeografica[regionFiltroCiudad].ciudades[c].id.toLowerCase().includes(filtroBusquedaCiudad.toLowerCase()))
-                    .map(c => {
-                      const cityData = estructuraGeografica[regionFiltroCiudad].ciudades[c]; 
-                      return (
-                        <div key={cityData.id} className="flex justify-between items-center bg-slate-950/60 p-2 rounded text-[11px] group hover:bg-slate-800/40 border border-transparent hover:border-emerald-500/30 transition-colors">
-                          <span className="font-bold text-white truncate pr-2">{c} <span className="text-slate-500 font-mono font-normal">({cityData.id})</span></span>
-                          <div className="flex gap-1.5 shrink-0">
-                            <button type="button" onClick={() => { setIdCiudadEditando(cityData.id); setCitCode(cityData.id); setCitName(c); setCitRegId(estructuraGeografica[regionFiltroCiudad].id.toString()); }} className="text-blue-400 hover:bg-blue-500/20 p-1.5 rounded cursor-pointer transition-colors"><Edit className="w-4 h-4" /></button>
-                            <button type="button" onClick={() => handleEliminarCiudad(cityData.id, c)} className="text-red-400 hover:bg-red-500/20 p-1.5 rounded cursor-pointer transition-colors"><Trash2 className="w-4 h-4" /></button>
-                          </div>
-                        </div>
-                      )
-                    })
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex justify-center items-center text-center p-4 border-t border-slate-800/50 mt-4">
-              <p className="text-xs text-slate-500 italic">Selecciona una Región en el menú superior para ver su lista de ciudades.</p>
+          <div className="flex-1 flex flex-col mt-4 border-t border-slate-800 pt-3 overflow-hidden">
+            <div className="relative shrink-0 mb-3">
+              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1.5" />
+              <input type="text" placeholder="Buscar ciudad..." value={filtroBusquedaCiudad} onChange={e=>setFiltroBusquedaCiudad(e.target.value)} className="w-full bg-[#050814] border border-slate-800 text-xs py-1.5 pl-8 pr-2 rounded text-slate-300 focus:outline-none focus:border-emerald-500 transition-colors" />
             </div>
-          )}
+            
+            <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar">
+              {!regionVista ? (
+                <p className="text-center text-xs text-slate-500 italic py-4 border border-dashed border-slate-800 rounded p-4">Haz clic en una región de la columna izquierda para ver sus ciudades.</p>
+              ) : Object.keys(estructuraGeografica[regionVista]?.ciudades || {}).length === 0 ? (
+                <p className="text-center text-xs text-slate-500 italic py-4">No hay ciudades en {regionVista}.</p>
+              ) : (
+                Object.keys(estructuraGeografica[regionVista].ciudades)
+                  .filter(c => c.toLowerCase().includes(filtroBusquedaCiudad.toLowerCase()) || estructuraGeografica[regionVista].ciudades[c].id.toLowerCase().includes(filtroBusquedaCiudad.toLowerCase()))
+                  .map(c => {
+                    const cityData = estructuraGeografica[regionVista].ciudades[c]; 
+                    const isActive = ciudadVista?.id === cityData.id;
+                    return (
+                      <div 
+                        key={cityData.id} 
+                        onClick={() => setCiudadVista({id: cityData.id, nombre: c})}
+                        className={`flex justify-between items-center p-2 rounded text-[11px] group cursor-pointer transition-colors border ${isActive ? 'bg-emerald-600/20 border-emerald-500/50' : 'bg-slate-950/60 border-transparent hover:bg-slate-800/40 hover:border-emerald-500/30'}`}
+                      >
+                        <span className={`font-bold truncate pr-2 ${isActive ? 'text-emerald-400' : 'text-white'}`}>{c} <span className="text-slate-500 font-mono font-normal">({cityData.id})</span></span>
+                        <div className="flex gap-1.5 shrink-0">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setIdCiudadEditando(cityData.id); setCitCode(cityData.id); setCitName(c); setCitRegId(estructuraGeografica[regionVista].id.toString()); }} className="text-blue-400 hover:bg-blue-500/20 p-1.5 rounded transition-colors" title="Editar"><Edit className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={(e) => { e.stopPropagation(); handleEliminarCiudad(cityData.id, c); }} className="text-red-400 hover:bg-red-500/20 p-1.5 rounded transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      </div>
+                    )
+                  })
+              )}
+            </div>
+          </div>
         </div>
         
         {/* COLUMNA 3: HUBS */}
-        <div className="bg-[#0b132b]/50 border border-slate-800 rounded-xl p-5 space-y-2 flex flex-col max-h-[85vh]">
+        <div className="bg-[#0b132b]/50 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-lg h-full">
           <form onSubmit={asignarHub} className="space-y-2 shrink-0">
             <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider">
               {idHubEditando ? '✏️ Editar HUB' : '3. Instalar HUB'}
@@ -326,21 +351,20 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
               <button type="submit" className="w-full bg-amber-600 hover:bg-amber-500 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">
                 {idHubEditando ? 'Guardar Cambios' : 'Guardar HUB'}
               </button>
-              {idHubEditando && (<button type="button" onClick={handleCancelarEdicionHub} className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded font-semibold cursor-pointer">Cancelar</button>)}
+              {idHubEditando && (<button type="button" onClick={handleCancelarEdicionHub} className="w-full bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">Cancelar</button>)}
             </div>
           </form>
 
           <div className="border-t border-slate-800 pt-3 mt-3 flex-1 flex flex-col overflow-hidden">
-            <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-2 shrink-0">Directorio de HUBs</h4>
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-2 shrink-0 flex justify-between items-center">
+              <span>{ciudadVista ? `HUBs en ${ciudadVista.nombre}` : 'Directorio Global de HUBs'}</span>
+              {ciudadVista && <button onClick={() => setCiudadVista(null)} className="text-amber-400 hover:underline cursor-pointer">Ver Todos</button>}
+            </h4>
             
             <div className="space-y-2 mb-2 shrink-0">
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1.5" />
-                <input type="text" placeholder="Buscar por ciudad..." value={filtroBusquedaHubCiudad} onChange={e=>setFiltroBusquedaHubCiudad(e.target.value)} className="w-full bg-[#050814] border border-slate-800 text-xs py-1.5 pl-8 pr-2 rounded text-slate-300 focus:outline-none focus:border-amber-500" />
-              </div>
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1.5" />
-                <input type="text" placeholder="Buscar por nombre o ID..." value={filtroBusquedaHub} onChange={e=>setFiltroBusquedaHub(e.target.value)} className="w-full bg-[#050814] border border-slate-800 text-xs py-1.5 pl-8 pr-2 rounded text-slate-300 focus:outline-none focus:border-amber-500" />
+                <input type="text" placeholder="Filtrar por nombre o ID..." value={filtroBusquedaHub} onChange={e=>setFiltroBusquedaHub(e.target.value)} className="w-full bg-[#050814] border border-slate-800 text-xs py-1.5 pl-8 pr-2 rounded text-slate-300 focus:outline-none focus:border-amber-500 transition-colors" />
               </div>
             </div>
             
@@ -349,6 +373,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
                 <p className="text-center text-xs text-slate-500 italic py-4">No hay HUBs instalados.</p>
               ) : (
                 todosLosHubsGlobal
+                  .filter(h => ciudadVista ? h.idCiudad === ciudadVista.id : true) // Si hay ciudad seleccionada, la filtra
                   .filter(h => (filtroBusquedaHubCiudad === '' || h.nombreCiudad.toLowerCase().includes(filtroBusquedaHubCiudad.toLowerCase())) && (filtroBusquedaHub === '' || h.nombre.toLowerCase().includes(filtroBusquedaHub.toLowerCase()) || h.id.toLowerCase().includes(filtroBusquedaHub.toLowerCase())))
                   .map(h => (
                     <div key={h.id} className="bg-slate-950/60 p-2 rounded text-[11px] flex justify-between items-center group border border-slate-800/50 hover:border-amber-900/50 hover:bg-slate-800/40 transition-colors">
@@ -357,8 +382,8 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
                         <span className="text-[9px] text-slate-500 font-mono truncate">{h.nombreCiudad}</span>
                       </div>
                       <div className="flex gap-1.5 shrink-0">
-                        <button type="button" onClick={() => handleActivarModoEdicionHub(h, h.idCiudad)} className="p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded cursor-pointer transition-colors"><Edit className="w-3.5 h-3.5" /></button>
-                        <button type="button" onClick={() => handleEliminarHub(h.id, h.nombre)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded cursor-pointer transition-colors"><Trash2 className="w-3.5 h-3.5" /></button>
+                        <button type="button" onClick={() => handleActivarModoEdicionHub(h, h.idCiudad)} className="p-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded cursor-pointer transition-colors" title="Editar"><Edit className="w-3.5 h-3.5" /></button>
+                        <button type="button" onClick={() => handleEliminarHub(h.id, h.nombre)} className="p-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded cursor-pointer transition-colors" title="Eliminar"><Trash2 className="w-3.5 h-3.5" /></button>
                       </div>
                     </div>
                   ))
