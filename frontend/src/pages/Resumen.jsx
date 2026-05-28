@@ -190,11 +190,11 @@ export default function Resumen({ estructuraGeografica }) {
         <div className="flex items-center gap-3">
             <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); }} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none">
                 <option value="">-- REGIÓN --</option>
-                {Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
+                {Object.keys(estructuraGeografica).map(r => <option key={r} value={r} className="bg-[#0b132b]">{r}</option>)}
             </select>
             <select value={ciudadSelec} onChange={(e) => setCiudadSelec(e.target.value)} disabled={!regionSelec} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none">
                 <option value="">-- CIUDAD --</option>
-                {regionSelec && Object.keys(estructuraGeografica[regionSelec].ciudades).map(c => <option key={c} value={c}>{c}</option>)}
+                {regionSelec && Object.keys(estructuraGeografica[regionSelec].ciudades).map(c => <option key={c} value={c} className="bg-[#0b132b]">{c}</option>)}
             </select>
         </div>
         {datosHubs.length > 0 && (
