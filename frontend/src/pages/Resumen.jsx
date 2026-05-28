@@ -58,13 +58,12 @@ export default function Resumen({ estructuraGeografica }) {
             const upperPto = String(p.PUERTO || '').toUpperCase();
             
             // 1. CLASIFICACIÓN INTELIGENTE DEL TIPO DE PUERTO
-            let tipo = 'GI'; // Por defecto asumimos Gigabit
+            let tipo = 'GI'; 
             if (est.includes('100') || upperPto.includes('100G') || upperPto.includes('HU')) tipo = '100G';
             else if (est.includes('25') || upperPto.includes('25G') || upperPto.includes('TWE')) tipo = '25G';
             else if (est.includes('TE') || upperPto.includes('10G') || upperPto.includes('XG')) tipo = 'TE';
             else if (est.includes('GI') || upperPto.includes('GE') || upperPto.includes('GIG')) tipo = 'GI';
 
-            // Incrementar contadores totales por tipo
             if (tipo === '100G') subTotal100++;
             else if (tipo === '25G') subTotal25++;
             else if (tipo === 'TE') subTotalTe++;
@@ -106,7 +105,6 @@ export default function Resumen({ estructuraGeografica }) {
       });
 
       setStats(global);
-      // Ordenar por mayor cantidad de puertos disponibles
       setDatosHubs(infoHubs.sort((a,b) => b.total_disp - a.total_disp));
     } catch (e) { console.error(e); } finally { setCargando(false); }
   };
@@ -126,29 +124,39 @@ export default function Resumen({ estructuraGeografica }) {
     } catch (e) { alert("Error al guardar"); } finally { setGuardando(false); }
   };
 
-  // Banderas dinámicas para mostrar/ocultar columnas de alta capacidad
   const mostrar25G = datosHubs.some(h => h.total_25 > 0);
   const mostrar100G = datosHubs.some(h => h.total_100 > 0);
 
   const exportarAExcelNativo = () => {
     if (datosHubs.length === 0) return;
     
+    // Encabezados ordenados
     const headers = [
-      'CIUDAD', 'NODO / HUB', 'ID NODO', 'TOTAL DISPONIBLES', '% LIBRES',
+      'CIUDAD', 'NODO / HUB', 'ID NODO', 
       'DISPONIBLES GI', 'TOTAL GI', 'DISPONIBLES TE', 'TOTAL TE'
     ];
     if (mostrar25G) headers.push('DISPONIBLES 25G', 'TOTAL 25G');
     if (mostrar100G) headers.push('DISPONIBLES 100G', 'TOTAL 100G');
-    headers.push('ACTIVOS', 'SUSPENDIDOS', 'TRONCALES', 'TOTAL PUERTOS HUB', 'ANCHO BANDA BACKBONE', 'CONSUMO PLAZA (Gbps)');
+    
+    headers.push(
+      'ACTIVOS', 'SUSPENDIDOS', 'TRONCALES', 
+      'TOTAL DISPONIBLES', '% LIBRES', 'TOTAL PUERTOS HUB', 
+      'ANCHO BANDA BACKBONE', 'CONSUMO PLAZA (Gbps)'
+    );
 
     const filas = datosHubs.map(h => {
       const row = [
-        ciudadSelec, h.nombre, h.id, h.total_disp, `${h.pct_libres}%`,
+        ciudadSelec, h.nombre, h.id, 
         h.disp_gi, h.total_gi, h.disp_te, h.total_te
       ];
       if (mostrar25G) row.push(h.disp_25, h.total_25);
       if (mostrar100G) row.push(h.disp_100, h.total_100);
-      row.push(h.activos, h.suspendidos, h.troncales, h.total, capacidadTotal, (stats.trafico_mbps / 1000).toFixed(2));
+      
+      row.push(
+        h.activos, h.suspendidos, h.troncales, 
+        h.total_disp, `${h.pct_libres}%`, h.total, 
+        capacidadTotal, (stats.trafico_mbps / 1000).toFixed(2)
+      );
       return row;
     });
 
@@ -237,8 +245,8 @@ export default function Resumen({ estructuraGeografica }) {
                             {modoEdicion ? (
                                 <div className="flex items-center gap-2 justify-end">
                                     <input type="text" value={editCapacidad} onChange={e=>setEditCapacidad(e.target.value)} className="bg-[#1c2541] border border-blue-500 text-white font-mono text-xl font-black rounded px-2 w-24 text-right outline-none" autoFocus />
-                                    <button onClick={guardarCapacidad} disabled={guardando} className="bg-emerald-600 p-1.5 rounded cursor-pointer text-white"><Check className="w-4 h-4" /></button>
-                                    <button onClick={()=>setModoEdicion(false)} className="bg-slate-700 p-1.5 rounded cursor-pointer text-white"><X className="w-4 h-4" /></button>
+                                    <button onClick={guardarCapacidad} disabled={guardando} className="bg-emerald-600 p-1.5 rounded cursor-pointer"><Check className="w-4 h-4" /></button>
+                                    <button onClick={()=>setModoEdicion(false)} className="bg-slate-700 p-1.5 rounded cursor-pointer"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-3 justify-end group">
@@ -261,7 +269,6 @@ export default function Resumen({ estructuraGeografica }) {
                 </div>
             </div>
 
-            {/* NUEVA TABLA DETALLADA CON CONTADORES INTELIGENTES */}
             <div className="bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
               <div className="p-4 border-b border-slate-800 bg-[#0b132b]">
                 <h3 className="text-sm font-bold text-slate-200">Desglose de Disponibilidad por Nodo (HUB)</h3>
@@ -271,8 +278,6 @@ export default function Resumen({ estructuraGeografica }) {
                   <thead className="bg-[#050814] text-slate-400 border-b border-slate-800">
                     <tr>
                       <th className="p-4 font-bold tracking-wider">NODO / HUB</th>
-                      <th className="p-4 font-bold text-center border-x border-slate-800/50 text-blue-400">TOTAL DISP.</th>
-                      <th className="p-4 font-bold text-center border-r border-slate-800/50 text-emerald-400">LIBRES %</th>
                       
                       {/* GIGABIT */}
                       <th className="p-4 font-bold text-center bg-slate-900/40">DISP. (GI)</th>
@@ -293,6 +298,10 @@ export default function Resumen({ estructuraGeografica }) {
                       <th className="p-4 font-bold text-center text-emerald-500">ACTIVOS</th>
                       <th className="p-4 font-bold text-center text-purple-400">SUSPEND.</th>
                       <th className="p-4 font-bold text-center text-amber-400">TRONCALES</th>
+
+                      {/* COLUMNAS AL FINAL COMO SE SOLICITÓ */}
+                      <th className="p-4 font-bold text-center border-l border-slate-800/50 text-blue-400">TOTAL DISP.</th>
+                      <th className="p-4 font-bold text-center text-emerald-400">LIBRES %</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/40">
@@ -304,14 +313,6 @@ export default function Resumen({ estructuraGeografica }) {
                           <td className="p-4">
                             <p className="font-bold text-slate-200">{h.nombre}</p>
                             <p className="text-[10px] text-slate-500 font-mono mt-0.5">{h.id}</p>
-                          </td>
-                          <td className="p-4 text-center border-x border-slate-800/50">
-                            <span className={`px-2.5 py-1 rounded-full font-black ${h.total_disp > 0 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-slate-800/50 text-slate-500'}`}>
-                              {h.total_disp}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center border-r border-slate-800/50 font-black text-emerald-400">
-                            {h.pct_libres}%
                           </td>
 
                           <td className="p-4 text-center bg-slate-900/40">{h.disp_gi}</td>
@@ -329,6 +330,16 @@ export default function Resumen({ estructuraGeografica }) {
                           <td className="p-4 text-center text-emerald-400 font-medium">{h.activos}</td>
                           <td className="p-4 text-center text-purple-400 font-medium">{h.suspendidos}</td>
                           <td className="p-4 text-center text-amber-400 font-medium">{h.troncales}</td>
+
+                          {/* COLUMNAS AL FINAL */}
+                          <td className="p-4 text-center border-l border-slate-800/50">
+                            <span className={`px-2.5 py-1 rounded-full font-black ${h.total_disp > 0 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-slate-800/50 text-slate-500'}`}>
+                              {h.total_disp}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center font-black text-emerald-400">
+                            {h.pct_libres}%
+                          </td>
                         </tr>
                       ))
                     )}
