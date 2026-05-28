@@ -420,8 +420,16 @@ def get_geography_tree(current_user: UserModel = Depends(get_current_user), db: 
 
 @app.post("/api/geography/regions")
 def create_region(data: GeographyRegionCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    nueva = RegionModel(nombre=data.nombre)
+    if not is_admin(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    # --- NUEVA VALIDACIÓN: Verificar si la región ya existe ---
+    region_existente = db.query(RegionModel).filter(RegionModel.nombre == data.nombre.strip()).first()
+    if region_existente:
+        raise HTTPException(status_code=400, detail=f"La región '{data.nombre}' ya se encuentra registrada.")
+    # ----------------------------------------------------------
+
+    nueva = RegionModel(nombre=data.nombre.strip())
     db.add(nueva)
     db.commit()
     return {"status": "success", "id": nueva.id}
