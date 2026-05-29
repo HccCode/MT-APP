@@ -232,18 +232,18 @@ export default function Resumen({ estructuraGeografica }) {
                 </div>
             </div>
 
-            <div className="bg-[#0b132b]/50 border border-slate-700 rounded-2xl p-4">
+            <div className="bg-[#0b132b]/50 border border-slate-800 rounded-2xl p-6">
                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6">
                     <div>
                         <h3 className="text-sm font-bold text-white">Capacidad de Carga Estimada</h3>
                         <p className="text-xs text-slate-500">Configuración de Backbone por ciudad para cálculo de saturación.</p>
                     </div>
 
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-600 flex items-center gap-4 min-w-[200px]">
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4 min-w-[250px]">
                         <div className="flex-1 text-right">
                             <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Ancho de Banda Total</p>
                             {modoEdicion ? (
-                                <div className="flex items-center gap-2 justify-center">
+                                <div className="flex items-center gap-2 justify-end">
                                     <input type="text" value={editCapacidad} onChange={e=>setEditCapacidad(e.target.value)} className="bg-[#1c2541] border border-blue-500 text-white font-mono text-xl font-black rounded px-2 w-24 text-right outline-none" autoFocus />
                                     <button onClick={guardarCapacidad} disabled={guardando} className="bg-emerald-600 p-1.5 rounded cursor-pointer"><Check className="w-4 h-4" /></button>
                                     <button onClick={()=>setModoEdicion(false)} className="bg-slate-700 p-1.5 rounded cursor-pointer"><X className="w-4 h-4" /></button>
