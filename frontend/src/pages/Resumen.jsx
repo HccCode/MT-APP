@@ -232,7 +232,7 @@ export default function Resumen({ estructuraGeografica }) {
                 </div>
             </div>
 
-            <div className="bg-[#0b132b]/50 border border-slate-800 rounded-2xl p-6">
+            <div className="bg-[#0b132b]/50 border border-slate-700 rounded-2xl p-4">
                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6">
                     <div>
                         <h3 className="text-sm font-bold text-white">Capacidad de Carga Estimada</h3>
