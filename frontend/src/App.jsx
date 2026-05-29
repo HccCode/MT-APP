@@ -55,22 +55,19 @@ function App() {
     setEstructuraGeografica({});
   };
 
-const cargarGeographyDB = async () => {
+  const cargarGeographyDB = async () => {
     if (!token) return; 
     try {
-      // 1. Añadimos un timestamp a la URL (?t=...) para que el navegador crea que es una página nueva siempre
       const urlFetch = `https://mt-backend-2ox8.onrender.com/api/geography?t=${new Date().getTime()}`;
       
       const res = await fetch(urlFetch, {
         method: 'GET',
         headers: { 
           'Authorization': `Bearer ${token}`,
-          // 2. Forzamos cabeceras para romper cualquier caché
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache',
           'Expires': '0'
         },
-        // 3. Instrucción directa al motor de fetch para saltarse el caché
         cache: 'no-store'
       });
 
@@ -127,7 +124,6 @@ const cargarGeographyDB = async () => {
             </button>
           )}
 
-          {/* POSICIÓN 3 OBLIGATORIA: CABEZALES */}
           {mostrarCabezales && (
             <button 
               onClick={() => setTabActiva('cabezales')} 
@@ -184,9 +180,6 @@ const cargarGeographyDB = async () => {
         )}
         {tabActiva === 'resumen' && (
           <Resumen estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} />
-        )}
-        {tabActiva === 'resumen' && (
-          <Resumen estructuraGeografica={estructuraGeografica} />
         )}
         {tabActiva === 'geografia' && (
           <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
