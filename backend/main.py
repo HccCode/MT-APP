@@ -436,7 +436,8 @@ def create_region(data: GeographyRegionCreate, current_user: UserModel = Depends
     if not is_admin(current_user): 
         raise HTTPException(status_code=403, detail="Permisos insuficientes")
     
-    region_existente = db.query(RegionModel).filter(RegionModel.nombre == data.nombre.strip()).first()
+    # Valida si la región ya existe (ignorando mayúsculas/minúsculas)
+    region_existente = db.query(RegionModel).filter(RegionModel.nombre.ilike(data.nombre.strip())).first()
     if region_existente:
         raise HTTPException(status_code=400, detail=f"La región '{data.nombre}' ya se encuentra registrada.")
 
@@ -471,13 +472,23 @@ def delete_region(region_id: int, current_user: UserModel = Depends(get_current_
 
 @app.post("/api/geography/cities")
 def create_city(data: GeographyCityCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Cambiado a HTTPException 403 para estandarizar errores de permisos
     if not is_admin(current_user): 
-        return JSONResponse(status_code=200, content={"status": "error", "detail": "Permisos insuficientes"})
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
     
-    if db.query(CityModel).filter(CityModel.id == data.id.upper().strip()).first(): 
-        return JSONResponse(status_code=200, content={"status": "error", "detail": "El ID de Ciudad ya se encuentra registrado."})
+    id_limpio = data.id.upper().strip()
+    nombre_limpio = data.nombre.strip()
     
-    db.add(CityModel(id=data.id.upper().strip(), nombre=data.nombre.strip(), region_id=data.region_id))
+    # 1. Valida si el ID exacto ya está en uso
+    if db.query(CityModel).filter(CityModel.id == id_limpio).first(): 
+        # Cambiado de JSONResponse(200) a HTTPException(400) para forzar el error en el frontend
+        raise HTTPException(status_code=400, detail=f"El ID de Ciudad '{id_limpio}' ya se encuentra registrado.")
+        
+    # 2. Valida si el NOMBRE de la ciudad ya existe en la base de datos (ignorando mayúsculas/minúsculas)
+    if db.query(CityModel).filter(CityModel.nombre.ilike(nombre_limpio)).first():
+        raise HTTPException(status_code=400, detail=f"El nombre de Ciudad '{nombre_limpio}' ya se encuentra registrado.")
+    
+    db.add(CityModel(id=id_limpio, nombre=nombre_limpio, region_id=data.region_id))
     db.commit()
     return {"status": "success"}
 
