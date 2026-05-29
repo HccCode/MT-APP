@@ -39,11 +39,14 @@ export default function ModalVisualizar({ puertoDetalle, cerrarModal }) {
 
             <div className="space-y-3 bg-[#050814] p-4 rounded-lg border border-slate-800/60 shadow-inner md:col-span-2 lg:col-span-3">
               <h4 className="text-blue-500 font-bold border-b border-slate-800 pb-1 text-[11px] uppercase tracking-wider">Ubicación y Equipamiento</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div><span className="text-slate-500 text-[10px] block font-bold">DIRECCIÓN</span><span className="text-slate-200">{puertoDetalle.DIRECCION || '-'}</span></div>
                 <div><span className="text-slate-500 text-[10px] block font-bold">COORDENADAS</span><span className="text-amber-500 font-mono">{puertoDetalle.COORDENADAS || '-'}</span></div>
                 <div><span className="text-slate-500 text-[10px] block font-bold">EQUIPO CPE (MARCA/MODELO/SERIE)</span><span className="text-slate-200 font-mono">{puertoDetalle.MARCA_CPE || '-'} / {puertoDetalle.MODELO_CPE || '-'} / {puertoDetalle.SERIE_CPE || '-'}</span></div>
-                <div><span className="text-slate-500 text-[10px] block font-bold">CONTACTO DEL CLIENTE</span><span className="text-slate-200">{puertoDetalle.CONTACTO_NOMBRE || '-'} {puertoDetalle.CONTACTO_TELEFONO ? `(${puertoDetalle.CONTACTO_TELEFONO})` : ''}</span></div>
+                
+                {/* --- CAMPOS DE CONTACTO SEPARADOS --- */}
+                <div><span className="text-slate-500 text-[10px] block font-bold">NOMBRE CONTACTO</span><span className="text-slate-200">{puertoDetalle.CONTACTO_NOMBRE || '-'}</span></div>
+                <div><span className="text-slate-500 text-[10px] block font-bold">TELÉFONO CONTACTO</span><span className="text-slate-200 font-mono">{puertoDetalle.CONTACTO_TELEFONO || '-'}</span></div>
               </div>
             </div>
             
