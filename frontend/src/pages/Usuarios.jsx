@@ -79,7 +79,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
     if (rolDB === 'ADMIN') setNewPermisos(['LECTURA', 'ESCRITURA', 'CARGA', 'ADMIN']);
     else if (rolDB === 'MCM INGENIERIA') setNewPermisos(['LECTURA', 'ESCRITURA', 'CARGA']);
     else if (rolDB === 'MCM NOC') setNewPermisos(['LECTURA', 'ESCRITURA']);
-    else if (rolDB === 'RNOC') setNewPermisos(['LECTURA']);
+    else if (rolDB === 'RNOC') setNewPermisos(['LECTURA', 'RNOC']); // Aseguramos que cargue RNOC al editar
     else setNewPermisos(rolDB.split(',').map(p => p.trim()).filter(Boolean));
 
     setNewPestanas(u.pestanas ? u.pestanas.split(',') : ['*']);
@@ -114,6 +114,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
         if (r === 'ADMIN') colorClass = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
         else if (r === 'ESCRITURA' || r === 'MCM NOC') colorClass = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
         else if (r === 'CARGA' || r === 'MCM INGENIERIA') colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        else if (r === 'RNOC') colorClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20'; // Estilo para RNOC en la tabla
         let texto = r; if (r === 'MCM NOC') texto = 'ESCRITURA'; if (r === 'MCM INGENIERIA') texto = 'CARGA EXCEL';
         return <span key={r} className={`px-2 py-0.5 rounded text-[9px] font-bold border ${colorClass}`}>{texto}</span>;
     });
@@ -139,6 +140,13 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-blue-400"><input type="checkbox" checked={newPermisos.includes('ESCRITURA')} onChange={(e) => manejarTogglePermiso('ESCRITURA', e.target.checked)} className="accent-blue-500" /> Editar Manual</label>
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-emerald-400"><input type="checkbox" checked={newPermisos.includes('CARGA')} onChange={(e) => manejarTogglePermiso('CARGA', e.target.checked)} className="accent-emerald-500" /> Subir Excel</label>
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-purple-400"><input type="checkbox" checked={newPermisos.includes('ADMIN')} onChange={(e) => manejarTogglePermiso('ADMIN', e.target.checked)} className="accent-purple-500" /> Admin Total</label>
+                
+                {/* CHECKBOX RNOC AÑADIDO AQUÍ */}
+                <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-amber-400 col-span-2 pt-2 mt-1 border-t border-slate-700">
+                  <input type="checkbox" checked={newPermisos.includes('RNOC')} onChange={(e) => manejarTogglePermiso('RNOC', e.target.checked)} className="accent-amber-500" /> 
+                  <span className="font-bold text-amber-400">RNOC (Restringido - Solo Falla)</span>
+                </label>
+
               </div>
             </div>
 
