@@ -250,8 +250,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     <Eye className="w-3.5 h-3.5" /> Visualizar
                   </button>
                   
-                  {/* SOLO EL ROL RNOC PUEDE VER ESTE BOTÓN */}
-                  {esRnoc && esAdmin &&(
+                  {/* SOLO RNOC O ADMIN PUEDEN VER ESTE BOTÓN */}
+                  {(esRnoc || esAdmin) && (
                     <button onClick={() => setMostrarModalFalla(true)} className="bg-red-900/30 hover:bg-red-600 border border-red-800 text-red-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer" title="Generar formato de Despliegue de Falla">
                       <AlertTriangle className="w-3.5 h-3.5" /> Desplegar Falla
                     </button>
