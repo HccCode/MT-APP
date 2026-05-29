@@ -241,7 +241,7 @@ export default function Resumen({ estructuraGeografica }) {
 
                     <div className="bg-slate-950 p-4 rounded-xl border border-slate-600 flex items-center gap-4 min-w-[200px]">
                         <div className="flex-1 text-right">
-                            <p className="text-[10px] text-slate-500 justify-center font-bold uppercase mb-1">Ancho de Banda Total</p>
+                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Ancho de Banda Total</p>
                             {modoEdicion ? (
                                 <div className="flex items-center gap-2 justify-center">
                                     <input type="text" value={editCapacidad} onChange={e=>setEditCapacidad(e.target.value)} className="bg-[#1c2541] border border-blue-500 text-white font-mono text-xl font-black rounded px-2 w-24 text-right outline-none" autoFocus />
