@@ -81,20 +81,59 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     setFiltroEquipo('TODOS'); 
   }, [inventarioHub, estructuraGeografica, inventarioReg, inventarioCd]);
 
+  // =============== FIX 422: FILTRO DE PAYLOAD SANITIZADO ===============
   const handleGuardarCambios = async () => {
     if (!puertoDetalle?.ID) return;
     setGuardando(true);
+
+    // 1. Lista blanca estricta de variables que acepta el backend
+    const camposPermitidos = [
+      "ESTATUS", "PUERTO", "EQUIPO_HOTEL_ID", "IP_HUB", "NOMBRE_CORTO",
+      "ID_MCA", "SERVICIO", "POTENCIA_HUB", "POTENCIA_CPE", "TIPO_SERVICIO",
+      "MBPS", "IP_GESTION", "IP_CLIENTE", "BDI", "RUTA", "BUFFER", "HILOS",
+      "PARCHEO", "LAMBDAS", "DISTANCIA_CLIENTE", "MARCA_CPE", "MODELO_CPE",
+      "SERIE_CPE", "FECHA_DE_ENTREGA", "SERIE_SFP_HUB", "SERIE_SFP_CLIENTE",
+      "EQUIPAMIENTO", "SERIE", "DIRECCION", "COORDENADAS", "COMENTARIOS",
+      "CONTACTO_NOMBRE", "CONTACTO_TELEFONO"
+    ];
+
+    const payloadSanitizado = {};
+
+    camposPermitidos.forEach(key => {
+      let val = editCampos[key];
+      
+      // 2. Si el valor NO es nulo ni indefinido, lo pasamos como String estricto
+      // Pydantic ignorará las llaves que no enviemos en lugar de tronar por un 'null'.
+      if (val !== null && val !== undefined) {
+        payloadSanitizado[key] = String(val);
+      }
+    });
+
     try {
       const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
-        method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify(editCampos) 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        body: JSON.stringify(payloadSanitizado) 
       });
+      
       if (res.status === 401) { handleLogout(); return; }
+      
       if (res.ok) { 
-        setPuertoDetalle(editCampos); 
+        setPuertoDetalle({...puertoDetalle, ...editCampos}); 
         await cargarDatosSistemas(); 
         alert("Modificación física guardada exitosamente en MT_DB."); 
-      } else { alert("Error al procesar los datos en el servidor."); }
-    } catch (err) { console.error(err); alert("Fallo de red al intentar actualizar el puerto."); } finally { setGuardando(false); }
+      } else { 
+        // Mostrar en consola el detalle del 422 por si hay otra variable en conflicto
+        const errData = await res.json();
+        console.error("Detalle Error 422:", errData);
+        alert("Fallo de validación: No se pudo guardar la información."); 
+      }
+    } catch (err) { 
+      console.error(err); 
+      alert("Fallo de red al intentar actualizar el puerto."); 
+    } finally { 
+      setGuardando(false); 
+    }
   };
 
   const obtenerCiudadesOrdenadas = (region) => {
@@ -368,8 +407,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   </div>
 
                   <div>
+                    {/* SE CORRIGIÓ FECHA_ENTREGA POR FECHA_DE_ENTREGA PARA MATCHEAR CON EL BACKEND */}
                     <label className="text-[10px] text-slate-500 block font-bold mb-1">FECHA DE ENTREGA</label>
-                    <input type="date" disabled={!puedeEditar} value={formatFechaParaInput(editCampos.FECHA_ENTREGA)} onChange={e=>setEditCampos({...editCampos, FECHA_ENTREGA: e.target.value})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white" />
+                    <input type="date" disabled={!puedeEditar} value={formatFechaParaInput(editCampos.FECHA_DE_ENTREGA)} onChange={e=>setEditCampos({...editCampos, FECHA_DE_ENTREGA: e.target.value})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white" />
                   </div>
                   <div><label className="text-[10px] text-slate-500 block font-bold mb-1">COMENTARIOS</label><textarea rows="2" disabled={!puedeEditar} value={editCampos.COMENTARIOS || ''} onChange={e=>setEditCampos({...editCampos, COMENTARIOS: e.target.value})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white resize-none" /></div>
                 </div>
