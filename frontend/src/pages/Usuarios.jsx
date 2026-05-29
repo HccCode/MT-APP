@@ -20,6 +20,9 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
   // ESTADOS MÚLTIPLES
   const [newPermisos, setNewPermisos] = useState(['LECTURA']);
   const [newPestanas, setNewPestanas] = useState(['*']);
+  
+  // ESTADO PARA EL BUSCADOR DE PLAZAS
+  const [filtroPlazas, setFiltroPlazas] = useState('');
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://mt-backend-2ox8.onrender.com';
 
@@ -38,7 +41,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
     setIdUserEditando(null); setNewUsername(''); setNewPassword(''); setNewNombreCompleto(''); 
     setNewPlazas(['*']); setNewNumEmpleado(''); setNewCorreo(''); setNewArea(''); 
     setNewRegionUsuario(''); setNewPuesto(''); setMsgUser(''); 
-    setNewPermisos(['LECTURA']); setNewPestanas(['*']);
+    setNewPermisos(['LECTURA']); setNewPestanas(['*']); setFiltroPlazas('');
   };
 
   const handleProcesarUsuario = async (e) => {
@@ -74,12 +77,13 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
     setIdUserEditando(u.id); setNewUsername(u.username || ''); setNewPassword(''); setNewNombreCompleto(u.nombre_completo || ''); 
     setNewPlazas(u.plazas ? u.plazas.split(',') : []); setNewNumEmpleado(u.num_empleado || ''); setNewCorreo(u.correo || ''); 
     setNewArea(u.area_org || ''); setNewRegionUsuario(u.region_asignacion || ''); setNewPuesto(u.puesto || ''); 
+    setFiltroPlazas('');
     
     const rolDB = String(u.role || '').toUpperCase();
     if (rolDB === 'ADMIN') setNewPermisos(['LECTURA', 'ESCRITURA', 'CARGA', 'ADMIN']);
     else if (rolDB === 'MCM INGENIERIA') setNewPermisos(['LECTURA', 'ESCRITURA', 'CARGA']);
     else if (rolDB === 'MCM NOC') setNewPermisos(['LECTURA', 'ESCRITURA']);
-    else if (rolDB === 'RNOC') setNewPermisos(['LECTURA', 'RNOC']); // Aseguramos que cargue RNOC al editar
+    else if (rolDB === 'RNOC') setNewPermisos(['LECTURA', 'RNOC']);
     else setNewPermisos(rolDB.split(',').map(p => p.trim()).filter(Boolean));
 
     setNewPestanas(u.pestanas ? u.pestanas.split(',') : ['*']);
@@ -114,7 +118,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
         if (r === 'ADMIN') colorClass = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
         else if (r === 'ESCRITURA' || r === 'MCM NOC') colorClass = 'bg-blue-500/10 text-blue-400 border-blue-500/20';
         else if (r === 'CARGA' || r === 'MCM INGENIERIA') colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-        else if (r === 'RNOC') colorClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20'; // Estilo para RNOC en la tabla
+        else if (r === 'RNOC') colorClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
         let texto = r; if (r === 'MCM NOC') texto = 'ESCRITURA'; if (r === 'MCM INGENIERIA') texto = 'CARGA EXCEL';
         return <span key={r} className={`px-2 py-0.5 rounded text-[9px] font-bold border ${colorClass}`}>{texto}</span>;
     });
@@ -140,13 +144,10 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-blue-400"><input type="checkbox" checked={newPermisos.includes('ESCRITURA')} onChange={(e) => manejarTogglePermiso('ESCRITURA', e.target.checked)} className="accent-blue-500" /> Editar Manual</label>
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-emerald-400"><input type="checkbox" checked={newPermisos.includes('CARGA')} onChange={(e) => manejarTogglePermiso('CARGA', e.target.checked)} className="accent-emerald-500" /> Subir Excel</label>
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-purple-400"><input type="checkbox" checked={newPermisos.includes('ADMIN')} onChange={(e) => manejarTogglePermiso('ADMIN', e.target.checked)} className="accent-purple-500" /> Admin Total</label>
-                
-                {/* CHECKBOX RNOC AÑADIDO AQUÍ */}
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-amber-400 col-span-2 pt-2 mt-1 border-t border-slate-700">
                   <input type="checkbox" checked={newPermisos.includes('RNOC')} onChange={(e) => manejarTogglePermiso('RNOC', e.target.checked)} className="accent-amber-500" /> 
                   <span className="font-bold text-amber-400">RNOC (Restringido - Solo Falla)</span>
                 </label>
-
               </div>
             </div>
 
@@ -165,14 +166,58 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
 
             <div className="grid grid-cols-2 gap-3 pt-2"><div><label className="text-[10px] text-slate-500 block mb-1">Área Org. *</label><input type="text" value={newArea} onChange={e => setNewArea(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white focus:outline-none focus:border-blue-500" /></div><div><label className="text-[10px] text-slate-500 block mb-1">Puesto *</label><input type="text" value={newPuesto} onChange={e => setNewPuesto(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white focus:outline-none focus:border-blue-500" /></div></div>
             <div><label className="text-[10px] text-slate-500 block mb-1">Región Asignada (RRHH) *</label><input type="text" value={newRegionUsuario} onChange={e => setNewRegionUsuario(e.target.value)} required className="w-full bg-[#1c2541] border border-slate-700 text-xs p-2 rounded text-white focus:outline-none focus:border-blue-500" /></div>
+            
+            {/* INICIO MODIFICACIÓN: Buscador de Plazas Integrado */}
             <div>
-              <label className="text-[10px] text-slate-500 block mb-1">Visibilidad de Ciudades *</label>
-              <div className={`bg-[#1c2541] border ${newPlazas.length === 0 ? 'border-red-500' : 'border-slate-700'} rounded p-2 max-h-40 overflow-y-auto space-y-2`}>
+              <div className="flex justify-between items-end mb-1">
+                <label className="text-[10px] text-slate-500 block font-bold">Visibilidad de Ciudades *</label>
+                <div className="relative w-1/2">
+                  <Search className="w-3 h-3 text-slate-500 absolute left-2 top-1.5" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar ciudad..." 
+                    value={filtroPlazas} 
+                    onChange={e => setFiltroPlazas(e.target.value)} 
+                    className="w-full bg-[#050814] border border-slate-700 text-[10px] py-1 pl-6 pr-2 rounded text-slate-300 focus:outline-none focus:border-purple-500 transition-colors" 
+                  />
+                </div>
+              </div>
+              <div className={`bg-[#1c2541] border ${newPlazas.length === 0 ? 'border-red-500' : 'border-slate-700'} rounded p-2 max-h-40 overflow-y-auto space-y-2 custom-scrollbar`}>
                 <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer hover:bg-slate-800/50 p-1 rounded transition-colors"><input type="checkbox" checked={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) setNewPlazas(['*']); else setNewPlazas([]); }} className="accent-amber-500" /><span className="font-bold text-amber-400">ACCESO GLOBAL (*)</span></label>
                 <div className="border-t border-slate-700 my-1"></div>
-                {Object.keys(estructuraGeografica).map(r => (<div key={r} className="ml-1 space-y-1"><span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">{r}</span><div className="ml-2 flex flex-col gap-0.5">{obtenerCiudadesOrdenadas(r).map(c => { const cityId = String(c.id); return (<label key={cityId} className={`flex items-center gap-2 text-[11px] cursor-pointer hover:bg-slate-800/50 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-500 opacity-50' : 'text-slate-300'}`}><input type="checkbox" checked={newPlazas.includes(cityId) && !newPlazas.includes('*')} disabled={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) { setNewPlazas(prev => [...prev.filter(p => p !== '*'), cityId]); } else { setNewPlazas(prev => prev.filter(p => p !== cityId)); } }} className="accent-blue-500" />{c.nombre} <span className="text-[9px] text-slate-500 font-mono">({cityId})</span></label>); })}</div></div>))}
+                {Object.keys(estructuraGeografica).map(r => {
+                  const query = filtroPlazas.toLowerCase();
+                  const regionMatch = r.toLowerCase().includes(query);
+                  const ciudadesTodas = obtenerCiudadesOrdenadas(r);
+                  const ciudadesFiltradas = ciudadesTodas.filter(c => c.nombre.toLowerCase().includes(query) || c.id.toLowerCase().includes(query));
+                  
+                  // Si hay búsqueda y no coincide la región ni ninguna de sus ciudades, la ocultamos
+                  if (query && !regionMatch && ciudadesFiltradas.length === 0) return null;
+                  
+                  // Si la región no coincidió con la búsqueda, solo renderizamos las ciudades filtradas
+                  const ciudadesRender = (query && !regionMatch) ? ciudadesFiltradas : ciudadesTodas;
+
+                  return (
+                    <div key={r} className="ml-1 space-y-1">
+                      <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">{r}</span>
+                      <div className="ml-2 flex flex-col gap-0.5">
+                        {ciudadesRender.map(c => { 
+                          const cityId = String(c.id); 
+                          return (
+                            <label key={cityId} className={`flex items-center gap-2 text-[11px] cursor-pointer hover:bg-slate-800/50 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-500 opacity-50' : 'text-slate-300'}`}>
+                              <input type="checkbox" checked={newPlazas.includes(cityId) && !newPlazas.includes('*')} disabled={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) { setNewPlazas(prev => [...prev.filter(p => p !== '*'), cityId]); } else { setNewPlazas(prev => prev.filter(p => p !== cityId)); } }} className="accent-blue-500" />
+                              {c.nombre} <span className="text-[9px] text-slate-500 font-mono">({cityId})</span>
+                            </label>
+                          ); 
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
+            {/* FIN MODIFICACIÓN */}
+
             {idUserEditando ? (<div className="flex gap-2 mt-2"><button type="submit" disabled={newPlazas.length === 0} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors disabled:opacity-50">Actualizar</button><button type="button" onClick={cancelarEdicionUser} className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors">Cancelar</button></div>) : (<button type="submit" disabled={newPlazas.length === 0} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-2 rounded font-semibold cursor-pointer transition-colors mt-2 disabled:opacity-50">Registrar Nuevo Usuario</button>)}
           </form>
         </div>
