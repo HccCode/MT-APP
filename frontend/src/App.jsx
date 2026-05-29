@@ -180,7 +180,7 @@ function App() {
           <Inventario token={token} usuario={usuario} puedeEditar={puedeEditar} esRnoc={esRnoc} esMcmNoc={esMcmNoc} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
         {tabActiva === 'cabezales' && (
-          <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} />
+          <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} estructuraGeografica={estructuraGeografica}/>
         )}
         {tabActiva === 'resumen' && (
           <Resumen estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>

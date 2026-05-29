@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, Edit, Trash2, Check, X } from 'lucide-react';
 
-export default function Cabezales({ token, handleLogout, puedeCargar }) {
+// NOTA: Se agregó 'estructuraGeografica' a los props recibidos
+export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica }) {
   const [cabezales, setCabezales] = useState([]);
-  const [filtroCiudad, setFiltroCiudad] = useState('');
-  const [filtroId, setFiltroId] = useState('');
+  
+  // NUEVOS ESTADOS DE FILTRO (Persistentes en localStorage)
+  const [filtroReg, setFiltroReg] = useState(localStorage.getItem('mcm_cab_reg') || '');
+  const [filtroCd, setFiltroCd] = useState(localStorage.getItem('mcm_cab_cd') || '');
+  const [filtroTexto, setFiltroTexto] = useState('');
   
   // MODAL ALINEACIÓN
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -24,11 +28,24 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
   const [editandoCanalId, setEditandoCanalId] = useState(null);
   const [editCanalForm, setEditCanalForm] = useState({});
 
+  // GUARDAR FILTROS EN LOCALSTORAGE
+  useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
+  useEffect(() => { localStorage.setItem('mcm_cab_cd', filtroCd); }, [filtroCd]);
+
+  // HELPER PARA ORDENAR CIUDADES
+  const obtenerCiudadesOrdenadas = (region) => {
+    if (!region || !estructuraGeografica || !estructuraGeografica[region]?.ciudades) return [];
+    return Object.keys(estructuraGeografica[region].ciudades).map(nombre => ({
+        id: estructuraGeografica[region].ciudades[nombre].id,
+        nombre: nombre
+    })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  };
+
   const buscarCabezales = async () => {
     try {
       let url = new URL('https://mt-backend-2ox8.onrender.com/api/cabezales');
-      if (filtroCiudad) url.searchParams.append('ciudad', filtroCiudad);
-      if (filtroId) url.searchParams.append('id_equipo', filtroId);
+      // Pide al backend los cabezales de la ciudad seleccionada
+      if (filtroCd) url.searchParams.append('ciudad', filtroCd);
 
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) return handleLogout();
@@ -38,6 +55,21 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
       console.error("Error cargando la lista de cabezales:", e);
     }
   };
+
+  // Se ejecuta la búsqueda automáticamente cuando cambia la ciudad seleccionada
+  useEffect(() => {
+    buscarCabezales();
+  }, [filtroCd]);
+
+  // FILTRADO LOCAL POR TEXTO (BUSCADOR ID O SERVICIO)
+  const cabezalesFiltrados = cabezales.filter(cab => {
+    if (!filtroTexto) return true;
+    const text = filtroTexto.toLowerCase();
+    return (
+        String(cab.id_equipo || '').toLowerCase().includes(text) ||
+        String(cab.servicio || '').toLowerCase().includes(text)
+    );
+  });
 
   const verAlineacion = async (cabezal) => {
     setCabezalSeleccionado(cabezal);
@@ -211,51 +243,60 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
     );
   };
 
-  useEffect(() => {
-    buscarCabezales();
-  }, []);
-
   return (
-    <div className="p-6 flex flex-col h-full overflow-hidden bg-[#070b19]">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-0 flex flex-col h-full overflow-hidden bg-[#070b19]">
+      <div className="p-6 pb-2 flex justify-between items-center shrink-0">
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           📡 Control Central de Cabezales
         </h1>
         {puedeCargar && (
           <button 
             onClick={() => { setArchivo(null); setModalCarga(true); setStatusCarga({ loading: false, msg: '', type: '' }); }} 
-            className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-white font-bold flex items-center gap-2 transition"
+            className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-white font-bold flex items-center gap-2 transition shadow-lg"
           >
             <UploadCloud className="w-5 h-5" /> Importación Única Excel
           </button>
         )}
       </div>
 
-      <div className="flex gap-4 mb-4 bg-[#0b132b] p-4 rounded-lg border border-slate-800">
-        <input 
-          type="text" placeholder="Filtrar por ID de Equipo..." 
-          className="bg-[#050814] border border-slate-700 text-white rounded px-3 py-2 text-sm w-48 focus:border-cyan-500 outline-none"
-          value={filtroId} onChange={(e) => setFiltroId(e.target.value)}
-        />
-        <input 
-          type="text" placeholder="Filtrar por Ciudad..." 
-          className="bg-[#050814] border border-slate-700 text-white rounded px-3 py-2 text-sm w-48 focus:border-cyan-500 outline-none"
-          value={filtroCiudad} onChange={(e) => setFiltroCiudad(e.target.value)}
-        />
-        <button onClick={buscarCabezales} className="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded text-white font-bold flex items-center gap-2 transition">
-          <Search className="w-4 h-4" /> Ejecutar Filtro
-        </button>
+      {/* NUEVA BARRA DE FILTROS ESTILO INVENTARIO */}
+      <div className="bg-[#090f24] border-y border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 mb-4 shadow-md">
+        <div className="flex flex-wrap items-center gap-3 text-xs font-medium w-full lg:w-auto">
+          <span className="px-3 py-1 rounded-md text-blue-500 border border-blue-600/60 shadow-sm uppercase tracking-wider font-bold">FILTROS</span>
+          
+          <select value={filtroReg} onChange={(e) => { setFiltroReg(e.target.value); setFiltroCd(''); }} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer min-w-[150px]">
+            <option value="">-- REGIÓN --</option>
+            {estructuraGeografica && Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          
+          <span className="text-blue-600/80 text-[10px]">➔</span>
+          
+          <select value={filtroCd} onChange={(e) => setFiltroCd(e.target.value)} disabled={!filtroReg} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer min-w-[180px]">
+            <option value="">-- TODAS LAS CIUDADES --</option>
+            {filtroReg && obtenerCiudadesOrdenadas(filtroReg).map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-3 w-full lg:w-[400px] bg-[#050814] border border-slate-700 rounded-md px-3 py-1.5 focus-within:border-cyan-500 transition-colors">
+          <Search className="w-4 h-4 text-slate-500 shrink-0" />
+          <input 
+            type="text" 
+            placeholder="Buscar por ID de Equipo o Servicio / Cliente..." 
+            value={filtroTexto} 
+            onChange={(e) => setFiltroTexto(e.target.value)} 
+            className="bg-transparent text-xs text-white focus:outline-none w-full" 
+          />
+        </div>
       </div>
 
       {/* CONTENEDOR TABLA PRINCIPAL */}
-      <div className="flex-1 overflow-auto border border-slate-800 rounded-lg custom-scrollbar">
-        {/* MODIFICACIÓN: min-w-max y whitespace-nowrap evitan columnas encimadas */}
+      <div className="flex-1 overflow-auto border border-slate-800 rounded-lg custom-scrollbar mx-6 mb-6">
         <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
           <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
             <tr>
               <th className="p-4 border-b border-slate-700">CIUDAD</th>
-              {/* SE ELIMINÓ LA COLUMNA DE ID/NODO */}
-              <th className="p-4 border-b border-slate-700">SERVICIO</th>
+              <th className="p-4 border-b border-slate-700 text-cyan-400">ID EQUIPO</th>
+              <th className="p-4 border-b border-slate-700">SERVICIO / CLIENTE</th>
               <th className="p-4 border-b border-slate-700 text-center">ALINEACIÓN</th>
               <th className="p-4 border-b border-slate-700">GESTION QAM</th>
               <th className="p-4 border-b border-slate-700">MARCA</th>
@@ -265,13 +306,15 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-[#050814]">
-            {cabezales.map(cab => (
+            {cabezalesFiltrados.map(cab => (
               editandoId === cab.id ? (
                 <tr key={cab.id} className="bg-slate-800/80">
                   <td className="p-2">
                     <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.ciudad || ''} onChange={e => setEditForm({...editForm, ciudad: e.target.value})} />
                   </td>
-                  {/* SE ELIMINÓ LA CELDA DE EDICIÓN DEL ID/NODO (Mantiene el dato en memoria) */}
+                  <td className="p-2">
+                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-cyan-700 rounded px-2 py-1 text-cyan-300 text-xs font-bold" value={editForm.id_equipo || ''} onChange={e => setEditForm({...editForm, id_equipo: e.target.value})} />
+                  </td>
                   <td className="p-2">
                     <input type="text" className="w-full min-w-[150px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.servicio || ''} onChange={e => setEditForm({...editForm, servicio: e.target.value})} />
                   </td>
@@ -296,8 +339,8 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
               ) : (
                 <tr key={cab.id} className="hover:bg-slate-800/50 transition">
                   <td className="p-4 font-semibold text-white">{cab.ciudad}</td>
-                  {/* SE ELIMINÓ LA CELDA VISUAL DEL ID/NODO */}
-                  <td className="p-4">{cab.servicio}</td>
+                  <td className="p-4 font-bold text-cyan-400 font-mono text-xs">{cab.id_equipo}</td>
+                  <td className="p-4 text-slate-200">{cab.servicio}</td>
                   <td className="p-4 text-center">
                     <button onClick={() => verAlineacion(cab)} className="bg-indigo-600/20 text-indigo-400 border border-indigo-600/30 px-3 py-1 rounded flex items-center gap-2 mx-auto hover:bg-indigo-600 hover:text-white transition-colors">
                       <Eye className="w-4 h-4"/> Desplegar Canales
@@ -329,8 +372,8 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
                 </tr>
               )
             ))}
-            {cabezales.length === 0 && (
-              <tr><td colSpan={puedeCargar ? "8" : "7"} className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda.</td></tr>
+            {cabezalesFiltrados.length === 0 && (
+              <tr><td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda o filtros.</td></tr>
             )}
           </tbody>
         </table>
@@ -339,10 +382,10 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
       {/* MODAL MAESTRO EXCEL */}
       {modalCarga && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-md w-full p-6">
+          <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-md w-full p-6 shadow-2xl">
             <h2 className="text-xl font-bold text-white mb-2">Procesar Archivo Maestro</h2>
             <div className="space-y-4">
-              <div className="border-2 border-dashed border-slate-700 rounded-xl p-4 text-center bg-[#050814]/50 relative">
+              <div className="border-2 border-dashed border-slate-700 rounded-xl p-4 text-center bg-[#050814]/50 relative transition-colors hover:border-emerald-500/50">
                 <input type="file" accept=".xlsx, .xls" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={e => { if(e.target.files[0]) setArchivo(e.target.files[0]); }} />
                 <UploadCloud className="w-10 h-10 text-slate-500 mx-auto mb-2" />
                 <span className="text-sm block text-slate-300 font-semibold">{archivo ? archivo.name : "Seleccione libro de Excel"}</span>
@@ -365,15 +408,17 @@ export default function Cabezales({ token, handleLogout, puedeCargar }) {
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-7xl w-full flex flex-col max-h-[85vh] shadow-2xl">
-            <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-[#050814] rounded-t-xl">
+            <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-[#050814] rounded-t-xl shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-white">Alineación de Canales</h2>
-                <p className="text-slate-400 text-xs mt-1">ID (Oculto en tabla): <span className="text-cyan-400 font-mono font-bold">{cabezalSeleccionado?.id_equipo}</span> | Servicio: {cabezalSeleccionado?.servicio}</p>
+                <p className="text-slate-400 text-xs mt-1 flex items-center gap-2">
+                  <span className="bg-cyan-900/40 text-cyan-400 px-2 py-0.5 rounded border border-cyan-800 font-mono font-bold">ID: {cabezalSeleccionado?.id_equipo}</span>
+                  <span>Servicio: {cabezalSeleccionado?.servicio}</span>
+                </p>
               </div>
               <button onClick={() => setModalAbierto(false)} className="w-8 h-8 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-red-600 hover:text-white transition font-bold text-sm">✕</button>
             </div>
             <div className="p-0 overflow-auto flex-1 custom-scrollbar">
-              {/* MODIFICACIÓN: min-w-max y whitespace-nowrap evitan columnas encimadas en el modal */}
               <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
                 <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
                   <tr>
