@@ -596,6 +596,9 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         idx_bdi = get_index(["BDI"], column_headers)
         idx_potcpe = get_index(["POTENCIA CPE"], column_headers)
         idx_pothub = get_index(["POTENCIA HUB"], column_headers)
+        idx_id_mca = get_index(["ID MCA", "ID_MCA"], column_headers)
+        idx_contacto_nombre = get_index(["CONTACTO", "CONTACTO NOMBRE", "NOMBRE CONTACTO"], column_headers)
+        idx_contacto_telefono = get_index(["TELEFONO", "CONTACTO TELEFONO"], column_headers)
 
         if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
         db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
@@ -608,7 +611,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
             def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
             
             db.add(PortModel(
-                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe)
+                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono)
             ))
         db.commit()
         return {"status": "success", "detail": "Aprovisionamiento masivo completado."}

@@ -56,7 +56,7 @@ export default function TarjetaRed({ puertoSeleccionado }) {
             </span>
           </div>
           <span className="text-white text-base font-bold tracking-wide mt-1.5 font-mono">
-            {puertoSeleccionado.IP_ROUTER_HUB || "No asignada"}
+            {puertoSeleccionado.IP_HUB || "No asignada"}
           </span>
         </div>
 
@@ -69,7 +69,7 @@ export default function TarjetaRed({ puertoSeleccionado }) {
             </span>
           </div>
           <span className="text-cyan-400 text-base font-bold tracking-wide mt-1.5 font-mono">
-            {puertoSeleccionado.IP_GESTION_CPE || "No asignada"}
+            {puertoSeleccionado.IP_GESTION || "No asignada"}
           </span>
         </div>
 
