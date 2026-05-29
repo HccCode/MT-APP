@@ -20,27 +20,31 @@ function App() {
   const roleStr = String(usuario?.role || '').trim().toUpperCase();
   const userStr = String(usuario?.username || '').trim().toLowerCase();
   const permisos = roleStr.split(',').map(p => p.trim());
-  const esAdmin = userStr === 'admin' || roleStr === 'ADMIN' || permisos.includes('ADMIN');
   
+  const esAdmin = userStr === 'admin' || roleStr === 'ADMIN' || permisos.includes('ADMIN');
   const puedeEditar = esAdmin || roleStr === 'MCM NOC' || roleStr === 'MCM INGENIERIA' || permisos.includes('ESCRITURA');
   const puedeCargar = esAdmin || roleStr === 'MCM INGENIERIA' || permisos.includes('CARGA');
   
-  const esMcmNoc = puedeEditar && !puedeCargar && !esAdmin; 
-  const esMcmIng = puedeCargar && !esAdmin;
-  const esRnoc = !puedeEditar && !esAdmin && !puedeCargar;
+  // DEFINICIÓN DE ROLES ESPECÍFICOS
+  const esMcmNoc = roleStr === 'MCM NOC' || permisos.includes('MCM NOC'); 
+  const esMcmIng = roleStr === 'MCM INGENIERIA' || permisos.includes('MCM INGENIERIA');
+  const esRnoc = roleStr === 'RNOC' || permisos.includes('RNOC'); // <-- ROL RNOC CREADO
 
   // VISIBILIDAD DE PESTAÑAS (TABS)
   const pestanasStr = String(usuario?.pestanas || '*');
   const arrayPestanas = pestanasStr.split(',').map(p => p.trim());
 
   const puedeVerTab = (tabId, checkLegacyFallback) => {
+    // REGLA ESTRICTA: Si es RNOC, SOLO puede ver inventario (Servicios Dedicados)
+    if (esRnoc) return tabId === 'inventario';
+    
     if (esAdmin || pestanasStr === '*') return true;
     if (pestanasStr && pestanasStr !== '') return arrayPestanas.includes(tabId);
     return checkLegacyFallback;
   };
 
   const mostrarInventario = puedeVerTab('inventario', true);
-  const mostrarResumen = puedeVerTab('resumen', !esRnoc);
+  const mostrarResumen = puedeVerTab('resumen', true);
   const mostrarCabezales = puedeVerTab('cabezales', true);
   const mostrarGeografia = puedeVerTab('geografia', esAdmin);
   const mostrarCarga = puedeVerTab('carga_excel', puedeCargar);
