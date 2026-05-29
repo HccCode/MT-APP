@@ -249,8 +249,8 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                                     <button onClick={()=>setModoEdicion(false)} className="bg-slate-700 p-1.5 rounded cursor-pointer"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (
-                                <div className="flex items-center gap-3 justify-center group">
-                                    <p className="text-2xl justify-center font-blac0k text-blue-400 font-mono">{capacidadTotal}</p>
+                                <div className="flex items-center gap-3 justify-end group">
+                                    <p className="text-2xl justify-center font-black text-blue-400 font-mono">{capacidadTotal}</p>
                                     {puedeEditar && (
                                         <button onClick={()=>{setEditCapacidad(capacidadTotal); setModoEdicion(true);}} className="text-slate-600 hover:text-blue-400 cursor-pointer">
                                             <Edit2 className="w-4 h-4" />
