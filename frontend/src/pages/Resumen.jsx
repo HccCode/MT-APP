@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, Edit2, Check, X, Zap } from 'lucide-react';
 
-export default function Resumen({ estructuraGeografica }) {
+export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
   const [ciudadSelec, setCiudadSelec] = useState(localStorage.getItem('mcm_res_cd') || '');
   
@@ -189,12 +189,12 @@ export default function Resumen({ estructuraGeografica }) {
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
         <div className="flex items-center gap-3">
             <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); }} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none">
-                <option value="" className="bg-[#0b132b]">-- REGIÓN --</option>
-                {Object.keys(estructuraGeografica).map(r => <option key={r} value={r} className="bg-[#0b132b]">{r}</option>)}
+                <option value="" className="bg-[#1c2541] text-white">-- REGIÓN --</option>
+                {Object.keys(estructuraGeografica).map(r => <option key={r} value={r} className="bg-[#1c2541] text-white">{r}</option>)}
             </select>
             <select value={ciudadSelec} onChange={(e) => setCiudadSelec(e.target.value)} disabled={!regionSelec} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none">
-                <option value="" className="bg-[#0b132b]">-- CIUDAD --</option>
-                {regionSelec && Object.keys(estructuraGeografica[regionSelec].ciudades).map(c => <option key={c} value={c} className="bg-[#0b132b]">{c}</option>)}
+                <option value="" className="bg-[#1c2541] text-white">-- CIUDAD --</option>
+                {regionSelec && Object.keys(estructuraGeografica[regionSelec].ciudades).map(c => <option key={c} value={c} className="bg-[#1c2541] text-white">{c}</option>)}
             </select>
         </div>
         {datosHubs.length > 0 && (
@@ -240,7 +240,7 @@ export default function Resumen({ estructuraGeografica }) {
                     </div>
 
                     <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4 min-w-[250px]">
-                        <div className="flex-1 text-center">
+                        <div className="flex-1 text-right">
                             <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Ancho de Banda Total</p>
                             {modoEdicion ? (
                                 <div className="flex items-center gap-2 justify-end">
@@ -251,7 +251,11 @@ export default function Resumen({ estructuraGeografica }) {
                             ) : (
                                 <div className="flex items-center gap-3 justify-end group">
                                     <p className="text-2xl font-black text-blue-400 font-mono">{capacidadTotal}</p>
-                                    <button onClick={()=>{setEditCapacidad(capacidadTotal); setModoEdicion(true);}} className="text-slate-600 hover:text-blue-400 cursor-pointer"><Edit2 className="w-4 h-4" /></button>
+                                    {puedeEditar && (
+                                        <button onClick={()=>{setEditCapacidad(capacidadTotal); setModoEdicion(true);}} className="text-slate-600 hover:text-blue-400 cursor-pointer">
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
