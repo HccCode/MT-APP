@@ -580,14 +580,18 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera los 5MB."})
         df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
         header_row_idx = 0
+        
         for idx, row in df.iterrows():
             if "PUERTO" in [str(cell).upper().strip() for cell in row.values]:
                 header_row_idx = idx
                 break
+                
         column_headers = [str(cell).upper().strip() for cell in df.iloc[header_row_idx].values]
         df_data = df.iloc[header_row_idx + 1:]
+        
         hub_cfg = db.query(HubMappingModel).filter(HubMappingModel.id == str(id_hub).upper().strip()).first()
         if not hub_cfg: return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
+        
         ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
         region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
         
@@ -596,20 +600,43 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
                 if t in headers: return headers.index(t)
             return -1
 
+        # ====== TODOS LOS ÍNDICES EXTRAÍDOS DE LA FICHA TÉCNICA ======
         idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
         idx_puerto = get_index(["PUERTO"], column_headers)
-        idx_equipo = get_index(["EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID"], column_headers)
+        idx_equipo = get_index(["EQUIPO ID (CHASIS)", "EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID", "EQUIPO ID"], column_headers)
         idx_iphub = get_index(["IP HUB", "IP_HUB"], column_headers)
-        idx_serv = get_index(["SERVICIO"], column_headers)
-        idx_mbps = get_index(["MBPS"], column_headers)
-        idx_ipgest = get_index(["IP GESTION", "IP_GESTION"], column_headers)
+        idx_serv = get_index(["CLIENTE / SERVICIO", "SERVICIO", "CLIENTE"], column_headers)
+        idx_mbps = get_index(["ANCHO BANDA (MBPS)", "MBPS", "ANCHO BANDA"], column_headers)
+        idx_ipgest = get_index(["IP GESTIÓN", "IP GESTION", "IP_GESTION"], column_headers)
         idx_ipcli = get_index(["IP CLIENTE", "IP_CLIENTE"], column_headers)
         idx_bdi = get_index(["BDI"], column_headers)
         idx_potcpe = get_index(["POTENCIA CPE"], column_headers)
         idx_pothub = get_index(["POTENCIA HUB"], column_headers)
         idx_id_mca = get_index(["ID MCA", "ID_MCA"], column_headers)
-        idx_contacto_nombre = get_index(["CONTACTO", "CONTACTO NOMBRE", "NOMBRE CONTACTO"], column_headers)
-        idx_contacto_telefono = get_index(["TELEFONO", "CONTACTO TELEFONO"], column_headers)
+        
+        # Planta Externa y Fibra
+        idx_ruta = get_index(["RUTA"], column_headers)
+        idx_distancia = get_index(["DIST. CLIENTE", "DISTANCIA CLIENTE", "DISTANCIA"], column_headers)
+        idx_lambdas = get_index(["LAMBDAS", "LAMBDA"], column_headers)
+        idx_buffer = get_index(["BUFFER"], column_headers)
+        idx_hilos = get_index(["HILOS", "HILO"], column_headers)
+        idx_parcheo = get_index(["PARCHEO"], column_headers)
+        
+        # Equipamiento
+        idx_serie_sfp_hub = get_index(["SERIE SFP HUB", "SFP HUB"], column_headers)
+        idx_serie_sfp_cpe = get_index(["SERIE SFP CPE", "SERIE SFP CLIENTE", "SFP CPE"], column_headers)
+        idx_marca = get_index(["MARCA", "MARCA CPE"], column_headers)
+        idx_modelo = get_index(["MODELO", "MODELO CPE"], column_headers)
+        idx_serie_cpe = get_index(["SERIE CPE", "SERIE"], column_headers)
+        
+        # Administrativo y Contacto
+        idx_tipo_servicio = get_index(["TIPO SERVICIO", "TIPO DE SERVICIO"], column_headers)
+        idx_direccion = get_index(["DIRECCIÓN SERVICIO", "DIRECCION SERVICIO", "DIRECCIÓN", "DIRECCION"], column_headers)
+        idx_coordenadas = get_index(["COORDENADAS"], column_headers)
+        idx_contacto_nombre = get_index(["NOMBRE CONTACTO", "CONTACTO", "CONTACTO NOMBRE"], column_headers)
+        idx_contacto_telefono = get_index(["TELÉFONO CONTACTO", "TELEFONO CONTACTO", "TELEFONO", "TELÉFONO"], column_headers)
+        idx_fecha_entrega = get_index(["FECHA DE ENTREGA", "FECHA ENTREGA", "FECHA"], column_headers)
+        idx_comentarios = get_index(["COMENTARIOS", "OBSERVACIONES"], column_headers)
 
         if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
         db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
@@ -621,8 +648,31 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
             if not p_val or p_val.upper() == "NAN" or p_val == "": continue
             def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
             
+            # ====== GUARDADO COMPLETO AL MODELO ======
             db.add(PortModel(
-                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono)
+                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
+                estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, 
+                equipo_hotel_id=read_val(idx_equipo), ip_hub=read_val(idx_iphub), 
+                servicio=read_val(idx_serv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), 
+                ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), potencia_hub=read_val(idx_pothub), 
+                potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), 
+                contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono),
+                serie_sfp_hub=read_val(idx_serie_sfp_hub),
+                serie_sfp_client=read_val(idx_serie_sfp_cpe),
+                ruta=read_val(idx_ruta),
+                distancia_cliente=read_val(idx_distancia),
+                lambdas=read_val(idx_lambdas),
+                buffer=read_val(idx_buffer),
+                hilos=read_val(idx_hilos),
+                parcheo=read_val(idx_parcheo),
+                marca_cpe=read_val(idx_marca),
+                modelo_cpe=read_val(idx_modelo),
+                serie_cpe=read_val(idx_serie_cpe),
+                tipo_servicio=read_val(idx_tipo_servicio),
+                direccion=read_val(idx_direccion),
+                coordenadas=read_val(idx_coordenadas),
+                fecha_entrega=read_val(idx_fecha_entrega),
+                comentarios=read_val(idx_comentarios)
             ))
         db.commit()
         return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
