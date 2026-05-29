@@ -183,7 +183,7 @@ function App() {
           <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} />
         )}
         {tabActiva === 'resumen' && (
-          <Resumen estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} />
+          <Resumen estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>
         )}
         {tabActiva === 'geografia' && (
           <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
