@@ -239,7 +239,7 @@ export default function Resumen({ estructuraGeografica }) {
                         <p className="text-xs text-slate-500">Configuración de Backbone por ciudad para cálculo de saturación.</p>
                     </div>
 
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4 min-w-[200px]">
+                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-600 flex items-center gap-4 min-w-[200px]">
                         <div className="flex-1 text-right">
                             <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Ancho de Banda Total</p>
                             {modoEdicion ? (
