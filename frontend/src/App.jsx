@@ -182,9 +182,7 @@ const cargarGeographyDB = async () => {
         {tabActiva === 'cabezales' && (
           <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} />
         )}
-        {tabActiva === 'resumen' && (
-          <Resumen estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} />
-        )}
+        
         {tabActiva === 'resumen' && (
           <Resumen estructuraGeografica={estructuraGeografica} />
         )}
