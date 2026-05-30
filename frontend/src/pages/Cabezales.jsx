@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, Edit, Trash2, Check, X } from 'lucide-react';
 
-// NOTA: Se agregó 'estructuraGeografica' a los props recibidos
 export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica }) {
   const [cabezales, setCabezales] = useState([]);
   
-  // NUEVOS ESTADOS DE FILTRO (Persistentes en localStorage)
+  // ESTADOS DE FILTRO (Persistentes en localStorage)
   const [filtroReg, setFiltroReg] = useState(localStorage.getItem('mcm_cab_reg') || '');
   const [filtroCd, setFiltroCd] = useState(localStorage.getItem('mcm_cab_cd') || '');
   const [filtroTexto, setFiltroTexto] = useState('');
@@ -42,10 +41,15 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   };
 
   const buscarCabezales = async () => {
+    // --- NUEVA REGLA: Si no hay ciudad, limpiamos la tabla y no hacemos la petición ---
+    if (!filtroCd) {
+      setCabezales([]);
+      return;
+    }
+
     try {
       let url = new URL('https://mt-backend-2ox8.onrender.com/api/cabezales');
-      // Pide al backend los cabezales de la ciudad seleccionada
-      if (filtroCd) url.searchParams.append('ciudad', filtroCd);
+      url.searchParams.append('ciudad', filtroCd); 
 
       const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) return handleLogout();
@@ -259,7 +263,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         )}
       </div>
 
-      {/* NUEVA BARRA DE FILTROS ESTILO INVENTARIO */}
       <div className="bg-[#090f24] border-y border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 mb-4 shadow-md">
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium w-full lg:w-auto">
           <span className="px-3 py-1 rounded-md text-blue-500 border border-blue-600/60 shadow-sm uppercase tracking-wider font-bold">FILTROS</span>
@@ -272,7 +275,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
           <span className="text-blue-600/80 text-[10px]">➔</span>
           
           <select value={filtroCd} onChange={(e) => setFiltroCd(e.target.value)} disabled={!filtroReg} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer min-w-[180px]">
-            <option value="">-- TODAS LAS CIUDADES --</option>
+            <option value="">-- SELECCIONAR CIUDAD --</option>
             {filtroReg && obtenerCiudadesOrdenadas(filtroReg).map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
           </select>
         </div>
@@ -284,7 +287,8 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
             placeholder="Buscar por ID de Equipo o Servicio / Cliente..." 
             value={filtroTexto} 
             onChange={(e) => setFiltroTexto(e.target.value)} 
-            className="bg-transparent text-xs text-white focus:outline-none w-full" 
+            disabled={!filtroCd}
+            className="bg-transparent text-xs text-white focus:outline-none w-full disabled:opacity-50" 
           />
         </div>
       </div>
@@ -372,8 +376,15 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                 </tr>
               )
             ))}
+            {/* NUEVO MENSAJE DE ESTADO */}
             {cabezalesFiltrados.length === 0 && (
-              <tr><td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500">Ningún cabezal coincide con los criterios de búsqueda o filtros.</td></tr>
+              <tr>
+                <td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500 italic">
+                  {!filtroReg || !filtroCd 
+                    ? "⚠️ Por favor, seleccione una Región y Ciudad para desplegar el inventario." 
+                    : "Ningún cabezal coincide con los criterios de búsqueda o filtros."}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
