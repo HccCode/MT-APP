@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 
 import ModalFalla from '../components/modals/ModalFalla';
@@ -10,7 +10,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [inventarioCd, setInventarioCd] = useState(localStorage.getItem('mcm_inv_cd') || '');
   const [inventarioHub, setInventarioHub] = useState(localStorage.getItem('mcm_inv_hub') || 'TODOS');
 
-  // URL Dinámica
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => { localStorage.setItem('mcm_inv_reg', inventarioReg); }, [inventarioReg]);
@@ -81,12 +80,39 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     setFiltroEquipo('TODOS'); 
   }, [inventarioHub, estructuraGeografica, inventarioReg, inventarioCd]);
 
-  // =============== FIX 422: FILTRO DE PAYLOAD SANITIZADO ===============
+  // FUNCION DE EXPORTACIÓN EXCEL
+  const handleExportarExcel = async () => {
+    try {
+      setCargando(true);
+      let url = `${API_URL}/api/hubs/exportar-excel?`;
+      if (inventarioReg) url += `region=${encodeURIComponent(inventarioReg)}&`;
+      if (inventarioCd) url += `ciudad=${encodeURIComponent(inventarioCd)}&`;
+      if (inventarioHub && inventarioHub !== 'TODOS') url += `id_hub=${encodeURIComponent(inventarioHub)}`;
+      
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!res.ok) throw new Error("Error en la descarga");
+      
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `Reporte_MT_DB_${inventarioHub !== 'TODOS' ? inventarioHub : 'Global'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+      alert("Fallo al generar el reporte Excel.");
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  // SANITIZACIÓN FIX 422
   const handleGuardarCambios = async () => {
     if (!puertoDetalle?.ID) return;
     setGuardando(true);
 
-    // 1. Lista blanca estricta de variables que acepta el backend
     const camposPermitidos = [
       "ESTATUS", "PUERTO", "EQUIPO_HOTEL_ID", "IP_HUB", "NOMBRE_CORTO",
       "ID_MCA", "SERVICIO", "POTENCIA_HUB", "POTENCIA_CPE", "TIPO_SERVICIO",
@@ -101,9 +127,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
     camposPermitidos.forEach(key => {
       let val = editCampos[key];
-      
-      // 2. Si el valor NO es nulo ni indefinido, lo pasamos como String estricto
-      // Pydantic ignorará las llaves que no enviemos en lugar de tronar por un 'null'.
       if (val !== null && val !== undefined) {
         payloadSanitizado[key] = String(val);
       }
@@ -115,15 +138,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
         body: JSON.stringify(payloadSanitizado) 
       });
-      
       if (res.status === 401) { handleLogout(); return; }
-      
       if (res.ok) { 
         setPuertoDetalle({...puertoDetalle, ...editCampos}); 
         await cargarDatosSistemas(); 
         alert("Modificación física guardada exitosamente en MT_DB."); 
       } else { 
-        // Mostrar en consola el detalle del 422 por si hay otra variable en conflicto
         const errData = await res.json();
         console.error("Detalle Error 422:", errData);
         alert("Fallo de validación: No se pudo guardar la información."); 
@@ -131,9 +151,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     } catch (err) { 
       console.error(err); 
       alert("Fallo de red al intentar actualizar el puerto."); 
-    } finally { 
-      setGuardando(false); 
-    }
+    } finally { setGuardando(false); }
   };
 
   const obtenerCiudadesOrdenadas = (region) => {
@@ -179,22 +197,32 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
           <span className="px-3 py-1 rounded-md text-blue-500 border border-blue-600/60 shadow-sm uppercase tracking-wider font-bold">FILTROS LISTADO</span>
           
-          <select value={inventarioReg} onChange={(e) => { setInventarioReg(e.target.value); setInventarioCd(''); setInventarioHub('TODOS'); }} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
-            <option value="" className="bg-[#0b132b]">-- REGIÓN --</option>
-            {Object.keys(estructuraGeografica).map(r => <option key={r} value={r} className="bg-[#0b132b]">{r}</option>)}
+          <select value={inventarioReg} onChange={(e) => { setInventarioReg(e.target.value); setInventarioCd(''); setInventarioHub('TODOS'); }} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+            <option value="">-- REGIÓN --</option>
+            {Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <span className="text-blue-600/80 text-[10px]">➔</span>
-          <select value={inventarioCd} onChange={(e) => { setInventarioCd(e.target.value); setInventarioHub('TODOS'); }} disabled={!inventarioReg} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
-            <option value="" className="bg-[#0b132b]">-- CIUDAD --</option>
-            {inventarioReg && obtenerCiudadesOrdenadas(inventarioReg).map(c => <option key={c.id} value={c.nombre} className="bg-[#0b132b]">{c.nombre}</option>)}
+          <select value={inventarioCd} onChange={(e) => { setInventarioCd(e.target.value); setInventarioHub('TODOS'); }} disabled={!inventarioReg} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+            <option value="">-- CIUDAD --</option>
+            {inventarioReg && obtenerCiudadesOrdenadas(inventarioReg).map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
           </select>
           <span className="text-blue-600/80 text-[10px]">➔</span>
-          <select value={inventarioHub} onChange={(e) => setInventarioHub(e.target.value)} disabled={!inventarioCd} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-blue-400 font-bold w-48 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
-            <option value="TODOS" className="bg-[#0b132b]">-- TODOS LOS HUBs --</option>
+          <select value={inventarioHub} onChange={(e) => setInventarioHub(e.target.value)} disabled={!inventarioCd} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-blue-400 font-bold w-48 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+            <option value="TODOS">-- TODOS LOS HUBs --</option>
             {inventarioReg && inventarioCd && (estructuraGeografica[inventarioReg]?.ciudades[inventarioCd]?.hubs || []).map(h => 
-              <option key={h.id} value={h.id} className="bg-[#0b132b]">{h.nombre}</option>
+              <option key={h.id} value={h.id}>{h.nombre}</option>
             )}
           </select>
+
+          <button 
+            onClick={handleExportarExcel} 
+            disabled={cargando || !inventarioCd}
+            className="ml-2 bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-md text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-lg cursor-pointer border border-emerald-500"
+            title="Descargar reporte con gráficas y formato"
+          >
+            <Download className="w-4 h-4" /> Exportar a Excel
+          </button>
+
         </div>
 
         {inventarioHub !== 'TODOS' && hubActivoDatos && (hubActivoDatos.direccion || hubActivoDatos.coordenadas) && (
@@ -289,7 +317,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     <Eye className="w-3.5 h-3.5" /> Visualizar
                   </button>
                   
-                  {/* SOLO RNOC O ADMIN PUEDEN VER ESTE BOTÓN */}
                   {(esRnoc || esAdmin) && (
                     <button onClick={() => setMostrarModalFalla(true)} className="bg-red-900/30 hover:bg-red-600 border border-red-800 text-red-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer" title="Generar formato de Despliegue de Falla">
                       <AlertTriangle className="w-3.5 h-3.5" /> Desplegar Falla
@@ -407,7 +434,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   </div>
 
                   <div>
-                    {/* SE CORRIGIÓ FECHA_ENTREGA POR FECHA_DE_ENTREGA PARA MATCHEAR CON EL BACKEND */}
                     <label className="text-[10px] text-slate-500 block font-bold mb-1">FECHA DE ENTREGA</label>
                     <input type="date" disabled={!puedeEditar} value={formatFechaParaInput(editCampos.FECHA_DE_ENTREGA)} onChange={e=>setEditCampos({...editCampos, FECHA_DE_ENTREGA: e.target.value})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white" />
                   </div>
@@ -426,13 +452,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       </div>
 
-      {mostrarModalFalla && (
-        <ModalFalla puertoDetalle={puertoDetalle} usuario={usuario} cerrarModal={() => setMostrarModalFalla(false)} />
-      )}
-
-      {mostrarModalVisualizar && (
-        <ModalVisualizar puertoDetalle={puertoDetalle} cerrarModal={() => setMostrarModalVisualizar(false)} />
-      )}
+      {mostrarModalFalla && <ModalFalla puertoDetalle={puertoDetalle} usuario={usuario} cerrarModal={() => setMostrarModalFalla(false)} />}
+      {mostrarModalVisualizar && <ModalVisualizar puertoDetalle={puertoDetalle} cerrarModal={() => setMostrarModalVisualizar(false)} />}
     </div>
   );
 }
