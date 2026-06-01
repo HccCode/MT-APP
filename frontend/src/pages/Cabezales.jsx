@@ -13,6 +13,9 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const [modalAbierto, setModalAbierto] = useState(false);
   const [alineacionActual, setAlineacionActual] = useState([]);
   const [cabezalSeleccionado, setCabezalSeleccionado] = useState(null);
+  
+  // NUEVO: ESTADO PARA EL BUSCADOR DE CANALES
+  const [filtroCanal, setFiltroCanal] = useState('');
 
   // MODAL CARGA EXCEL
   const [modalCarga, setModalCarga] = useState(false);
@@ -41,7 +44,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   };
 
   const buscarCabezales = async () => {
-    // --- NUEVA REGLA: Si no hay ciudad, limpiamos la tabla y no hacemos la petición ---
+    // Si no hay ciudad, limpiamos la tabla y no hacemos la petición
     if (!filtroCd) {
       setCabezales([]);
       return;
@@ -60,7 +63,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  // Se ejecuta la búsqueda automáticamente cuando cambia la ciudad seleccionada
   useEffect(() => {
     buscarCabezales();
   }, [filtroCd]);
@@ -78,6 +80,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const verAlineacion = async (cabezal) => {
     setCabezalSeleccionado(cabezal);
     setEditandoCanalId(null);
+    setFiltroCanal(''); // Limpiar el buscador de canales al abrir el modal
     try {
       const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${cabezal.id}/alineacion`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -103,6 +106,12 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
       console.error(e);
     }
   };
+
+  // NUEVO: FILTRADO LOCAL DE CANALES EN EL MODAL
+  const canalesFiltrados = alineacionActual.filter(al => {
+    if (!filtroCanal) return true;
+    return String(al.nombre_canal || '').toLowerCase().includes(filtroCanal.toLowerCase());
+  });
 
   const handleSubirExcel = async () => {
     if (!archivo) {
@@ -233,7 +242,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  // FUNCIÓN AUXILIAR PARA FORZAR VENTANA INDEPENDIENTE POPUP
   const abrirEnVentanaNueva = (ip) => {
     const ancho = 1200;
     const alto = 800;
@@ -293,7 +301,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         </div>
       </div>
 
-      {/* CONTENEDOR TABLA PRINCIPAL */}
       <div className="flex-1 overflow-auto border border-slate-800 rounded-lg custom-scrollbar mx-6 mb-6">
         <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
           <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
@@ -313,28 +320,14 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
             {cabezalesFiltrados.map(cab => (
               editandoId === cab.id ? (
                 <tr key={cab.id} className="bg-slate-800/80">
-                  <td className="p-2">
-                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.ciudad || ''} onChange={e => setEditForm({...editForm, ciudad: e.target.value})} />
-                  </td>
-                  <td className="p-2">
-                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-cyan-700 rounded px-2 py-1 text-cyan-300 text-xs font-bold" value={editForm.id_equipo || ''} onChange={e => setEditForm({...editForm, id_equipo: e.target.value})} />
-                  </td>
-                  <td className="p-2">
-                    <input type="text" className="w-full min-w-[150px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.servicio || ''} onChange={e => setEditForm({...editForm, servicio: e.target.value})} />
-                  </td>
+                  <td className="p-2"><input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.ciudad || ''} onChange={e => setEditForm({...editForm, ciudad: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full min-w-[120px] bg-[#050814] border border-cyan-700 rounded px-2 py-1 text-cyan-300 text-xs font-bold" value={editForm.id_equipo || ''} onChange={e => setEditForm({...editForm, id_equipo: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full min-w-[150px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.servicio || ''} onChange={e => setEditForm({...editForm, servicio: e.target.value})} /></td>
                   <td className="p-2 text-center"><span className="text-slate-500 text-xs">Bloqueado</span></td>
-                  <td className="p-2">
-                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editForm.gestion_qam || ''} onChange={e => setEditForm({...editForm, gestion_qam: e.target.value})} />
-                  </td>
-                  <td className="p-2">
-                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.marca || ''} onChange={e => setEditForm({...editForm, marca: e.target.value})} />
-                  </td>
-                  <td className="p-2">
-                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} />
-                  </td>
-                  <td className="p-2">
-                    <input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.serie || ''} onChange={e => setEditForm({...editForm, serie: e.target.value})} />
-                  </td>
+                  <td className="p-2"><input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs font-mono" value={editForm.gestion_qam || ''} onChange={e => setEditForm({...editForm, gestion_qam: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.marca || ''} onChange={e => setEditForm({...editForm, marca: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.modelo || ''} onChange={e => setEditForm({...editForm, modelo: e.target.value})} /></td>
+                  <td className="p-2"><input type="text" className="w-full min-w-[120px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editForm.serie || ''} onChange={e => setEditForm({...editForm, serie: e.target.value})} /></td>
                   <td className="p-2 text-center flex justify-center gap-3 mt-1">
                     <button onClick={() => guardarEdicion(cab.id)} className="text-emerald-400 hover:text-emerald-300 transition"><Check className="w-5 h-5"/></button>
                     <button onClick={cancelarEdicion} className="text-red-400 hover:text-red-300 transition"><X className="w-5 h-5"/></button>
@@ -352,15 +345,10 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                   </td>
                   <td className="p-4">
                     {cab.gestion_qam ? (
-                      <button 
-                        onClick={() => abrirEnVentanaNueva(cab.gestion_qam)}
-                        className="text-cyan-400 hover:text-cyan-300 hover:underline font-mono bg-transparent border-0 p-0 cursor-pointer text-left focus:outline-none"
-                      >
+                      <button onClick={() => abrirEnVentanaNueva(cab.gestion_qam)} className="text-cyan-400 hover:text-cyan-300 hover:underline font-mono bg-transparent border-0 p-0 cursor-pointer text-left focus:outline-none">
                         {cab.gestion_qam}
                       </button>
-                    ) : (
-                      '---'
-                    )}
+                    ) : '---'}
                   </td>
                   <td className="p-4">{cab.marca || '---'}</td>
                   <td className="p-4">{cab.modelo || '---'}</td>
@@ -376,7 +364,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                 </tr>
               )
             ))}
-            {/* NUEVO MENSAJE DE ESTADO */}
             {cabezalesFiltrados.length === 0 && (
               <tr>
                 <td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500 italic">
@@ -390,7 +377,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         </table>
       </div>
 
-      {/* MODAL MAESTRO EXCEL */}
       {modalCarga && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-md w-full p-6 shadow-2xl">
@@ -415,11 +401,13 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         </div>
       )}
 
-      {/* MODAL ALINEACIÓN */}
+      {/* ================= MODAL ALINEACIÓN CON BUSCADOR ================= */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-7xl w-full flex flex-col max-h-[85vh] shadow-2xl">
-            <div className="p-5 border-b border-slate-700 flex justify-between items-center bg-[#050814] rounded-t-xl shrink-0">
+            
+            {/* CABECERA DEL MODAL REESTRUCTURADA PARA INCLUIR EL BUSCADOR */}
+            <div className="p-5 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#050814] rounded-t-xl shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-white">Alineación de Canales</h2>
                 <p className="text-slate-400 text-xs mt-1 flex items-center gap-2">
@@ -427,8 +415,22 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                   <span>Servicio: {cabezalSeleccionado?.servicio}</span>
                 </p>
               </div>
-              <button onClick={() => setModalAbierto(false)} className="w-8 h-8 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-red-600 hover:text-white transition font-bold text-sm">✕</button>
+              
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="flex items-center gap-2 bg-[#0b132b] border border-slate-700 rounded-md px-3 py-1.5 focus-within:border-indigo-500 transition-colors w-full sm:w-[300px]">
+                  <Search className="w-4 h-4 text-slate-500 shrink-0" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar por nombre de canal..." 
+                    value={filtroCanal} 
+                    onChange={(e) => setFiltroCanal(e.target.value)} 
+                    className="bg-transparent text-xs text-white focus:outline-none w-full" 
+                  />
+                </div>
+                <button onClick={() => setModalAbierto(false)} className="w-8 h-8 flex items-center justify-center bg-slate-800 text-slate-400 rounded-full hover:bg-red-600 hover:text-white transition font-bold text-sm shrink-0">✕</button>
+              </div>
             </div>
+
             <div className="p-0 overflow-auto flex-1 custom-scrollbar">
               <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
                 <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
@@ -445,7 +447,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 bg-[#050814]/30">
-                  {alineacionActual.map((al, idx) => (
+                  {canalesFiltrados.map((al, idx) => (
                     editandoCanalId === al.id ? (
                       <tr key={al.id || idx} className="bg-slate-800/90">
                         <td className="p-1"><input type="text" className="w-full min-w-[90px] bg-[#050814] border border-slate-600 rounded px-2 py-1 text-white text-xs" value={editCanalForm.portadora || ''} onChange={e => setEditCanalForm({...editCanalForm, portadora: e.target.value})} /></td>
@@ -482,6 +484,22 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                       </tr>
                     )
                   ))}
+                  
+                  {/* MENSAJE DE ESTADO SI EL FILTRO NO ENCUENTRA NADA */}
+                  {canalesFiltrados.length === 0 && alineacionActual.length > 0 && (
+                    <tr>
+                      <td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500 italic">
+                        No se encontraron canales que coincidan con "{filtroCanal}".
+                      </td>
+                    </tr>
+                  )}
+                  {alineacionActual.length === 0 && (
+                    <tr>
+                      <td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500 italic">
+                        No hay canales registrados en este cabezal.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
