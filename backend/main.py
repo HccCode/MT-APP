@@ -673,6 +673,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
 # ================= NUEVO ENDPOINT EXPORTAR A EXCEL (INVENTARIO COMPLETO) =================
+# ================= ENDPOINT EXPORTAR A EXCEL (DASHBOARD + DESGLOSE DE TIPOS) =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     query = db.query(PortModel)
@@ -688,7 +689,8 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
     ws_dash.title = "Dashboard MT_DB"
     ws_dash.sheet_view.showGridLines = False
 
-    for row in range(1, 30):
+    # Se amplió el fondo gris hacia abajo para que quepa la nueva fila y la gráfica
+    for row in range(1, 40):
         for col in range(1, 15):
             ws_dash.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F4F6F9")
 
@@ -699,15 +701,22 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
     ws_dash.merge_cells('B2:K3')
     ws_dash['B2'].alignment = Alignment(horizontal="center", vertical="center")
 
+    # Contadores
     estatus_counts = {}
     for p in puertos:
-        st = str(p.estatus).upper()
+        st = str(p.estatus).upper().strip()
         estatus_counts[st] = estatus_counts.get(st, 0) + 1
 
     total = len(puertos)
     activos = sum(v for k, v in estatus_counts.items() if "ACTIVO" in k)
-    disp = sum(v for k, v in estatus_counts.items() if "DISPONIBLE" in k)
     troncales = sum(v for k, v in estatus_counts.items() if "TRONCAL" in k)
+    suspendidos = sum(v for k, v in estatus_counts.items() if "SUSPENDIDO" in k)
+
+    # NUEVO: Contadores específicos por Tipo de Puerto
+    disp_gi = sum(v for k, v in estatus_counts.items() if "DISPONIBLE GI" in k)
+    disp_te = sum(v for k, v in estatus_counts.items() if "DISPONIBLE TE" in k)
+    disp_25 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 25" in k)
+    disp_100 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 100" in k)
 
     def draw_kpi(cell_title, cell_val, title, val, color):
         ws_dash[cell_title] = title
@@ -726,11 +735,19 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         ws_dash[cell_val].border = borde
         ws_dash[chr(ord(cell_val[0])+1)+cell_val[1]].border = borde
 
+    # === FILA 1: ESTADO GLOBAL ===
     draw_kpi('B5', 'B6', "CAPACIDAD TOTAL", total, "1C2541")
-    draw_kpi('E5', 'E6', "PUERTOS DISPONIBLES", disp, "198754")
-    draw_kpi('H5', 'H6', "PUERTOS ACTIVOS", activos, "0D6EFD")
-    draw_kpi('K5', 'K6', "ENLACES TRONCALES", troncales, "FFC107")
+    draw_kpi('E5', 'E6', "PUERTOS ACTIVOS", activos, "0D6EFD")
+    draw_kpi('H5', 'H6', "ENLACES TRONCALES", troncales, "FFC107")
+    draw_kpi('K5', 'K6', "SUSPENDIDOS", suspendidos, "DC3545")
 
+    # === FILA 2: DESGLOSE DE DISPONIBILIDAD POR TIPO ===
+    draw_kpi('B8', 'B9', "DISPONIBLE GI (1G)", disp_gi, "198754")
+    draw_kpi('E8', 'E9', "DISPONIBLE TE (10G)", disp_te, "20C997")
+    draw_kpi('H8', 'H9', "DISPONIBLE 25G", disp_25, "0DCAF0")
+    draw_kpi('K8', 'K9', "DISPONIBLE 100G", disp_100, "0AA2C0")
+
+    # Inyectar datos para la Gráfica de Pastel (ocultos)
     ws_dash['Z1'] = "Estatus"
     ws_dash['AA1'] = "Cantidad"
     row_idx = 2
@@ -750,7 +767,8 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         pie.dataLabels.showPercent = True
         pie.width = 16
         pie.height = 11
-        ws_dash.add_chart(pie, "C9")
+        # La gráfica baja a la fila 12 para hacer espacio al nuevo desglose
+        ws_dash.add_chart(pie, "C12") 
 
     ws_dash.column_dimensions['Z'].hidden = True
     ws_dash.column_dimensions['AA'].hidden = True
@@ -758,7 +776,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
     # === PESTAÑA 2: TABLA DE INVENTARIO COMPLETO (FICHA TÉCNICA) ===
     ws_data = wb.create_sheet(title="Inventario Detallado")
     
-    # 32 COLUMNAS BASADAS EN LA FICHA TÉCNICA
     headers = [
         "REGIÓN", "CIUDAD", "HUB / NODO", "ESTATUS", "PUERTO", "EQUIPO ID (CHASIS)", 
         "IP HUB", "IP GESTIÓN", "IP CLIENTE", "BDI", 
@@ -788,7 +805,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             p.fecha_entrega, p.comentarios
         ])
         
-        # Formato Condicional para la columna ESTATUS (Columna 4)
         c_est = ws_data.cell(row=r_idx, column=4)
         val = str(p.estatus).upper()
         if "ACTIVO" in val:
@@ -804,12 +820,10 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             c_est.fill = PatternFill("solid", fgColor="FFF3CD")
             c_est.font = Font(color="664D03", bold=True)
 
-    # Ajuste de Columnas
     for col in ws_data.columns:
         ws_data.column_dimensions[col[0].column_letter].width = 18
 
     if len(puertos) > 0:
-        # AF equivale a la columna 32
         tab = Table(displayName="TablaInv", ref=f"A1:AF{len(puertos)+1}")
         tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
         ws_data.add_table(tab)
@@ -825,6 +839,7 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
         headers={"Content-Disposition": f"attachment; filename=Reporte_MT_DB_{scope}.xlsx"}
     )
+    #==============ENDPOINT EXPORTAR A EXCEL (FINAL)============#
 
 # ================= ENDPOINTS CABEZALES =================
 @app.get("/api/cabezales")
