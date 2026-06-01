@@ -826,8 +826,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         headers={"Content-Disposition": f"attachment; filename=Reporte_MT_DB_{scope}.xlsx"}
     )
 
-
-
 # ================= ENDPOINTS CABEZALES =================
 @app.get("/api/cabezales")
 def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depends(get_db)):
