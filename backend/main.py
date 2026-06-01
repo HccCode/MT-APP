@@ -892,6 +892,223 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
     )
     #==============ENDPOINT EXPORTAR A EXCEL (FINAL)============#
 
+# ================= ENDPOINT EXPORTAR A EXCEL (DISEÑO PROFESIONAL PREMIUM) =================
+@app.get("/api/hubs/exportar-excel")
+def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
+    query = db.query(PortModel)
+    if region: query = query.filter(PortModel.region == region)
+    if ciudad: query = query.filter(PortModel.ciudad == ciudad)
+    if id_hub and id_hub != "TODOS": query = query.filter(PortModel.hub_id == id_hub)
+    puertos = query.all()
+
+    wb = Workbook()
+    
+    # === PESTAÑA 1: DASHBOARD EJECUTIVO ===
+    ws_dash = wb.active
+    ws_dash.title = "Dashboard MT_DB"
+    ws_dash.sheet_view.showGridLines = False
+
+    # Fondo gris claro tenue corporativo
+    for row in range(1, 40):
+        for col in range(1, 15):
+            ws_dash.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F8F9FA")
+
+    # Encabezado Principal y Estampado de Tiempo
+    scope = id_hub if id_hub and id_hub != 'TODOS' else (ciudad if ciudad else 'RED GLOBAL')
+    fecha_generacion = datetime.now().strftime('%Y-%m-%d %H:%M')
+    
+    ws_dash['B2'] = f"📊 REPORTE EJECUTIVO DE DISPONIBILIDAD ÓPTICA"
+    ws_dash['B2'].font = Font(size=20, bold=True, color="FFFFFF")
+    ws_dash['B2'].fill = PatternFill("solid", fgColor="0F172A") # Azul noche profundo
+    ws_dash['B2'].alignment = Alignment(horizontal="center", vertical="center")
+    ws_dash.merge_cells('B2:K3')
+
+    ws_dash['B4'] = f"Alcance: {scope}   |   Generado el: {fecha_generacion}"
+    ws_dash['B4'].font = Font(size=10, italic=True, color="475569")
+    ws_dash['B4'].alignment = Alignment(horizontal="right", vertical="center")
+    ws_dash.merge_cells('B4:K4')
+
+    # Cálculos de Métricas
+    estatus_counts = {}
+    for p in puertos:
+        st = str(p.estatus).upper().strip()
+        estatus_counts[st] = estatus_counts.get(st, 0) + 1
+
+    total = len(puertos)
+    activos = sum(v for k, v in estatus_counts.items() if "ACTIVO" in k)
+    troncales = sum(v for k, v in estatus_counts.items() if "TRONCAL" in k)
+    suspendidos = sum(v for k, v in estatus_counts.items() if "SUSPENDIDO" in k)
+
+    disp_gi = sum(v for k, v in estatus_counts.items() if "DISPONIBLE GI" in k)
+    disp_te = sum(v for k, v in estatus_counts.items() if "DISPONIBLE TE" in k)
+    disp_25 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 25" in k)
+    disp_100 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 100" in k)
+
+    # Función creadora de KPIs premium
+    def draw_kpi(cell_title, cell_val, title, val, color_bg, color_txt="FFFFFF", text_size=24):
+        # Título del KPI
+        ws_dash[cell_title] = title.upper()
+        ws_dash[cell_title].font = Font(color=color_txt, bold=True, size=9)
+        ws_dash[cell_title].fill = PatternFill("solid", fgColor=color_bg)
+        ws_dash[cell_title].alignment = Alignment(horizontal="center", vertical="center")
+        ws_dash.merge_cells(f"{cell_title}:{chr(ord(cell_title[0])+1)}{cell_title[1]}")
+        
+        # Valor del KPI
+        ws_dash[cell_val] = val
+        ws_dash[cell_val].font = Font(size=text_size, bold=True, color=color_bg)
+        ws_dash[cell_val].fill = PatternFill("solid", fgColor="FFFFFF")
+        ws_dash[cell_val].alignment = Alignment(horizontal="center", vertical="center")
+        ws_dash.merge_cells(f"{cell_val}:{chr(ord(cell_val[0])+1)}{cell_val[1]}")
+        
+        # Borde ultra fino envolvente
+        thin_border = Border(
+            left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), 
+            bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1')
+        )
+        ws_dash[cell_title].border = thin_border
+        ws_dash[chr(ord(cell_title[0])+1)+cell_title[1]].border = thin_border
+        ws_dash[cell_val].border = thin_border
+        ws_dash[chr(ord(cell_val[0])+1)+cell_val[1]].border = thin_border
+
+    # === FILA 1: ESTADO GLOBAL ===
+    draw_kpi('B6', 'B7', "CAPACIDAD TOTAL", total, "1E293B")       # Pizarra Oscuro
+    draw_kpi('E6', 'E7', "PUERTOS ACTIVOS", activos, "0284C7")     # Azul Océano
+    draw_kpi('H6', 'H7', "ENLACES TRONCALES", troncales, "D97706") # Ámbar
+    draw_kpi('K6', 'K7', "SUSPENDIDOS", suspendidos, "DC2626")     # Rojo Carmesí
+
+    # === FILA 2: DESGLOSE DE DISPONIBILIDAD ===
+    draw_kpi('B9', 'B10', "DISPONIBLE GI (1G)", disp_gi, "16A34A") # Esmeralda
+    draw_kpi('E9', 'E10', "DISPONIBLE TE (10G)", disp_te, "059669") # Verde Mar
+    draw_kpi('H9', 'H10', "DISPONIBLE 25G", disp_25, "0891B2")     # Cian
+    draw_kpi('K9', 'K10', "DISPONIBLE 100G", disp_100, "0284C7")    # Azul Claro
+
+    # Datos Ocultos para Gráfica
+    ws_dash['Z1'] = "Estatus"
+    ws_dash['AA1'] = "Cantidad"
+    row_idx = 2
+    for k, v in estatus_counts.items():
+        if v > 0: # Solo graficar si hay al menos 1
+            ws_dash.cell(row=row_idx, column=26, value=k)
+            ws_dash.cell(row=row_idx, column=27, value=v)
+            row_idx += 1
+
+    if estatus_counts and row_idx > 2:
+        pie = PieChart()
+        pie.title = "Distribución Operativa de la Red"
+        labels = Reference(ws_dash, min_col=26, min_row=2, max_row=row_idx-1)
+        data = Reference(ws_dash, min_col=27, min_row=1, max_row=row_idx-1)
+        pie.add_data(data, titles_from_data=True)
+        pie.set_categories(labels)
+        pie.dataLabels = DataLabelList()
+        pie.dataLabels.showPercent = True
+        pie.width = 15
+        pie.height = 10
+        # Bordes sutiles para la gráfica
+        pie.graphicalProperties.line.solidFill = "E2E8F0" 
+        ws_dash.add_chart(pie, "C12")
+
+    ws_dash.column_dimensions['Z'].hidden = True
+    ws_dash.column_dimensions['AA'].hidden = True
+
+    # === PESTAÑA 2: TABLA DE INVENTARIO COMPLETO (FICHA TÉCNICA) ===
+    ws_data = wb.create_sheet(title="Matriz de Inventario")
+    ws_data.sheet_view.showGridLines = False # Vista limpia sin cuadricula
+
+    headers = [
+        "REGIÓN", "CIUDAD", "HUB / NODO", "ESTATUS", "PUERTO", "EQUIPO ID (CHASIS)", 
+        "IP HUB", "IP GESTIÓN", "IP CLIENTE", "BDI", 
+        "POTENCIA HUB", "POTENCIA CPE", "SERIE SFP HUB", "SERIE SFP CPE", 
+        "RUTA", "DIST. CLIENTE", "LAMBDAS", "BUFFER", "HILOS", "PARCHEO", 
+        "MARCA CPE", "MODELO CPE", "SERIE CPE", 
+        "CLIENTE / SERVICIO", "TIPO SERVICIO", "ANCHO BANDA (MBPS)", 
+        "DIRECCIÓN SERVICIO", "COORDENADAS", "NOMBRE CONTACTO", "TELÉFONO CONTACTO", 
+        "FECHA DE ENTREGA", "COMENTARIOS"
+    ]
+    ws_data.append(headers)
+
+    # Estilo Profesional de Cabeceras
+    for col_idx in range(1, len(headers)+1):
+        cell = ws_data.cell(row=1, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF", size=10)
+        cell.fill = PatternFill("solid", fgColor="0F172A")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws_data.row_dimensions[1].height = 25 # Cabecera más alta
+
+    # Estilo de Celda General Alineado al Centro Verticalmente
+    center_align = Alignment(horizontal="center", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+
+    for r_idx, p in enumerate(puertos, 2):
+        row_data = [
+            p.region, p.ciudad, p.hub_id, p.estatus, p.puerto, p.equipo_hotel_id,
+            p.ip_hub, p.ip_gestion, p.ip_cliente, p.bdi,
+            p.potencia_hub, p.potencia_cpe, p.serie_sfp_hub, p.serie_sfp_client,
+            p.ruta, p.distancia_cliente, p.lambdas, p.buffer, p.hilos, p.parcheo,
+            p.marca_cpe, p.modelo_cpe, p.serie_cpe,
+            p.servicio, p.tipo_servicio, p.mbps,
+            p.direccion, p.coordenadas, p.contacto_nombre, p.contacto_telefono,
+            p.fecha_entrega, p.comentarios
+        ]
+        ws_data.append(row_data)
+        
+        # Aplicar alineaciones según el tipo de dato
+        for c_idx in range(1, len(row_data)+1):
+            c_cell = ws_data.cell(row=r_idx, column=c_idx)
+            # Alinear a la izquierda descripciones largas (Servicio, Dirección, Comentarios)
+            if c_idx in [24, 27, 32]: 
+                c_cell.alignment = left_align
+            else:
+                c_cell.alignment = center_align
+
+        # Formato Condicional para la columna ESTATUS (Columna 4)
+        c_est = ws_data.cell(row=r_idx, column=4)
+        val = str(p.estatus).upper()
+        if "ACTIVO" in val:
+            c_est.fill = PatternFill("solid", fgColor="DCFCE7") # Green-100
+            c_est.font = Font(color="166534", bold=True, size=10)
+        elif "DISPONIBLE" in val:
+            c_est.fill = PatternFill("solid", fgColor="F1F5F9") # Slate-100
+            c_est.font = Font(color="475569", bold=True, size=10)
+        elif "SUSPENDIDO" in val:
+            c_est.fill = PatternFill("solid", fgColor="FEE2E2") # Red-100
+            c_est.font = Font(color="991B1B", bold=True, size=10)
+        elif "TRONCAL" in val:
+            c_est.fill = PatternFill("solid", fgColor="FEF3C7") # Amber-100
+            c_est.font = Font(color="92400E", bold=True, size=10)
+
+    # AUTO-FIT: Ajuste Dinámico Inteligente de Ancho de Columnas
+    for col in ws_data.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if cell.value and len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except: pass
+        
+        # Cálculo del ancho: mínimo 12, máximo 45 (para que no explote con comentarios largos)
+        adjusted_width = min(max_length + 3, 45)
+        ws_data.column_dimensions[column].width = max(12, adjusted_width)
+
+    # Convertir a Tabla Inteligente
+    if len(puertos) > 0:
+        tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:AF{len(puertos)+1}")
+        tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
+        ws_data.add_table(tab)
+        
+    ws_data.freeze_panes = "A2" 
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    # Nombre dinámico del archivo depurado
+    safe_scope = str(scope).replace("/", "-").replace(" ", "_")
+    return StreamingResponse(
+        output, 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        headers={"Content-Disposition": f"attachment; filename=MTDB_Ingenieria_{safe_scope}.xlsx"}
+    )
 
 # ================= ENDPOINTS CABEZALES =================
 @app.get("/api/cabezales")
