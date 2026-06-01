@@ -672,7 +672,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
-# ================= ENDPOINT EXPORTAR A EXCEL (DISEÑO PROFESIONAL PREMIUM - FIX CORS & MERGE) =================
+# ================= ENDPOINT EXPORTAR A EXCEL (DISEÑO PROFESIONAL PREMIUM - FIX 500) =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     try:
@@ -722,7 +722,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         disp_25 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 25" in k)
         disp_100 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 100" in k)
 
-        # CORRECCIÓN DE ALGORITMO: Toma todos los dígitos posteriores a la letra con [1:]
         def draw_kpi(cell_title, cell_val, title, val, color_bg, color_txt="FFFFFF", text_size=24):
             col_title_let = cell_title[0]
             row_title_num = cell_title[1:]
@@ -780,7 +779,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             pie.dataLabels.showPercent = True
             pie.width = 15
             pie.height = 10
-            pie.graphicalProperties.line.solidFill = "E2E8F0" 
             ws_dash.add_chart(pie, "C12")
 
         ws_dash.column_dimensions['Z'].hidden = True
@@ -872,7 +870,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
 
         safe_scope = str(scope).replace("/", "-").replace(" ", "_")
         
-        # CABECERAS PREPARADAS PARA EVITAR FALSO CORS EN EL FUTURO
         return StreamingResponse(
             output, 
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
@@ -883,136 +880,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         )
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error construyendo archivo Excel: {str(e)}"})
-
-# ================= ENDPOINTS CABEZALES =================
-@app.get("/api/cabezales")
-def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depends(get_db)):
-    query = db.query(CabezalModel)
-    if ciudad: query = query.filter(CabezalModel.ciudad.ilike(f"%{ciudad}%"))
-    if id_equipo: query = query.filter(CabezalModel.id_equipo.ilike(f"%{id_equipo}%"))
-    return {"status": "success", "data": query.all()}
-
-@app.get("/api/cabezales/{cabezal_id}/alineacion")
-def get_alineacion(cabezal_id: int, db: Session = Depends(get_db)):
-    alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
-    return {"status": "success", "data": alineaciones}
-
-@app.put("/api/cabezales/{cabezal_id}")
-def update_cabezal(cabezal_id: int, data: CabezalUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-    if not cabezal: raise HTTPException(status_code=404, detail="Cabezal no encontrado")
-    for key, val in data.model_dump(exclude_unset=True).items(): setattr(cabezal, key, val)
-    db.commit()
-    return {"status": "success"}
-
-@app.delete("/api/cabezales/{cabezal_id}")
-def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-    if cabezal:
-        db.delete(cabezal)
-        db.commit()
-    return {"status": "success"}
-
-@app.put("/api/alineaciones/{alineacion_id}")
-def update_alineacion(alineacion_id: int, data: AlineacionUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    alineacion = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.id == alineacion_id).first()
-    if not alineacion: raise HTTPException(status_code=404, detail="Renglón de canal no encontrado")
-    for key, val in data.model_dump(exclude_unset=True).items(): setattr(alineacion, key, val)
-    db.commit()
-    return {"status": "success"}
-
-@app.delete("/api/alineaciones/{alineacion_id}")
-def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    alineacion = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.id == alineacion_id).first()
-    if alineacion:
-        db.delete(alineacion)
-        db.commit()
-    return {"status": "success"}
-
-@app.post("/api/cabezales/upload-excel")
-async def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    filename = file.filename or ""
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
-        return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido."})
-    try:
-        contents = await file.read()
-        df = pd.read_excel(io.BytesIO(contents)).fillna("")
-        column_headers = [str(col).upper().strip() for col in df.columns]
-
-        def get_idx(targets):
-            for t in targets:
-                if t in column_headers: return column_headers.index(t)
-            return -1
-
-        idx_ciudad = get_idx(["CIUDAD"])
-        idx_id = get_idx(["ID", "ID EQUIPO", "ID_EQUIPO"])
-        idx_servicio = get_idx(["SERVICIO"])
-        idx_gestion = get_idx(["GESTION QAM", "GESTIÓN QAM"])
-        idx_marca = get_idx(["MARCA"])
-        idx_modelo = get_idx(["MODELO"])
-        idx_serie = get_idx(["SERIE"])
-        idx_portadora = get_idx(["PORTADORA"])
-        idx_formato = get_idx(["FORMATO"])
-        idx_canal = get_idx(["# CANAL", "CANAL NUM", "CANAL"])
-        idx_nombre = get_idx(["NOMBRE DE CANAL", "NOMBRE CANAL"])
-        idx_mcast = get_idx(["MCAST IP", "MCAST_IP"])
-        idx_source = get_idx(["SOURCE IP", "SOURCE_IP"])
-        idx_udp = get_idx(["UDP"])
-        idx_sid = get_idx(["SID"])
-
-        if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1:
-            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes."})
-
-        cabezales_procesados = set()
-
-        for _, row in df.iterrows():
-            vals = list(row.values)
-            def read_val(idx): return str(vals[idx]).strip() if idx != -1 and idx < len(vals) else ""
-            
-            val_id = read_val(idx_id)
-            val_servicio = read_val(idx_servicio)
-            val_ciudad = read_val(idx_ciudad)
-
-            if not val_id or not val_servicio or not val_ciudad: continue
-            cabezal_key = f"{val_id.upper()}_{val_servicio.upper()}"
-
-            cabezal = db.query(CabezalModel).filter(CabezalModel.id_equipo == val_id, CabezalModel.servicio == val_servicio).first()
-            if not cabezal:
-                cabezal = CabezalModel(id_equipo=val_id, servicio=val_servicio, ciudad=val_ciudad)
-                db.add(cabezal)
-                db.commit()
-                db.refresh(cabezal)
-
-            if cabezal_key not in cabezales_procesados:
-                cabezal.ciudad = val_ciudad
-                if idx_gestion != -1: cabezal.gestion_qam = read_val(idx_gestion)
-                if idx_marca != -1: cabezal.marca = read_val(idx_marca)
-                if idx_modelo != -1: cabezal.modelo = read_val(idx_modelo)
-                if idx_serie != -1: cabezal.serie = read_val(idx_serie)
-                db.commit()
-                db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal.id).delete()
-                db.commit()
-                cabezales_procesados.add(cabezal_key)
-
-            canal_val = read_val(idx_canal)
-            nombre_val = read_val(idx_nombre)
-            if canal_val or nombre_val:
-                db.add(AlineacionCabezalModel(
-                    cabezal_id=cabezal.id, portadora=read_val(idx_portadora), formato=read_val(idx_formato),
-                    canal_num=canal_val, nombre_canal=nombre_val, mcast_ip=read_val(idx_mcast),
-                    source_ip=read_val(idx_source), udp=read_val(idx_udp), sid=read_val(idx_sid)
-                ))
-        db.commit()
-        return {"status": "success", "detail": f"Proceso completado. {len(cabezales_procesados)} cabezales."}
-    except Exception as e:
-        try: db.rollback() 
-        except: pass
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}"})
 
 # ================= ENDPOINT EXPORTAR ALINEACIÓN (CABEZALES) =================
 @app.get("/api/cabezales/{cabezal_id}/exportar-excel")
