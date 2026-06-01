@@ -672,7 +672,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
-# ================= NUEVO ENDPOINT EXPORTAR A EXCEL (INVENTARIO) =================
+# ================= NUEVO ENDPOINT EXPORTAR A EXCEL (INVENTARIO COMPLETO) =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     query = db.query(PortModel)
@@ -683,6 +683,7 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
 
     wb = Workbook()
     
+    # === PESTAÑA 1: DASHBOARD EJECUTIVO ===
     ws_dash = wb.active
     ws_dash.title = "Dashboard MT_DB"
     ws_dash.sheet_view.showGridLines = False
@@ -754,8 +755,20 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
     ws_dash.column_dimensions['Z'].hidden = True
     ws_dash.column_dimensions['AA'].hidden = True
 
+    # === PESTAÑA 2: TABLA DE INVENTARIO COMPLETO (FICHA TÉCNICA) ===
     ws_data = wb.create_sheet(title="Inventario Detallado")
-    headers = ["REGIÓN", "CIUDAD", "HUB_NODO", "ESTATUS", "PUERTO", "EQUIPO_ID", "SERVICIO", "MBPS", "IP_GESTION", "IP_CLIENTE", "BDI", "POTENCIA_HUB", "POTENCIA_CPE"]
+    
+    # 32 COLUMNAS BASADAS EN LA FICHA TÉCNICA
+    headers = [
+        "REGIÓN", "CIUDAD", "HUB / NODO", "ESTATUS", "PUERTO", "EQUIPO ID (CHASIS)", 
+        "IP HUB", "IP GESTIÓN", "IP CLIENTE", "BDI", 
+        "POTENCIA HUB", "POTENCIA CPE", "SERIE SFP HUB", "SERIE SFP CPE", 
+        "RUTA", "DIST. CLIENTE", "LAMBDAS", "BUFFER", "HILOS", "PARCHEO", 
+        "MARCA CPE", "MODELO CPE", "SERIE CPE", 
+        "CLIENTE / SERVICIO", "TIPO SERVICIO", "ANCHO BANDA (MBPS)", 
+        "DIRECCIÓN SERVICIO", "COORDENADAS", "NOMBRE CONTACTO", "TELÉFONO CONTACTO", 
+        "FECHA DE ENTREGA", "COMENTARIOS"
+    ]
     ws_data.append(headers)
 
     for col_idx in range(1, len(headers)+1):
@@ -765,11 +778,17 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
 
     for r_idx, p in enumerate(puertos, 2):
         ws_data.append([
-            p.region, p.ciudad, p.hub_id, p.estatus, p.puerto,
-            p.equipo_hotel_id, p.servicio, p.mbps, p.ip_gestion, 
-            p.ip_cliente, p.bdi, p.potencia_hub, p.potencia_cpe
+            p.region, p.ciudad, p.hub_id, p.estatus, p.puerto, p.equipo_hotel_id,
+            p.ip_hub, p.ip_gestion, p.ip_cliente, p.bdi,
+            p.potencia_hub, p.potencia_cpe, p.serie_sfp_hub, p.serie_sfp_client,
+            p.ruta, p.distancia_cliente, p.lambdas, p.buffer, p.hilos, p.parcheo,
+            p.marca_cpe, p.modelo_cpe, p.serie_cpe,
+            p.servicio, p.tipo_servicio, p.mbps,
+            p.direccion, p.coordenadas, p.contacto_nombre, p.contacto_telefono,
+            p.fecha_entrega, p.comentarios
         ])
         
+        # Formato Condicional para la columna ESTATUS (Columna 4)
         c_est = ws_data.cell(row=r_idx, column=4)
         val = str(p.estatus).upper()
         if "ACTIVO" in val:
@@ -785,11 +804,13 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             c_est.fill = PatternFill("solid", fgColor="FFF3CD")
             c_est.font = Font(color="664D03", bold=True)
 
+    # Ajuste de Columnas
     for col in ws_data.columns:
         ws_data.column_dimensions[col[0].column_letter].width = 18
 
     if len(puertos) > 0:
-        tab = Table(displayName="TablaInv", ref=f"A1:M{len(puertos)+1}")
+        # AF equivale a la columna 32
+        tab = Table(displayName="TablaInv", ref=f"A1:AF{len(puertos)+1}")
         tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
         ws_data.add_table(tab)
         
@@ -804,6 +825,8 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
         headers={"Content-Disposition": f"attachment; filename=Reporte_MT_DB_{scope}.xlsx"}
     )
+
+
 
 # ================= ENDPOINTS CABEZALES =================
 @app.get("/api/cabezales")
