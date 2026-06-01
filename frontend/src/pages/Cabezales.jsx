@@ -24,6 +24,9 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const [editandoCanalId, setEditandoCanalId] = useState(null);
   const [editCanalForm, setEditCanalForm] = useState({});
 
+  // VARIABLE DINÁMICA: Usa el backend local en desarrollo, y el de Render en producción
+  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
   useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
   useEffect(() => { localStorage.setItem('mcm_cab_cd', filtroCd); }, [filtroCd]);
 
@@ -42,10 +45,10 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
 
     try {
-      let url = new URL('https://mt-backend-2ox8.onrender.com/api/cabezales');
+      let url = new URL(`${API_URL}/api/cabezales`);
       url.searchParams.append('ciudad', filtroCd); 
 
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) return handleLogout();
       const data = await res.json();
       if (data.status === 'success') setCabezales(data.data);
@@ -72,7 +75,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     setEditandoCanalId(null);
     setFiltroCanal(''); 
     try {
-      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${cabezal.id}/alineacion`, {
+      const res = await fetch(`${API_URL}/api/cabezales/${cabezal.id}/alineacion`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -87,7 +90,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
 
   const refrescarAlineacionActual = async (cabezalId) => {
     try {
-      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${cabezalId}/alineacion`, {
+      const res = await fetch(`${API_URL}/api/cabezales/${cabezalId}/alineacion`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -113,7 +116,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     formData.append('file', archivo);
 
     try {
-      const res = await fetch('https://mt-backend-2ox8.onrender.com/api/cabezales/upload-excel', {
+      const res = await fetch(`${API_URL}/api/cabezales/upload-excel`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -144,7 +147,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
 
   const guardarEdicion = async (id) => {
     try {
-      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${id}`, {
+      const res = await fetch(`${API_URL}/api/cabezales/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -166,7 +169,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const eliminarCabezal = async (id) => {
     if (!window.confirm("¿Estás seguro de eliminar este cabezal? Se perderá toda su alineación vinculada.")) return;
     try {
-      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${id}`, {
+      const res = await fetch(`${API_URL}/api/cabezales/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -176,10 +179,9 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  // ================= EXPORTAR CANALES DE ALINEACIÓN A EXCEL =================
   const exportarAlineacionExcel = async (cabezal) => {
     try {
-      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${cabezal.id}/exportar-excel`, {
+      const res = await fetch(`${API_URL}/api/cabezales/${cabezal.id}/exportar-excel`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Error en la descarga");
@@ -194,7 +196,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch (e) {
-      alert("Fallo al exportar los canales a Excel.");
+      alert("Fallo al exportar los canales a Excel. Asegúrate de tener el backend actualizado.");
     }
   };
 
@@ -210,7 +212,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
 
   const guardarEdicionCanal = async (id) => {
     try {
-      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/alineaciones/${id}`, {
+      const res = await fetch(`${API_URL}/api/alineaciones/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -241,7 +243,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const eliminarCanal = async (id) => {
     if (!window.confirm("¿Deseas remover este canal de la alineación?")) return;
     try {
-      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/alineaciones/${id}`, {
+      const res = await fetch(`${API_URL}/api/alineaciones/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -365,7 +367,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                   {puedeCargar && (
                     <td className="p-4 text-center">
                       <div className="flex justify-center gap-4">
-                        {/* SE AGREGÓ EL BOTÓN PARA DESCARGAR EXCEL DE LOS CANALES DEL CABEZAL */}
                         <button onClick={() => exportarAlineacionExcel(cab)} className="text-emerald-400 hover:text-emerald-300 transition" title="Exportar Canales a Excel"><FileSpreadsheet className="w-4 h-4"/></button>
                         <button onClick={() => iniciarEdicion(cab)} className="text-blue-400 hover:text-blue-300 transition" title="Editar"><Edit className="w-4 h-4"/></button>
                         <button onClick={() => eliminarCabezal(cab.id)} className="text-red-400 hover:text-red-300 transition" title="Eliminar"><Trash2 className="w-4 h-4"/></button>
