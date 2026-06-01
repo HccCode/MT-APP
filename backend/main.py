@@ -939,6 +939,57 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}"})
 
+                # ================= NUEVO ENDPOINT EXPORTAR ALINEACIÓN =================
+                @app.get("/api/cabezales/{cabezal_id}/exportar-excel")
+                def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+                cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
+                if not cabezal:
+                    raise HTTPException(status_code=404, detail="Cabezal no encontrado")
+                    
+                alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
+                
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "Alineacion_Canales"
+                
+                # Cabeceras
+                headers = ["PORTADORA", "FORMATO", "CANAL NUM", "NOMBRE DE CANAL", "MCAST IP", "SOURCE IP", "UDP", "SID"]
+                ws.append(headers)
+                
+                # Dar estilo a la cabecera
+                for col_idx in range(1, len(headers)+1):
+                    cell = ws.cell(row=1, column=col_idx)
+                    cell.font = Font(bold=True, color="FFFFFF")
+                    cell.fill = PatternFill("solid", fgColor="0B132B")
+                    
+                # Agregar los datos
+                for al in alineaciones:
+                    ws.append([
+                        al.portadora, al.formato, al.canal_num, al.nombre_canal,
+                        al.mcast_ip, al.source_ip, al.udp, al.sid
+                    ])
+                    
+                # Ajustar ancho de columnas y crear Tabla
+                for col in ws.columns:
+                    ws.column_dimensions[col[0].column_letter].width = 18
+                    
+                if len(alineaciones) > 0:
+                    tab = Table(displayName=f"TablaAlineacion", ref=f"A1:H{len(alineaciones)+1}")
+                    tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
+                    ws.add_table(tab)
+                    
+                output = io.BytesIO()
+                wb.save(output)
+                output.seek(0)
+                
+                return StreamingResponse(
+                    output, 
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                    headers={"Content-Disposition": f"attachment; filename=Alineacion_{cabezal.id_equipo}.xlsx"}
+                )
+
+
+
 # ================= ENDPOINTS ANCHO DE BANDA CIUDADES =================
 @app.get("/api/config-ciudades/{ciudad_nombre}")
 def get_config_ciudad(ciudad_nombre: str, db: Session = Depends(get_db)):

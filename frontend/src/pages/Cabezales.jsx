@@ -1,40 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, Edit, Trash2, Check, X } from 'lucide-react';
+import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, Edit, Trash2, Check, X, FileSpreadsheet } from 'lucide-react';
 
 export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica }) {
   const [cabezales, setCabezales] = useState([]);
   
-  // ESTADOS DE FILTRO (Persistentes en localStorage)
   const [filtroReg, setFiltroReg] = useState(localStorage.getItem('mcm_cab_reg') || '');
   const [filtroCd, setFiltroCd] = useState(localStorage.getItem('mcm_cab_cd') || '');
   const [filtroTexto, setFiltroTexto] = useState('');
   
-  // MODAL ALINEACIÓN
   const [modalAbierto, setModalAbierto] = useState(false);
   const [alineacionActual, setAlineacionActual] = useState([]);
   const [cabezalSeleccionado, setCabezalSeleccionado] = useState(null);
   
-  // NUEVO: ESTADO PARA EL BUSCADOR DE CANALES
   const [filtroCanal, setFiltroCanal] = useState('');
 
-  // MODAL CARGA EXCEL
   const [modalCarga, setModalCarga] = useState(false);
   const [archivo, setArchivo] = useState(null);
   const [statusCarga, setStatusCarga] = useState({ loading: false, msg: '', type: '' });
 
-  // EDICIÓN EN LÍNEA DE EQUIPOS (TABLA PRINCIPAL)
   const [editandoId, setEditandoId] = useState(null);
   const [editForm, setEditForm] = useState({});
 
-  // EDICIÓN EN LÍNEA DE CANALES (DENTRO DEL MODAL)
   const [editandoCanalId, setEditandoCanalId] = useState(null);
   const [editCanalForm, setEditCanalForm] = useState({});
 
-  // GUARDAR FILTROS EN LOCALSTORAGE
   useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
   useEffect(() => { localStorage.setItem('mcm_cab_cd', filtroCd); }, [filtroCd]);
 
-  // HELPER PARA ORDENAR CIUDADES
   const obtenerCiudadesOrdenadas = (region) => {
     if (!region || !estructuraGeografica || !estructuraGeografica[region]?.ciudades) return [];
     return Object.keys(estructuraGeografica[region].ciudades).map(nombre => ({
@@ -44,7 +36,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   };
 
   const buscarCabezales = async () => {
-    // Si no hay ciudad, limpiamos la tabla y no hacemos la petición
     if (!filtroCd) {
       setCabezales([]);
       return;
@@ -67,7 +58,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     buscarCabezales();
   }, [filtroCd]);
 
-  // FILTRADO LOCAL POR TEXTO (BUSCADOR ID O SERVICIO)
   const cabezalesFiltrados = cabezales.filter(cab => {
     if (!filtroTexto) return true;
     const text = filtroTexto.toLowerCase();
@@ -80,7 +70,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const verAlineacion = async (cabezal) => {
     setCabezalSeleccionado(cabezal);
     setEditandoCanalId(null);
-    setFiltroCanal(''); // Limpiar el buscador de canales al abrir el modal
+    setFiltroCanal(''); 
     try {
       const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${cabezal.id}/alineacion`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -107,7 +97,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  // NUEVO: FILTRADO LOCAL DE CANALES EN EL MODAL
   const canalesFiltrados = alineacionActual.filter(al => {
     if (!filtroCanal) return true;
     return String(al.nombre_canal || '').toLowerCase().includes(filtroCanal.toLowerCase());
@@ -143,7 +132,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  // CONTROL EN LÍNEA: TABLA DE EQUIPOS
   const iniciarEdicion = (cabezal) => {
     setEditandoId(cabezal.id);
     setEditForm({ ...cabezal });
@@ -188,7 +176,28 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  // CONTROL EN LÍNEA: TABLA DE CANALES (MODAL)
+  // ================= EXPORTAR CANALES DE ALINEACIÓN A EXCEL =================
+  const exportarAlineacionExcel = async (cabezal) => {
+    try {
+      const res = await fetch(`https://mt-backend-2ox8.onrender.com/api/cabezales/${cabezal.id}/exportar-excel`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Error en la descarga");
+      
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `Alineacion_${cabezal.id_equipo || 'Cabezal'}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+      alert("Fallo al exportar los canales a Excel.");
+    }
+  };
+
   const iniciarEdicionCanal = (canal) => {
     setEditandoCanalId(canal.id);
     setEditCanalForm({ ...canal });
@@ -356,8 +365,10 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                   {puedeCargar && (
                     <td className="p-4 text-center">
                       <div className="flex justify-center gap-4">
-                        <button onClick={() => iniciarEdicion(cab)} className="text-blue-400 hover:text-blue-300 transition"><Edit className="w-4 h-4"/></button>
-                        <button onClick={() => eliminarCabezal(cab.id)} className="text-red-400 hover:text-red-300 transition"><Trash2 className="w-4 h-4"/></button>
+                        {/* SE AGREGÓ EL BOTÓN PARA DESCARGAR EXCEL DE LOS CANALES DEL CABEZAL */}
+                        <button onClick={() => exportarAlineacionExcel(cab)} className="text-emerald-400 hover:text-emerald-300 transition" title="Exportar Canales a Excel"><FileSpreadsheet className="w-4 h-4"/></button>
+                        <button onClick={() => iniciarEdicion(cab)} className="text-blue-400 hover:text-blue-300 transition" title="Editar"><Edit className="w-4 h-4"/></button>
+                        <button onClick={() => eliminarCabezal(cab.id)} className="text-red-400 hover:text-red-300 transition" title="Eliminar"><Trash2 className="w-4 h-4"/></button>
                       </div>
                     </td>
                   )}
@@ -401,12 +412,10 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         </div>
       )}
 
-      {/* ================= MODAL ALINEACIÓN CON BUSCADOR ================= */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-7xl w-full flex flex-col max-h-[85vh] shadow-2xl">
             
-            {/* CABECERA DEL MODAL REESTRUCTURADA PARA INCLUIR EL BUSCADOR */}
             <div className="p-5 border-b border-slate-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-[#050814] rounded-t-xl shrink-0">
               <div>
                 <h2 className="text-xl font-bold text-white">Alineación de Canales</h2>
@@ -485,7 +494,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                     )
                   ))}
                   
-                  {/* MENSAJE DE ESTADO SI EL FILTRO NO ENCUENTRA NADA */}
                   {canalesFiltrados.length === 0 && alineacionActual.length > 0 && (
                     <tr>
                       <td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500 italic">
