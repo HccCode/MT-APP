@@ -673,7 +673,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
 # ================= NUEVO ENDPOINT EXPORTAR A EXCEL (INVENTARIO COMPLETO) =================
-# ================= ENDPOINT EXPORTAR A EXCEL (DISEÑO PROFESIONAL PREMIUM) =================
+
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     query = db.query(PortModel)
@@ -890,6 +890,27 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
         headers={"Content-Disposition": f"attachment; filename=MTDB_Ingenieria_{safe_scope}.xlsx"}
     )
+
+    try:
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # Nombre dinámico del archivo depurado
+        safe_scope = str(scope).replace("/", "-").replace(" ", "_")
+        
+        # FIX CORS: Se agrega Access-Control-Expose-Headers para que React pueda descargar el archivo
+        return StreamingResponse(
+            output, 
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            headers={
+                "Content-Disposition": f"attachment; filename=MTDB_Ingenieria_{safe_scope}.xlsx",
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
+    except Exception as e:
+        # Esto evitará el falso error de CORS si openpyxl u otra cosa falla
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo al construir Excel: {str(e)}"})
     #==============ENDPOINT EXPORTAR A EXCEL (FINAL)============#
 
 # ================= ENDPOINT EXPORTAR A EXCEL (DISEÑO PROFESIONAL PREMIUM) =================
@@ -1283,7 +1304,21 @@ def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends
         output, 
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
         headers={"Content-Disposition": f"attachment; filename=Alineacion_{cabezal.id_equipo}.xlsx"}
-    )
+        )
+    # ================= ENDPOINTS ANCHO DE BANDA CIUDADES =================
+@app.get("/api/config-ciudades/{ciudad_nombre}")
+def get_config_ciudad(ciudad_nombre: str, db: Session = Depends(get_db)):
+    config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
+    return {"status": "success", "data": {"ancho_banda_total": config.ancho_banda_total if config else None}}
+
+@app.put("/api/config-ciudades/{ciudad_nombre}")
+def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
+    if config: config.ancho_banda_total = data.ancho_banda_total
+    else: db.add(ConfigCiudadModel(ciudad_nombre=ciudad_nombre, ancho_banda_total=data.ancho_banda_total))
+    db.commit()
+    return {"status": "success"}
 
 if __name__ == "__main__":
     import uvicorn
