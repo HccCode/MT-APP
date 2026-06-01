@@ -302,6 +302,36 @@ class AlineacionUpdate(BaseModel):
 class ConfigCiudadUpdate(BaseModel):
     ancho_banda_total: str
 
+# ESQUEMAS PARA EXPORTACIÓN DEL RESUMEN
+class HubStatItem(BaseModel):
+    nombre: str
+    id: str
+    disp_gi: int
+    total_gi: int
+    disp_te: int
+    total_te: int
+    disp_25: int
+    total_25: int
+    disp_100: int
+    total_100: int
+    activos: int
+    suspendidos: int
+    troncales: int
+    total_disp: int
+    pct_libres: str
+    total: int
+
+class ResumenExportReq(BaseModel):
+    ciudad: str
+    capacidad_total: str
+    trafico_gbps: str
+    disponibilidad_pct: str
+    stats_activos: int
+    stats_suspendidos: int
+    stats_troncales: int
+    stats_total_disp: int
+    hubs: List[HubStatItem]
+
 MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
 ALLOWED_EXCEL_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -672,7 +702,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
-# ================= ENDPOINT EXPORTAR A EXCEL (DISEÑO PROFESIONAL PREMIUM - FIX CORS & MERGE) =================
+# ================= ENDPOINT EXPORTAR A EXCEL (INVENTARIO) =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     try:
@@ -879,7 +909,7 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error construyendo archivo Excel: {str(e)}"})
 
-# ================= ENDPOINTS CABEZALES RESTAURADOS =================
+# ================= ENDPOINTS CABEZALES =================
 @app.get("/api/cabezales")
 def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depends(get_db)):
     query = db.query(CabezalModel)
@@ -1009,7 +1039,6 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}"})
 
-# ================= ENDPOINT EXPORTAR ALINEACIÓN =================
 @app.get("/api/cabezales/{cabezal_id}/exportar-excel")
 def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
@@ -1075,36 +1104,7 @@ def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_u
     db.commit()
     return {"status": "success"}
 
-    # ================= NUEVOS ENDPOINTS: EXPORTACIÓN EXCEL DE PESTAÑA RESUMEN (DASHBOARD) =================
-class HubStatItem(BaseModel):
-    nombre: str
-    id: str
-    disp_gi: int
-    total_gi: int
-    disp_te: int
-    total_te: int
-    disp_25: int
-    total_25: int
-    disp_100: int
-    total_100: int
-    activos: int
-    suspendidos: int
-    troncales: int
-    total_disp: int
-    pct_libres: str
-    total: int
-
-class ResumenExportReq(BaseModel):
-    ciudad: str
-    capacidad_total: str
-    trafico_gbps: str
-    disponibilidad_pct: str
-    stats_activos: int
-    stats_suspendidos: int
-    stats_troncales: int
-    stats_total_disp: int
-    hubs: List[HubStatItem]
-
+# ================= EXPORTACIÓN EXCEL DE PESTAÑA RESUMEN (DASHBOARD) =================
 @app.post("/api/resumen/exportar-excel")
 def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depends(get_current_user)):
     try:
@@ -1113,7 +1113,6 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         ws.title = "Resumen de Nodos"
         ws.sheet_view.showGridLines = False
 
-        # Fondo tenue
         for row in range(1, 40):
             for col in range(1, 18):
                 ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F8F9FA")
@@ -1131,7 +1130,6 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         ws['B4'].alignment = Alignment(horizontal="right", vertical="center")
         ws.merge_cells('B4:P4')
 
-        # Creador de Tarjetas KPI
         def draw_kpi_3col(start_col_let, start_row, title, val, color_bg):
             title_cell = f"{start_col_let}{start_row}"
             val_cell = f"{start_col_let}{start_row + 1}"
@@ -1156,13 +1154,11 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
                 ws[f"{start_col_let}{r}"].border = thin_border
                 ws[f"{chr(ord(start_col_let)+2)}{r}"].border = thin_border
 
-        # 4 Tarjetas de Métricas alineadas
         draw_kpi_3col('B', 6, "CAPACIDAD (PUERTOS)", sum([h.total for h in req.hubs]), "1E293B")
         draw_kpi_3col('F', 6, "CLIENTES ACTIVOS", req.stats_activos, "0284C7")
         draw_kpi_3col('J', 6, "TOTAL DISPONIBLES", req.stats_total_disp, "16A34A")
         draw_kpi_3col('N', 6, "DISPONIBILIDAD B.W.", f"{req.disponibilidad_pct}%", "8B5CF6")
 
-        # Configuración de Tabla Central
         ws['B10'] = "MATRIZ ESTADÍSTICA DE DISPONIBILIDAD POR NODO"
         ws['B10'].font = Font(bold=True, size=12, color="0F172A")
         
@@ -1193,12 +1189,11 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
                 c = ws.cell(row=r_idx, column=c_idx, value=val)
                 c.alignment = Alignment(horizontal="center", vertical="center")
                 
-                # Semáforo de Colores en Porcentaje de Libres
                 if c_idx == 16:
                     val_num = float(str(val).replace('%',''))
-                    if val_num < 20: c.font = Font(bold=True, color="DC2626") # Crítico (Rojo)
-                    elif val_num > 50: c.font = Font(bold=True, color="16A34A") # Óptimo (Verde)
-                    else: c.font = Font(bold=True, color="D97706") # Precaución (Ámbar)
+                    if val_num < 20: c.font = Font(bold=True, color="DC2626") 
+                    elif val_num > 50: c.font = Font(bold=True, color="16A34A") 
+                    else: c.font = Font(bold=True, color="D97706") 
             r_idx += 1
 
         if len(req.hubs) > 0:
@@ -1206,7 +1201,6 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
             ws.add_table(tab)
             
-        # Formato de Columnas Inteligente
         for col in range(2, 17):
             ws.column_dimensions[chr(64+col)].width = 13
         ws.column_dimensions['B'].width = 25 
