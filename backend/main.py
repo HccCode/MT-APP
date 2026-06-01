@@ -640,6 +640,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
                 if t in headers: return headers.index(t)
             return -1
 
+        # ====== MAPEO COMPLETO DE LAS 32 COLUMNAS ======
         idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
         idx_puerto = get_index(["PUERTO"], column_headers)
         idx_equipo = get_index(["EQUIPO ID (CHASIS)", "EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID", "EQUIPO ID"], column_headers)
@@ -651,6 +652,8 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         idx_bdi = get_index(["BDI"], column_headers)
         idx_potcpe = get_index(["POTENCIA CPE"], column_headers)
         idx_pothub = get_index(["POTENCIA HUB"], column_headers)
+        
+        # Nuevos campos de ingeniería agregados:
         idx_id_mca = get_index(["ID MCA", "ID_MCA"], column_headers)
         idx_ruta = get_index(["RUTA"], column_headers)
         idx_distancia = get_index(["DIST. CLIENTE", "DISTANCIA CLIENTE", "DISTANCIA"], column_headers)
@@ -681,12 +684,14 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
             if not p_val or p_val.upper() == "NAN" or p_val == "": continue
             def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
             
+            # ====== GUARDADO COMPLETO AL MODELO DE BD ======
             db.add(PortModel(
                 region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
                 estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), 
                 ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), 
                 ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), 
-                potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), 
+                potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), 
+                id_mca=read_val(idx_id_mca), 
                 contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono),
                 serie_sfp_hub=read_val(idx_serie_sfp_hub), serie_sfp_client=read_val(idx_serie_sfp_cpe),
                 ruta=read_val(idx_ruta), distancia_cliente=read_val(idx_distancia), lambdas=read_val(idx_lambdas),
