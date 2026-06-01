@@ -15,7 +15,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const [modoEdicion, setModoEdicion] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'https://mt-backend-2ox8.onrender.com';
+  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => { localStorage.setItem('mcm_res_reg', regionSelec); }, [regionSelec]);
   useEffect(() => { localStorage.setItem('mcm_res_cd', ciudadSelec); }, [ciudadSelec]);
@@ -124,65 +124,64 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
     } catch (e) { alert("Error al guardar"); } finally { setGuardando(false); }
   };
 
-  const mostrar25G = datosHubs.some(h => h.total_25 > 0);
-  const mostrar100G = datosHubs.some(h => h.total_100 > 0);
-
-  const exportarAExcelNativo = () => {
-    if (datosHubs.length === 0) return;
-    
-    // Encabezados ordenados
-    const headers = [
-      'CIUDAD', 'NODO / HUB', 'ID NODO', 
-      'DISPONIBLES GI', 'TOTAL GI', 'DISPONIBLES TE', 'TOTAL TE'
-    ];
-    if (mostrar25G) headers.push('DISPONIBLES 25G', 'TOTAL 25G');
-    if (mostrar100G) headers.push('DISPONIBLES 100G', 'TOTAL 100G');
-    
-    headers.push(
-      'ACTIVOS', 'SUSPENDIDOS', 'TRONCALES', 
-      'TOTAL DISPONIBLES', '% LIBRES', 'TOTAL PUERTOS HUB', 
-      'ANCHO BANDA BACKBONE', 'CONSUMO PLAZA (Gbps)'
-    );
-
-    const filas = datosHubs.map(h => {
-      const row = [
-        ciudadSelec, h.nombre, h.id, 
-        h.disp_gi, h.total_gi, h.disp_te, h.total_te
-      ];
-      if (mostrar25G) row.push(h.disp_25, h.total_25);
-      if (mostrar100G) row.push(h.disp_100, h.total_100);
-      
-      row.push(
-        h.activos, h.suspendidos, h.troncales, 
-        h.total_disp, `${h.pct_libres}%`, h.total, 
-        capacidadTotal, (stats.trafico_mbps / 1000).toFixed(2)
-      );
-      return row;
-    });
-
-    const contenidoCSV = [
-      headers.join(','),
-      ...filas.map(fila => fila.map(campo => `"${campo}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([contenidoCSV], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const enlace = document.createElement('a');
-    enlace.setAttribute('href', url);
-    enlace.setAttribute('download', `Reporte_Disponibilidad_${ciudadSelec}.csv`);
-    document.body.appendChild(enlace);
-    enlace.click();
-    document.body.removeChild(enlace);
-  };
-
-  const obtenerCiudadesOrdenadas = (region) => {
-    if (!region || !estructuraGeografica[region]?.ciudades) return [];
-    return Object.keys(estructuraGeografica[region].ciudades).sort((a, b) => a.localeCompare(b));
-  };
-
   const capacidadNum = parseFloat(capacidadTotal.replace(/[^0-9.]/g, '')) * (capacidadTotal.toUpperCase().includes('G') ? 1000 : 1);
   const traficoGbps = (stats.trafico_mbps / 1000).toFixed(2);
   const disponibilidadAnchoBanda = capacidadNum > 0 ? (((capacidadNum - stats.trafico_mbps) / capacidadNum) * 100).toFixed(1) : 0;
+
+  const mostrar25G = datosHubs.some(h => h.total_25 > 0);
+  const mostrar100G = datosHubs.some(h => h.total_100 > 0);
+
+  // ================= EXPORTACIÓN DASHBOARD EXCEL =================
+  const exportarResumenExcel = async () => {
+    if (datosHubs.length === 0) return;
+    setCargando(true);
+    
+    const payload = {
+        ciudad: ciudadSelec,
+        capacidad_total: capacidadTotal,
+        trafico_gbps: traficoGbps,
+        disponibilidad_pct: String(disponibilidadAnchoBanda),
+        stats_activos: stats.activos,
+        stats_suspendidos: stats.suspendidos,
+        stats_troncales: stats.troncales,
+        stats_total_disp: stats.total_disp,
+        hubs: datosHubs.map(h => ({
+            nombre: h.nombre, id: h.id, 
+            disp_gi: h.disp_gi, total_gi: h.total_gi, 
+            disp_te: h.disp_te, total_te: h.total_te, 
+            disp_25: h.disp_25, total_25: h.total_25, 
+            disp_100: h.disp_100, total_100: h.total_100,
+            activos: h.activos, suspendidos: h.suspendidos, 
+            troncales: h.troncales, total_disp: h.total_disp, 
+            pct_libres: String(h.pct_libres), total: h.total
+        }))
+    };
+
+    try {
+        const token = localStorage.getItem('mcm_token');
+        const res = await fetch(`${API_URL}/api/resumen/exportar-excel`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!res.ok) throw new Error("Fallo en descarga");
+        
+        const blob = await res.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `Resumen_Nodos_${ciudadSelec.replace(/\s+/g, '_')}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(downloadUrl);
+    } catch (e) {
+        alert("Fallo al exportar el reporte.");
+    } finally {
+        setCargando(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#070b19]">
@@ -198,7 +197,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
             </select>
         </div>
         {datosHubs.length > 0 && (
-          <button onClick={exportarAExcelNativo} className="bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg cursor-pointer">
+          <button onClick={exportarResumenExcel} disabled={cargando} className="bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg cursor-pointer disabled:opacity-50">
             <Download className="w-4 h-4" /> Exportar Reporte
           </button>
         )}
@@ -283,19 +282,15 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                     <tr>
                       <th className="p-4 font-bold tracking-wider">NODO / HUB</th>
                       
-                      {/* GIGABIT */}
                       <th className="p-4 font-bold text-center bg-slate-900/40">DISP. (GI)</th>
                       <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/40">TOTAL (GI)</th>
                       
-                      {/* TENGIGABIT */}
                       <th className="p-4 font-bold text-center bg-slate-900/20">DISP. (TE)</th>
                       <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/20">TOTAL (TE)</th>
                       
-                      {/* 25G DINÁMICO */}
                       {mostrar25G && <th className="p-4 font-bold text-center bg-slate-900/40">DISP. (25G)</th>}
                       {mostrar25G && <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/40">TOTAL (25G)</th>}
                       
-                      {/* 100G DINÁMICO */}
                       {mostrar100G && <th className="p-4 font-bold text-center bg-slate-900/20">DISP. (100G)</th>}
                       {mostrar100G && <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/20">TOTAL (100G)</th>}
                       
@@ -303,7 +298,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                       <th className="p-4 font-bold text-center text-purple-400">SUSPEND.</th>
                       <th className="p-4 font-bold text-center text-amber-400">TRONCALES</th>
 
-                      {/* COLUMNAS AL FINAL COMO SE SOLICITÓ */}
                       <th className="p-4 font-bold text-center border-l border-slate-800/50 text-blue-400">TOTAL DISP.</th>
                       <th className="p-4 font-bold text-center text-emerald-400">LIBRES %</th>
                     </tr>
@@ -335,7 +329,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                           <td className="p-4 text-center text-purple-400 font-medium">{h.suspendidos}</td>
                           <td className="p-4 text-center text-amber-400 font-medium">{h.troncales}</td>
 
-                          {/* COLUMNAS AL FINAL */}
                           <td className="p-4 text-center border-l border-slate-800/50">
                             <span className={`px-2.5 py-1 rounded-full font-black ${h.total_disp > 0 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-slate-800/50 text-slate-500'}`}>
                               {h.total_disp}

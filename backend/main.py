@@ -1075,6 +1075,159 @@ def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_u
     db.commit()
     return {"status": "success"}
 
+    # ================= NUEVOS ENDPOINTS: EXPORTACIÓN EXCEL DE PESTAÑA RESUMEN (DASHBOARD) =================
+class HubStatItem(BaseModel):
+    nombre: str
+    id: str
+    disp_gi: int
+    total_gi: int
+    disp_te: int
+    total_te: int
+    disp_25: int
+    total_25: int
+    disp_100: int
+    total_100: int
+    activos: int
+    suspendidos: int
+    troncales: int
+    total_disp: int
+    pct_libres: str
+    total: int
+
+class ResumenExportReq(BaseModel):
+    ciudad: str
+    capacidad_total: str
+    trafico_gbps: str
+    disponibilidad_pct: str
+    stats_activos: int
+    stats_suspendidos: int
+    stats_troncales: int
+    stats_total_disp: int
+    hubs: List[HubStatItem]
+
+@app.post("/api/resumen/exportar-excel")
+def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depends(get_current_user)):
+    try:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Resumen de Nodos"
+        ws.sheet_view.showGridLines = False
+
+        # Fondo tenue
+        for row in range(1, 40):
+            for col in range(1, 18):
+                ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F8F9FA")
+
+        fecha_generacion = datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        ws['B2'] = f"📊 DASHBOARD DE DISPONIBILIDAD - {req.ciudad.upper()}"
+        ws['B2'].font = Font(size=20, bold=True, color="FFFFFF")
+        ws['B2'].fill = PatternFill("solid", fgColor="0F172A") 
+        ws['B2'].alignment = Alignment(horizontal="center", vertical="center")
+        ws.merge_cells('B2:P3')
+
+        ws['B4'] = f"Generado el: {fecha_generacion}   |   Tráfico Total: {req.trafico_gbps} Gbps   |   Capacidad Backbone: {req.capacidad_total}"
+        ws['B4'].font = Font(size=10, italic=True, color="475569")
+        ws['B4'].alignment = Alignment(horizontal="right", vertical="center")
+        ws.merge_cells('B4:P4')
+
+        # Creador de Tarjetas KPI
+        def draw_kpi_3col(start_col_let, start_row, title, val, color_bg):
+            title_cell = f"{start_col_let}{start_row}"
+            val_cell = f"{start_col_let}{start_row + 1}"
+            
+            ws[title_cell] = title.upper()
+            ws[title_cell].font = Font(color="FFFFFF", bold=True, size=9)
+            ws[title_cell].fill = PatternFill("solid", fgColor=color_bg)
+            ws[title_cell].alignment = Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{title_cell}:{chr(ord(start_col_let)+2)}{start_row}")
+            
+            ws[val_cell] = val
+            ws[val_cell].font = Font(size=22, bold=True, color=color_bg)
+            ws[val_cell].fill = PatternFill("solid", fgColor="FFFFFF")
+            ws[val_cell].alignment = Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{val_cell}:{chr(ord(start_col_let)+2)}{start_row + 1}")
+            
+            thin_border = Border(
+                left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), 
+                bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1')
+            )
+            for r in [start_row, start_row + 1]:
+                ws[f"{start_col_let}{r}"].border = thin_border
+                ws[f"{chr(ord(start_col_let)+2)}{r}"].border = thin_border
+
+        # 4 Tarjetas de Métricas alineadas
+        draw_kpi_3col('B', 6, "CAPACIDAD (PUERTOS)", sum([h.total for h in req.hubs]), "1E293B")
+        draw_kpi_3col('F', 6, "CLIENTES ACTIVOS", req.stats_activos, "0284C7")
+        draw_kpi_3col('J', 6, "TOTAL DISPONIBLES", req.stats_total_disp, "16A34A")
+        draw_kpi_3col('N', 6, "DISPONIBILIDAD B.W.", f"{req.disponibilidad_pct}%", "8B5CF6")
+
+        # Configuración de Tabla Central
+        ws['B10'] = "MATRIZ ESTADÍSTICA DE DISPONIBILIDAD POR NODO"
+        ws['B10'].font = Font(bold=True, size=12, color="0F172A")
+        
+        headers = [
+            "NODO / HUB", "ID NODO", 
+            "DISP. GI", "TOTAL GI", "DISP. TE", "TOTAL TE", 
+            "DISP. 25G", "TOTAL 25G", "DISP. 100G", "TOTAL 100G",
+            "ACTIVOS", "SUSPENDIDOS", "TRONCALES", "TOTAL DISP.", "LIBRES %"
+        ]
+        
+        start_row = 11
+        for col_idx, h in enumerate(headers, 2):
+            c = ws.cell(row=start_row, column=col_idx, value=h)
+            c.font = Font(bold=True, color="FFFFFF", size=9)
+            c.fill = PatternFill("solid", fgColor="0F172A")
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.row_dimensions[start_row].height = 25
+            
+        r_idx = start_row + 1
+        for h in req.hubs:
+            row_data = [
+                h.nombre, h.id, 
+                h.disp_gi, h.total_gi, h.disp_te, h.total_te,
+                h.disp_25, h.total_25, h.disp_100, h.total_100,
+                h.activos, h.suspendidos, h.troncales, h.total_disp, f"{h.pct_libres}%"
+            ]
+            for c_idx, val in enumerate(row_data, 2):
+                c = ws.cell(row=r_idx, column=c_idx, value=val)
+                c.alignment = Alignment(horizontal="center", vertical="center")
+                
+                # Semáforo de Colores en Porcentaje de Libres
+                if c_idx == 16:
+                    val_num = float(str(val).replace('%',''))
+                    if val_num < 20: c.font = Font(bold=True, color="DC2626") # Crítico (Rojo)
+                    elif val_num > 50: c.font = Font(bold=True, color="16A34A") # Óptimo (Verde)
+                    else: c.font = Font(bold=True, color="D97706") # Precaución (Ámbar)
+            r_idx += 1
+
+        if len(req.hubs) > 0:
+            tab = Table(displayName="TablaNodos", ref=f"B{start_row}:P{r_idx-1}")
+            tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
+            ws.add_table(tab)
+            
+        # Formato de Columnas Inteligente
+        for col in range(2, 17):
+            ws.column_dimensions[chr(64+col)].width = 13
+        ws.column_dimensions['B'].width = 25 
+        ws.column_dimensions['C'].width = 12
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        safe_scope = str(req.ciudad).replace("/", "-").replace(" ", "_")
+        return StreamingResponse(
+            output, 
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            headers={
+                "Content-Disposition": f"attachment; filename=Resumen_Nodos_{safe_scope}.xlsx",
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
