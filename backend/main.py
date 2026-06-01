@@ -396,7 +396,6 @@ def delete_user_profile(user_id: int, current_user: UserModel = Depends(get_curr
 @app.get("/api/geography")
 def get_geography_tree(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        # LOS ADMINISTRADORES IGNORAN LAS RESTRICCIONES DE PLAZA Y VEN TODA LA RED
         if is_admin(current_user) or current_user.plazas == "*":
             ids_permitidos = None
         else:
@@ -611,7 +610,6 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
                 if t in headers: return headers.index(t)
             return -1
 
-        # ÍNDICES DE FICHA TÉCNICA
         idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
         idx_puerto = get_index(["PUERTO"], column_headers)
         idx_equipo = get_index(["EQUIPO ID (CHASIS)", "EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID", "EQUIPO ID"], column_headers)
@@ -674,7 +672,7 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
-# ================= NUEVO ENDPOINT EXPORTAR A EXCEL =================
+# ================= NUEVO ENDPOINT EXPORTAR A EXCEL (INVENTARIO) =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     query = db.query(PortModel)
@@ -685,7 +683,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
 
     wb = Workbook()
     
-    # === PESTAÑA 1: DASHBOARD EJECUTIVO ===
     ws_dash = wb.active
     ws_dash.title = "Dashboard MT_DB"
     ws_dash.sheet_view.showGridLines = False
@@ -757,7 +754,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
     ws_dash.column_dimensions['Z'].hidden = True
     ws_dash.column_dimensions['AA'].hidden = True
 
-    # === PESTAÑA 2: TABLA DE INVENTARIO ===
     ws_data = wb.create_sheet(title="Inventario Detallado")
     headers = ["REGIÓN", "CIUDAD", "HUB_NODO", "ESTATUS", "PUERTO", "EQUIPO_ID", "SERVICIO", "MBPS", "IP_GESTION", "IP_CLIENTE", "BDI", "POTENCIA_HUB", "POTENCIA_CPE"]
     ws_data.append(headers)
@@ -939,71 +935,50 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}"})
 
-                # ================= NUEVO ENDPOINT EXPORTAR ALINEACIÓN =================
-                @app.get("/api/cabezales/{cabezal_id}/exportar-excel")
-                def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-                cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-                if not cabezal:
-                    raise HTTPException(status_code=404, detail="Cabezal no encontrado")
-                    
-                alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
-                
-                wb = Workbook()
-                ws = wb.active
-                ws.title = "Alineacion_Canales"
-                
-                # Cabeceras
-                headers = ["PORTADORA", "FORMATO", "CANAL NUM", "NOMBRE DE CANAL", "MCAST IP", "SOURCE IP", "UDP", "SID"]
-                ws.append(headers)
-                
-                # Dar estilo a la cabecera
-                for col_idx in range(1, len(headers)+1):
-                    cell = ws.cell(row=1, column=col_idx)
-                    cell.font = Font(bold=True, color="FFFFFF")
-                    cell.fill = PatternFill("solid", fgColor="0B132B")
-                    
-                # Agregar los datos
-                for al in alineaciones:
-                    ws.append([
-                        al.portadora, al.formato, al.canal_num, al.nombre_canal,
-                        al.mcast_ip, al.source_ip, al.udp, al.sid
-                    ])
-                    
-                # Ajustar ancho de columnas y crear Tabla
-                for col in ws.columns:
-                    ws.column_dimensions[col[0].column_letter].width = 18
-                    
-                if len(alineaciones) > 0:
-                    tab = Table(displayName=f"TablaAlineacion", ref=f"A1:H{len(alineaciones)+1}")
-                    tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
-                    ws.add_table(tab)
-                    
-                output = io.BytesIO()
-                wb.save(output)
-                output.seek(0)
-                
-                return StreamingResponse(
-                    output, 
-                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                    headers={"Content-Disposition": f"attachment; filename=Alineacion_{cabezal.id_equipo}.xlsx"}
-                )
-
-
-
-# ================= ENDPOINTS ANCHO DE BANDA CIUDADES =================
-@app.get("/api/config-ciudades/{ciudad_nombre}")
-def get_config_ciudad(ciudad_nombre: str, db: Session = Depends(get_db)):
-    config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
-    return {"status": "success", "data": {"ancho_banda_total": config.ancho_banda_total if config else None}}
-
-@app.put("/api/config-ciudades/{ciudad_nombre}")
-def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    config = db.query(ConfigCiudadModel).filter(ConfigCiudadModel.ciudad_nombre == ciudad_nombre).first()
-    if config: config.ancho_banda_total = data.ancho_banda_total
-    else: db.add(ConfigCiudadModel(ciudad_nombre=ciudad_nombre, ancho_banda_total=data.ancho_banda_total))
-    db.commit()
-    return {"status": "success"}
+# ================= NUEVO ENDPOINT EXPORTAR ALINEACIÓN (CABEZALES) =================
+@app.get("/api/cabezales/{cabezal_id}/exportar-excel")
+def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
+    if not cabezal:
+        raise HTTPException(status_code=404, detail="Cabezal no encontrado")
+        
+    alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Alineacion_Canales"
+    
+    headers = ["PORTADORA", "FORMATO", "CANAL NUM", "NOMBRE DE CANAL", "MCAST IP", "SOURCE IP", "UDP", "SID"]
+    ws.append(headers)
+    
+    for col_idx in range(1, len(headers)+1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="0B132B")
+        
+    for al in alineaciones:
+        ws.append([
+            al.portadora, al.formato, al.canal_num, al.nombre_canal,
+            al.mcast_ip, al.source_ip, al.udp, al.sid
+        ])
+        
+    for col in ws.columns:
+        ws.column_dimensions[col[0].column_letter].width = 18
+        
+    if len(alineaciones) > 0:
+        tab = Table(displayName=f"TablaAlineacion", ref=f"A1:H{len(alineaciones)+1}")
+        tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
+        ws.add_table(tab)
+        
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
+    return StreamingResponse(
+        output, 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        headers={"Content-Disposition": f"attachment; filename=Alineacion_{cabezal.id_equipo}.xlsx"}
+    )
 
 if __name__ == "__main__":
     import uvicorn

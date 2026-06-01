@@ -24,7 +24,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const [editandoCanalId, setEditandoCanalId] = useState(null);
   const [editCanalForm, setEditCanalForm] = useState({});
 
-  // VARIABLE DINÁMICA: Usa el backend local en desarrollo, y el de Render en producción
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
   useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
