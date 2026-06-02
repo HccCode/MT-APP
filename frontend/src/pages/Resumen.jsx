@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Edit2, Check, X, Zap } from 'lucide-react';
+import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity } from 'lucide-react';
 
 export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
@@ -57,7 +57,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
             const est = String(p.ESTATUS || '').toUpperCase().trim();
             const upperPto = String(p.PUERTO || '').toUpperCase();
             
-            // 1. CLASIFICACIÓN INTELIGENTE DEL TIPO DE PUERTO
             let tipo = 'GI'; 
             if (est.includes('100') || upperPto.includes('100G') || upperPto.includes('HU')) tipo = '100G';
             else if (est.includes('25') || upperPto.includes('25G') || upperPto.includes('TWE')) tipo = '25G';
@@ -69,7 +68,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
             else if (tipo === 'TE') subTotalTe++;
             else subTotalGi++;
 
-            // 2. CLASIFICACIÓN POR ESTATUS
             const isDisp = est.includes('DISPONIBLE');
 
             if (est === 'ACTIVO') {
@@ -131,7 +129,30 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const mostrar25G = datosHubs.some(h => h.total_25 > 0);
   const mostrar100G = datosHubs.some(h => h.total_100 > 0);
 
-  // ================= EXPORTACIÓN DASHBOARD EXCEL =================
+  // ================= SISTEMA DE ALERTAS (UMBRALES) =================
+  const alertas = [];
+  if (ciudadSelec && !cargando) {
+    // 1. Alerta de Backbone: Si la disponibilidad es menor al 15% (Es decir, uso superior al 85%)
+    if (parseFloat(disponibilidadAnchoBanda) < 15 && capacidadNum > 0) {
+      alertas.push({
+        id: 'bw-critico',
+        tipo: 'CRÍTICA',
+        msg: `Saturación de Backbone en ${ciudadSelec}. El tráfico agregado superó el 85% de la capacidad de ${capacidadTotal}.`
+      });
+    }
+
+    // 2. Alerta de Nodos: Si algún HUB baja del 15% de puertos disponibles
+    datosHubs.forEach(h => {
+      if (parseFloat(h.pct_libres) < 15 && h.total > 0) {
+        alertas.push({
+          id: `hub-${h.id}`,
+          tipo: 'ADVERTENCIA',
+          msg: `Nivel bajo de puertos en NODO ${h.nombre}. Solo ${h.total_disp} puerto(s) libre(s) (${h.pct_libres}%). Requiere ampliación óptica.`
+        });
+      }
+    });
+  }
+
   const exportarResumenExcel = async () => {
     if (datosHubs.length === 0) return;
     setCargando(true);
@@ -210,6 +231,24 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
           <div className="flex justify-center items-center h-40 text-slate-500 italic text-sm">Seleccione Región y Ciudad para generar el resumen.</div>
         ) : (
           <>
+            {/* ================= PANEL DE ALERTAS VISUALES ================= */}
+            {alertas.length > 0 && (
+              <div className="bg-red-950/20 border border-red-900/50 rounded-2xl p-4 flex flex-col gap-3 shadow-lg mb-2">
+                <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse" />
+                    <h3 className="text-sm font-black text-red-400 uppercase tracking-widest">Sistema de Alertas Activas</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                    {alertas.map((al) => (
+                        <div key={al.id} className={`p-3 rounded-lg border flex items-start gap-3 shadow-md ${al.tipo === 'CRÍTICA' ? 'bg-red-900/20 border-red-800/50 text-red-200' : 'bg-amber-900/20 border-amber-800/50 text-amber-200'}`}>
+                           {al.tipo === 'CRÍTICA' ? <Activity className="w-4 h-4 mt-0.5 text-red-500 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />}
+                           <p className="text-xs font-medium leading-relaxed">{al.msg}</p>
+                        </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-[#0b132b] border border-slate-800 p-6 rounded-2xl relative overflow-hidden">
                     <Zap className="absolute -right-4 -bottom-4 w-24 h-24 text-emerald-500/5" />
@@ -267,7 +306,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                         <p className="text-2xl font-black text-white">{disponibilidadAnchoBanda}%</p>
                     </div>
                     <div className="h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden p-0.5">
-                        <div className={`h-full rounded-full transition-all duration-1000 ${parseFloat(disponibilidadAnchoBanda) < 20 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${disponibilidadAnchoBanda}%`}}></div>
+                        <div className={`h-full rounded-full transition-all duration-1000 ${parseFloat(disponibilidadAnchoBanda) < 15 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${disponibilidadAnchoBanda}%`}}></div>
                     </div>
                 </div>
             </div>
@@ -307,7 +346,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                       <tr><td colSpan="13" className="p-8 text-center text-slate-500 italic">No hay nodos registrados en esta ciudad.</td></tr>
                     ) : (
                       datosHubs.map((h, i) => (
-                        <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                        <tr key={i} className={`hover:bg-slate-800/30 transition-colors ${parseFloat(h.pct_libres) < 15 ? 'bg-amber-900/10' : ''}`}>
                           <td className="p-4">
                             <p className="font-bold text-slate-200">{h.nombre}</p>
                             <p className="text-[10px] text-slate-500 font-mono mt-0.5">{h.id}</p>
@@ -334,7 +373,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                               {h.total_disp}
                             </span>
                           </td>
-                          <td className="p-4 text-center font-black text-emerald-400">
+                          <td className={`p-4 text-center font-black ${parseFloat(h.pct_libres) < 15 ? 'text-amber-500' : 'text-emerald-400'}`}>
                             {h.pct_libres}%
                           </td>
                         </tr>
