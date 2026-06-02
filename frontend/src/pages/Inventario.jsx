@@ -366,7 +366,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 <div className="flex items-center gap-3">
                   <h3 className="text-xs font-black text-blue-400 tracking-widest">FICHA TÉCNICA DE INGENIERÍA</h3>
                   <div className="flex items-center gap-3">
-                          <h3 className="text-xs font-black text-blue-400 tracking-widest">FICHA TÉCNICA DE INGENIERÍA</h3>
                           <button onClick={() => setMostrarModalVisualizar(true)} className="bg-blue-900/30 hover:bg-blue-600 border border-blue-800 text-blue-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer" title="Ver ficha">
                             <Eye className="w-3.5 h-3.5" /> Visualizar
                           </button>
