@@ -24,6 +24,9 @@ function App() {
   
   const esAdmin = userStr === 'admin' || roleStr === 'ADMIN' || permisos.includes('ADMIN');
   const puedeEditar = esAdmin || roleStr === 'MCM NOC' || roleStr === 'MCM INGENIERIA' || permisos.includes('ESCRITURA');
+  const puedeCargar = esAdmin || roleStr === 'MCM INGENIERIA' || permisos.includes('CARGA');
+  
+  const esMcmNoc = roleStr === 'MCM NOC' || permisos.includes('MCM NOC'); 
   const esRnoc = roleStr === 'RNOC' || permisos.includes('RNOC'); 
 
   const pestanasStr = String(usuario?.pestanas || '*');
