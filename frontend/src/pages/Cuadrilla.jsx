@@ -75,7 +75,6 @@ export default function Cuadrilla({ token }) {
     }
   };
 
-  // Pequeño componente reutilizable para los inputs móviles
   const InputGroup = ({ label, prop, type = "text", placeholder = "" }) => (
     <div>
       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">{label}</label>
