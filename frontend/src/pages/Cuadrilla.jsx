@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Save, X, Activity, MapPin, Zap } from 'lucide-react';
+import { Search, Save, X, Activity, MapPin } from 'lucide-react';
 
 export default function Cuadrilla({ token }) {
   const [busqueda, setBusqueda] = useState('');
@@ -75,6 +75,7 @@ export default function Cuadrilla({ token }) {
     }
   };
 
+  // Componente reutilizable para los inputs móviles en la vista de edición
   const InputGroup = ({ label, prop, type = "text", placeholder = "" }) => (
     <div>
       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">{label}</label>
@@ -91,7 +92,9 @@ export default function Cuadrilla({ token }) {
   return (
     <div className="flex-1 bg-[#050814] h-full overflow-y-auto custom-scrollbar">
       
-      {/* VISTA PRINCIPAL: BUSCADOR Y RESULTADOS */}
+      {/* ========================================================================= */}
+      {/* VISTA PRINCIPAL: BUSCADOR Y RESULTADOS (TARJETAS AMPLIADAS)             */}
+      {/* ========================================================================= */}
       {!puertoActivo ? (
         <div className="max-w-md mx-auto p-4 flex flex-col min-h-full">
           <div className="mb-6 mt-4 text-center">
@@ -119,25 +122,79 @@ export default function Cuadrilla({ token }) {
             )}
             
             {resultados.map((p) => (
-              <div key={p.ID} className="bg-[#0b132b] border border-slate-700 p-4 rounded-2xl shadow-lg cursor-pointer active:scale-95 transition-transform" onClick={() => abrirEdicion(p)}>
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-black text-slate-100 text-lg">{p.PUERTO}</h3>
-                  <span className={`px-2 py-1 rounded-md text-[10px] font-black border uppercase ${p.ESTATUS.includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : p.ESTATUS.includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : p.ESTATUS.includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
+              <div key={p.ID} className="bg-[#0b132b] border border-slate-700 p-4 rounded-2xl shadow-lg cursor-pointer active:scale-[0.98] transition-transform flex flex-col gap-3" onClick={() => abrirEdicion(p)}>
+                
+                {/* CABECERA: PUERTO Y ESTATUS */}
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-black text-slate-100 text-xl">{p.PUERTO || '-'}</h3>
+                    <p className="text-[11px] text-slate-400 font-mono mt-0.5"><span className="text-slate-500 font-sans">Chasis:</span> {p.EQUIPO_HOTEL_ID || 'N/A'}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded-md text-[10px] font-black border uppercase ${String(p.ESTATUS).includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : String(p.ESTATUS).includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : String(p.ESTATUS).includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
                     {p.ESTATUS}
                   </span>
                 </div>
-                <p className="text-sm text-indigo-300 font-bold mb-1 truncate">{p.SERVICIO || 'Sin cliente asignado'}</p>
-                <div className="flex flex-col gap-1 text-xs text-slate-500">
-                  <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-amber-500" /> Equipo: {p.EQUIPO_HOTEL_ID || 'N/A'}</span>
-                  {p.DIRECCION && <span className="flex items-start gap-1"><MapPin className="w-3 h-3 mt-0.5 shrink-0" /> <span className="truncate">{p.DIRECCION}</span></span>}
+
+                {/* NOMBRE DEL CLIENTE / SERVICIO */}
+                <div className="bg-[#050814] p-3 rounded-xl border border-slate-800">
+                  <p className="text-sm text-indigo-300 font-bold truncate">{p.SERVICIO || 'Sin cliente asignado'}</p>
                 </div>
+
+                {/* GRID DE DATOS TÉCNICOS (IPs, Óptica, Fibra) */}
+                <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-[10px] text-slate-300 bg-[#050814]/50 p-3 rounded-xl border border-slate-800/50">
+                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">IP Gestión</span><span className="font-mono">{p.IP_GESTION || '-'}</span></div>
+                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">IP Cliente</span><span className="font-mono">{p.IP_CLIENTE || '-'}</span></div>
+                  
+                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">BDI / VLAN</span><span className="font-mono">{p.BDI || '-'}</span></div>
+                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">Lambdas</span><span className="font-mono">{p.LAMBDAS || '-'}</span></div>
+                  
+                  <div className="flex flex-col"><span className="text-amber-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Potencia HUB</span><span className="text-amber-400 font-mono">{p.POTENCIA_HUB ? `${p.POTENCIA_HUB} dBm` : '-'}</span></div>
+                  <div className="flex flex-col"><span className="text-amber-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Potencia CPE</span><span className="text-amber-400 font-mono">{p.POTENCIA_CPE ? `${p.POTENCIA_CPE} dBm` : '-'}</span></div>
+                  
+                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Ruta Física</span><span className="truncate pr-2">{p.RUTA || '-'}</span></div>
+                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Dist. Cliente</span><span>{p.DISTANCIA_CLIENTE || '-'}</span></div>
+                  
+                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Buffer</span><span>{p.BUFFER || '-'}</span></div>
+                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Hilos</span><span>{p.HILOS || '-'}</span></div>
+                </div>
+
+                {/* CONTACTOS Y COORDENADAS RÁPIDAS */}
+                <div className="text-[11px] text-slate-400 flex flex-col gap-2 mt-1">
+                  {(p.CONTACTO_NOMBRE || p.CONTACTO_TELEFONO) && (
+                    <span className="flex items-center gap-2 bg-[#050814] p-2.5 rounded-lg border border-slate-800">
+                      <span className="text-slate-500">👤</span> 
+                      <span className="font-bold">{p.CONTACTO_NOMBRE || 'Sin Nombre'}</span> 
+                      {p.CONTACTO_TELEFONO && <span className="text-indigo-300 font-mono ml-auto">{p.CONTACTO_TELEFONO}</span>}
+                    </span>
+                  )}
+                  
+                  {p.COORDENADAS && (
+                     <div className="flex items-center justify-between bg-[#050814] border border-slate-800 rounded-lg pl-3 pr-1 py-1">
+                        <span className="font-mono text-amber-500 text-[10px] truncate max-w-[150px]">{p.COORDENADAS}</span>
+                        <a 
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.COORDENADAS)}`} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          onClick={(e) => e.stopPropagation()} 
+                          className="bg-emerald-600/80 px-3 py-1.5 rounded text-white active:bg-emerald-500 font-bold flex items-center gap-1.5 shadow-lg"
+                        >
+                          <MapPin className="w-3 h-3"/> Mapa
+                        </a>
+                     </div>
+                  )}
+                </div>
+                
+                <div className="w-full h-px bg-slate-800 my-1"></div>
+                <p className="text-[9px] text-center text-slate-500 uppercase tracking-widest font-black">Toca la tarjeta para editar la ficha</p>
               </div>
             ))}
           </div>
         </div>
       ) : (
 
-      /* VISTA SECUNDARIA: EDICIÓN COMPLETA MÓVIL */
+      /* ========================================================================= */
+      /* VISTA SECUNDARIA: EDICIÓN COMPLETA MÓVIL (AL TOCAR UNA TARJETA)           */
+      /* ========================================================================= */
         <div className="max-w-md mx-auto flex flex-col h-full bg-[#0b132b] animate-in slide-in-from-right-8 duration-200">
           <div className="bg-[#050814] p-4 flex justify-between items-center border-b border-slate-800 sticky top-0 z-10 shadow-lg">
             <div>
