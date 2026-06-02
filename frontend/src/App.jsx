@@ -145,7 +145,7 @@ function App() {
             >
               <span className="text-[13px]">📱</span> Modo Cuadrilla
             </button>
-
+            
 
           {mostrarGeografia && (
             <button 
@@ -197,9 +197,6 @@ function App() {
         )}
         {tabActiva === 'geografia' && (
           <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
-        )}
-        {tabActiva === 'cuadrilla' && (
-          <Cuadrilla token={token}  />
         )}
         {tabActiva === 'carga_excel' && (
           <CargaExcel token={token} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />

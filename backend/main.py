@@ -622,6 +622,27 @@ def get_mapa_topologia(ciudad: str = None, db: Session = Depends(get_db)):
 
     return {"status": "success", "data": nodos_geo}
 
+# ================= BUSCADOR MÓVIL =================
+@app.get("/api/ports/search")
+def search_ports_global(q: str = Query(..., min_length=2), db: Session = Depends(get_db)):
+    term = f"%{q}%"
+    puertos = db.query(PortModel).filter(
+        (PortModel.puerto.ilike(term)) |
+        (PortModel.servicio.ilike(term)) |
+        (PortModel.ip_cliente.ilike(term)) |
+        (PortModel.serie_cpe.ilike(term)) |
+        (PortModel.equipo_hotel_id.ilike(term))
+    ).limit(30).all()
+    
+    return {"status": "success", "data": [
+        {
+            "ID": p.id, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto,
+            "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "SERVICIO": p.servicio,
+            "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe,
+            "SERIE_CPE": p.serie_cpe, "DIRECCION": p.direccion
+        } for p in puertos
+    ]}
+
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
@@ -691,7 +712,6 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
     if not db_port: raise HTTPException(status_code=404)
     
     cambios_realizados = []
-    
     for key, val in data.model_dump(exclude_unset=True).items(): 
         attr_name = key.lower()
         if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
@@ -701,13 +721,10 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
         v_antiguo = str(valor_antiguo).strip() if valor_antiguo is not None else ""
         v_nuevo = str(val).strip() if val is not None else ""
         
-        if v_antiguo != v_nuevo:
-            cambios_realizados.append(f"[{key.upper()}: '{v_antiguo}' ➔ '{v_nuevo}']")
-            
+        if v_antiguo != v_nuevo: cambios_realizados.append(f"[{key.upper()}: '{v_antiguo}' ➔ '{v_nuevo}']")
         setattr(db_port, attr_name, val)
         
     db.commit()
-    
     if cambios_realizados:
         detalle_log = f"Modificó el puerto {db_port.puerto} (ID {port_id}). Cambios exactos: " + " | ".join(cambios_realizados)
     else:
@@ -716,8 +733,10 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
     registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", detalle_log)
     return {"status": "success"}
 
+
+# ================= MOTOR AVANZADO DE CARGA Y STAGING AREA =================
 @app.post("/api/hubs/upload-excel")
-async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     filename = file.filename or ""
     if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
@@ -779,6 +798,55 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         idx_comentarios = get_index(["COMENTARIOS", "OBSERVACIONES"], column_headers)
 
         if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
+        
+        # LÓGICA DE VALIDACIÓN (STAGING AREA)
+        preview_data = []
+        has_errors = False
+        puertos_vistos = set()
+        
+        for _, row in df_data.iterrows():
+            vals = list(row.values)
+            if idx_puerto >= len(vals): continue
+            p_val = str(vals[idx_puerto]).strip()
+            if not p_val or p_val.upper() == "NAN" or p_val == "": continue
+            def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
+            
+            est = read_val(idx_status).upper() or "DISPONIBLE GI"
+            serv = read_val(idx_serv)
+            ip_gest = read_val(idx_ipgest)
+            eq_id = read_val(idx_equipo)
+            
+            errores_fila = []
+            
+            # REGLA 1: Duplicidad interna de interfaces en el Excel
+            if p_val in puertos_vistos:
+                errores_fila.append(f"Interfaz duplicada en este Excel.")
+            puertos_vistos.add(p_val)
+            
+            # REGLA 2: Cliente Omitido
+            if "ACTIVO" in est and not serv:
+                errores_fila.append("Un puerto ACTIVO debe tener un CLIENTE asignado.")
+                
+            # REGLA 3: Formato de IP Gestión
+            if ip_gest and ip_gest.count('.') != 3:
+                errores_fila.append("Formato de IP de Gestión inválido.")
+            
+            fila_obj = {
+                "PUERTO": p_val,
+                "ESTATUS": est,
+                "SERVICIO": serv,
+                "EQUIPO_ID": eq_id,
+                "IP_GESTION": ip_gest,
+                "_errores": errores_fila,
+                "_valido": len(errores_fila) == 0
+            }
+            if not fila_obj["_valido"]: has_errors = True
+            preview_data.append(fila_obj)
+
+        if mode == "preview":
+            return {"status": "success", "data": preview_data, "has_errors": has_errors}
+
+        # LÓGICA DE ESCRITURA FINAL EN LA BASE DE DATOS
         db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
         
         for _, row in df_data.iterrows():
@@ -803,13 +871,14 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
                 fecha_entrega=read_val(idx_fecha_entrega), comentarios=read_val(idx_comentarios)
             ))
         db.commit()
-        registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Se cargó el archivo en el HUB {id_hub}")
+        registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Se cargó exitosamente el archivo en el HUB {id_hub}")
         return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
     except Exception as e:
         try: db.rollback() 
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
+# ================= EXPORTACIÓN EXCEL =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     try:
@@ -1006,8 +1075,7 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
                 "Access-Control-Expose-Headers": "Content-Disposition"
             }
         )
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error construyendo archivo Excel: {str(e)}"})
+    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error construyendo archivo Excel: {str(e)}"})
 
 # ================= ENDPOINTS CABEZALES =================
 @app.get("/api/cabezales")
@@ -1315,28 +1383,6 @@ def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_curre
     if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
     return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
-
-# ================= ENDPOINT: BUSCADOR MÓVIL (MODO CUADRILLA) =================
-@app.get("/api/ports/search")
-def search_ports_global(q: str = Query(..., min_length=2), db: Session = Depends(get_db)):
-    term = f"%{q}%"
-    # Busca coincidencias en múltiples columnas clave a la vez
-    puertos = db.query(PortModel).filter(
-        (PortModel.puerto.ilike(term)) |
-        (PortModel.servicio.ilike(term)) |
-        (PortModel.ip_cliente.ilike(term)) |
-        (PortModel.serie_cpe.ilike(term)) |
-        (PortModel.equipo_hotel_id.ilike(term))
-    ).limit(30).all() # Límite de 30 para no saturar el celular
-    
-    return {"status": "success", "data": [
-        {
-            "ID": p.id, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto,
-            "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "SERVICIO": p.servicio,
-            "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe,
-            "SERIE_CPE": p.serie_cpe, "DIRECCION": p.direccion
-        } for p in puertos
-    ]}
 
 if __name__ == "__main__":
     import uvicorn
