@@ -6,9 +6,9 @@ import Inventario from './pages/Inventario';
 import Resumen from './pages/Resumen';
 import Geografia from './pages/Geografia';
 import CargaExcel from './pages/CargaExcel';
-import MapaRed from './pages/MapaRed';
 import Usuarios from './pages/Usuarios';
 import Cabezales from './pages/Cabezales';
+
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
@@ -29,7 +29,7 @@ function App() {
   // DEFINICIÓN DE ROLES ESPECÍFICOS
   const esMcmNoc = roleStr === 'MCM NOC' || permisos.includes('MCM NOC'); 
   const esMcmIng = roleStr === 'MCM INGENIERIA' || permisos.includes('MCM INGENIERIA');
-  const esRnoc = roleStr === 'RNOC' || permisos.includes('RNOC'); 
+  const esRnoc = roleStr === 'RNOC' || permisos.includes('RNOC'); // <-- ROL RNOC CREADO
 
   // VISIBILIDAD DE PESTAÑAS (TABS)
   const pestanasStr = String(usuario?.pestanas || '*');
@@ -47,7 +47,6 @@ function App() {
   const mostrarInventario = puedeVerTab('inventario', true);
   const mostrarResumen = puedeVerTab('resumen', true);
   const mostrarCabezales = puedeVerTab('cabezales', true);
-  const mostrarMapa = puedeVerTab('mapa', true); // <-- VISIBILIDAD DEL MAPA
   const mostrarGeografia = puedeVerTab('geografia', esAdmin);
   const mostrarCarga = puedeVerTab('carga_excel', puedeCargar);
   const mostrarUsuarios = puedeVerTab('usuarios', esAdmin);
@@ -138,15 +137,6 @@ function App() {
               <span className="text-[13px]">📡</span> Cabezales
             </button>
           )}
-
-          {mostrarMapa && (
-            <button 
-              onClick={() => setTabActiva('mapa')} 
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'mapa' ? 'bg-pink-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              <span className="text-[13px]">🗺️</span> Topología GIS
-            </button>
-          )}
           
           {mostrarGeografia && (
             <button 
@@ -195,9 +185,6 @@ function App() {
         )}
         {tabActiva === 'resumen' && (
           <Resumen estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>
-        )}
-        {tabActiva === 'mapa' && (
-          <MapaRed token={token} estructuraGeografica={estructuraGeografica} />
         )}
         {tabActiva === 'geografia' && (
           <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
