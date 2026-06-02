@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Camera, Save, X, Activity, MapPin, Zap } from 'lucide-react';
+import { Search, Save, X, Activity, MapPin, Zap } from 'lucide-react';
 
 export default function Cuadrilla({ token }) {
   const [busqueda, setBusqueda] = useState('');
@@ -33,10 +33,23 @@ export default function Cuadrilla({ token }) {
   const abrirEdicion = (puerto) => {
     setPuertoActivo(puerto);
     setForm({
-      ESTATUS: puerto.ESTATUS,
+      ESTATUS: puerto.ESTATUS || 'DISPONIBLE GI',
+      EQUIPO_HOTEL_ID: puerto.EQUIPO_HOTEL_ID || '',
+      PUERTO: puerto.PUERTO || '',
+      SERVICIO: puerto.SERVICIO || '',
+      IP_GESTION: puerto.IP_GESTION || '',
+      IP_CLIENTE: puerto.IP_CLIENTE || '',
+      BDI: puerto.BDI || '',
       POTENCIA_HUB: puerto.POTENCIA_HUB || '',
       POTENCIA_CPE: puerto.POTENCIA_CPE || '',
-      SERIE_CPE: puerto.SERIE_CPE || ''
+      RUTA: puerto.RUTA || '',
+      DISTANCIA_CLIENTE: puerto.DISTANCIA_CLIENTE || '',
+      LAMBDAS: puerto.LAMBDAS || '',
+      BUFFER: puerto.BUFFER || '',
+      HILOS: puerto.HILOS || '',
+      COORDENADAS: puerto.COORDENADAS || '',
+      CONTACTO_NOMBRE: puerto.CONTACTO_NOMBRE || '',
+      CONTACTO_TELEFONO: puerto.CONTACTO_TELEFONO || ''
     });
   };
 
@@ -51,7 +64,6 @@ export default function Cuadrilla({ token }) {
       if (res.ok) {
         alert("✅ Datos actualizados correctamente en MT_DB");
         setPuertoActivo(null);
-        // Actualizar la lista local visualmente
         setResultados(resultados.map(p => p.ID === puertoActivo.ID ? { ...p, ...form } : p));
       } else {
         alert("Fallo al guardar la información.");
@@ -63,10 +75,19 @@ export default function Cuadrilla({ token }) {
     }
   };
 
-  // Función nativa para solicitar acceso a la cámara del celular
-  const handleScanClick = () => {
-    document.getElementById('cameraInput').click();
-  };
+  // Pequeño componente reutilizable para los inputs móviles
+  const InputGroup = ({ label, prop, type = "text", placeholder = "" }) => (
+    <div>
+      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">{label}</label>
+      <input 
+        type={type} 
+        value={form[prop]} 
+        onChange={e => setForm({...form, [prop]: e.target.value})} 
+        placeholder={placeholder}
+        className="w-full bg-[#1c2541] border-2 border-slate-700 text-slate-200 text-sm p-3 rounded-xl outline-none focus:border-indigo-500" 
+      />
+    </div>
+  );
 
   return (
     <div className="flex-1 bg-[#050814] h-full overflow-y-auto custom-scrollbar">
@@ -75,14 +96,14 @@ export default function Cuadrilla({ token }) {
       {!puertoActivo ? (
         <div className="max-w-md mx-auto p-4 flex flex-col min-h-full">
           <div className="mb-6 mt-4 text-center">
-            <h1 className="text-2xl font-black text-indigo-400">Modo Cuadrilla</h1>
-            <p className="text-slate-500 text-xs mt-1">Herramienta operativa de trabajo en campo</p>
+            <h1 className="text-2xl font-black text-indigo-400">Trabajo en Campo</h1>
+            <p className="text-slate-500 text-xs mt-1">Busca el puerto, IP o cliente a intervenir</p>
           </div>
 
           <form onSubmit={buscarPuerto} className="relative mb-6">
             <input 
               type="text" 
-              placeholder="Buscar Servicio, IP o Puerto..." 
+              placeholder="Ej. Banamex, Nodo Centro, 10.50..." 
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400"
@@ -91,7 +112,7 @@ export default function Cuadrilla({ token }) {
             <button type="submit" className="hidden">Buscar</button>
           </form>
 
-          {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Buscando en base de datos...</p>}
+          {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Buscando en MT_DB...</p>}
 
           <div className="flex-1 space-y-4 pb-10">
             {resultados.length === 0 && !cargando && busqueda.length > 2 && (
@@ -117,9 +138,9 @@ export default function Cuadrilla({ token }) {
         </div>
       ) : (
 
-      /* VISTA SECUNDARIA: EDICIÓN RÁPIDA MÓVIL */
+      /* VISTA SECUNDARIA: EDICIÓN COMPLETA MÓVIL */
         <div className="max-w-md mx-auto flex flex-col h-full bg-[#0b132b] animate-in slide-in-from-right-8 duration-200">
-          <div className="bg-[#050814] p-4 flex justify-between items-center border-b border-slate-800 sticky top-0 z-10">
+          <div className="bg-[#050814] p-4 flex justify-between items-center border-b border-slate-800 sticky top-0 z-10 shadow-lg">
             <div>
               <h2 className="text-indigo-400 font-black text-xl">{puertoActivo.PUERTO}</h2>
               <p className="text-xs text-slate-500 truncate max-w-[250px]">{puertoActivo.SERVICIO}</p>
@@ -129,47 +150,100 @@ export default function Cuadrilla({ token }) {
             </button>
           </div>
 
-          <div className="flex-1 p-5 space-y-6 overflow-y-auto custom-scrollbar">
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Estatus Físico</label>
-              <select value={form.ESTATUS} onChange={e=>setForm({...form, ESTATUS: e.target.value})} className="w-full bg-[#1c2541] border-2 border-slate-700 text-white text-lg p-3 rounded-xl outline-none focus:border-indigo-500 cursor-pointer">
-                <option value="DISPONIBLE GI">DISPONIBLE GI</option>
-                <option value="DISPONIBLE TE">DISPONIBLE TE</option>
-                <option value="ACTIVO">ACTIVO</option>
-                <option value="SUSPENDIDO">SUSPENDIDO</option>
-                <option value="TRONCAL TE">TRONCAL TE</option>
-              </select>
+          <div className="flex-1 p-4 space-y-5 overflow-y-auto custom-scrollbar pb-8">
+            
+            {/* SECCIÓN 1: IDENTIFICACIÓN */}
+            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
+              <h4 className="text-indigo-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">1. Identificación y Estatus</h4>
+              
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Estatus del Puerto</label>
+                <select value={form.ESTATUS} onChange={e=>setForm({...form, ESTATUS: e.target.value})} className="w-full bg-[#1c2541] border-2 border-slate-700 text-white text-sm p-3 rounded-xl outline-none focus:border-indigo-500 cursor-pointer font-bold">
+                  <option value="DISPONIBLE GI">DISPONIBLE GI</option>
+                  <option value="DISPONIBLE TE">DISPONIBLE TE</option>
+                  <option value="DISPONIBLE 25">DISPONIBLE 25</option>
+                  <option value="DISPONIBLE 100">DISPONIBLE 100</option>
+                  <option value="ACTIVO">ACTIVO</option>
+                  <option value="SUSPENDIDO">SUSPENDIDO</option>
+                  <option value="TRONCAL TE">TRONCAL TE</option>
+                </select>
+              </div>
+              
+              <InputGroup label="Chasis / Equipo ID" prop="EQUIPO_HOTEL_ID" />
+              <InputGroup label="Puerto" prop="PUERTO" />
+              <InputGroup label="Nombre del Cliente (Servicio)" prop="SERVICIO" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Potencia TX (dBm)</label>
-                <input type="number" step="0.01" value={form.POTENCIA_HUB} onChange={e=>setForm({...form, POTENCIA_HUB: e.target.value})} className="w-full bg-[#1c2541] border-2 border-slate-700 text-amber-400 font-mono text-center text-xl p-3 rounded-xl outline-none focus:border-amber-500" placeholder="-18.5" />
+            {/* SECCIÓN 2: LÓGICA Y ENRUTAMIENTO */}
+            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
+              <h4 className="text-indigo-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">2. Enrutamiento (IPAM)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <InputGroup label="IP Gestión" prop="IP_GESTION" />
+                <InputGroup label="IP Cliente" prop="IP_CLIENTE" />
               </div>
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Potencia RX (dBm)</label>
-                <input type="number" step="0.01" value={form.POTENCIA_CPE} onChange={e=>setForm({...form, POTENCIA_CPE: e.target.value})} className="w-full bg-[#1c2541] border-2 border-slate-700 text-amber-400 font-mono text-center text-xl p-3 rounded-xl outline-none focus:border-amber-500" placeholder="-22.1" />
+              <InputGroup label="BDI / VLAN" prop="BDI" />
+            </div>
+
+            {/* SECCIÓN 3: PARÁMETROS ÓPTICOS */}
+            <div className="bg-[#050814] p-4 rounded-2xl border border-amber-900/30 space-y-4 shadow-[0_0_15px_rgba(217,119,6,0.05)]">
+              <h4 className="text-amber-500 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">3. Potencias Ópticas</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <InputGroup label="Potencia HUB" prop="POTENCIA_HUB" placeholder="-18.5" type="number" />
+                <InputGroup label="Potencia CPE" prop="POTENCIA_CPE" placeholder="-22.1" type="number" />
               </div>
             </div>
 
-            <div>
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-2">Número de Serie CPE / MAC</label>
-              <div className="flex gap-2">
-                <input type="text" value={form.SERIE_CPE} onChange={e=>setForm({...form, SERIE_CPE: e.target.value})} className="flex-1 bg-[#1c2541] border-2 border-slate-700 text-slate-200 font-mono text-lg p-3 rounded-xl outline-none focus:border-indigo-500 uppercase" placeholder="Ej. HWTC123456" />
-                
-                {/* BOTÓN DE CÁMARA */}
-                <button onClick={handleScanClick} className="bg-indigo-600 active:bg-indigo-500 p-4 rounded-xl flex items-center justify-center shadow-lg transition-colors">
-                  <Camera className="w-6 h-6 text-white" />
-                </button>
-                <input type="file" id="cameraInput" accept="image/*" capture="environment" className="hidden" onChange={(e) => alert('Fotografía capturada. (Integración de escáner en desarrollo)')} />
+            {/* SECCIÓN 4: PLANTA EXTERNA */}
+            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
+              <h4 className="text-emerald-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">4. Planta Externa y Rutas</h4>
+              <InputGroup label="Ruta Física" prop="RUTA" />
+              <div className="grid grid-cols-2 gap-4">
+                <InputGroup label="Distancia Cliente" prop="DISTANCIA_CLIENTE" placeholder="Ej. 4.2 km" />
+                <InputGroup label="Lambdas" prop="LAMBDAS" />
               </div>
-              <p className="text-[10px] text-slate-500 mt-2">Presiona la cámara para capturar la etiqueta del equipo con tu celular.</p>
+              <div className="grid grid-cols-2 gap-4">
+                <InputGroup label="Buffer" prop="BUFFER" />
+                <InputGroup label="Hilos" prop="HILOS" type="number" />
+              </div>
             </div>
+
+            {/* SECCIÓN 5: UBICACIÓN Y CONTACTO */}
+            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
+              <h4 className="text-blue-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">5. Ubicación y Contacto</h4>
+              
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Coordenadas (GPS)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={form.COORDENADAS} 
+                    onChange={e => setForm({...form, COORDENADAS: e.target.value})} 
+                    placeholder="Ej. 32.6278, -115.4544"
+                    className="flex-1 bg-[#1c2541] border-2 border-slate-700 text-slate-200 text-sm p-3 rounded-xl outline-none focus:border-indigo-500 font-mono" 
+                  />
+                  {form.COORDENADAS && (
+                    <a 
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.COORDENADAS)}`} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="bg-emerald-600 px-4 rounded-xl flex items-center justify-center text-white active:bg-emerald-500 shadow-lg"
+                    >
+                      <MapPin className="w-5 h-5"/>
+                    </a>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1.5">Agrega las coordenadas para activar el botón del mapa.</p>
+              </div>
+
+              <InputGroup label="Nombre de Contacto" prop="CONTACTO_NOMBRE" />
+              <InputGroup label="Teléfono de Contacto" prop="CONTACTO_TELEFONO" type="tel" />
+            </div>
+
           </div>
 
-          <div className="p-4 border-t border-slate-800 bg-[#050814] pb-8">
+          <div className="p-4 border-t border-slate-800 bg-[#050814] shrink-0">
             <button onClick={guardarCambios} disabled={guardando} className="w-full bg-emerald-600 active:bg-emerald-500 hover:bg-emerald-500 text-white font-black text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2 transition-colors">
-              <Save className="w-6 h-6" /> {guardando ? 'Guardando...' : 'GUARDAR LECTURAS'}
+              <Save className="w-6 h-6" /> {guardando ? 'Guardando MT_DB...' : 'GUARDAR CAMBIOS'}
             </button>
           </div>
         </div>
