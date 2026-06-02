@@ -29,10 +29,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});
 
-  // ESTADOS NUEVOS PARA EDICIÓN MASIVA
   const [puertosSeleccionados, setPuertosSeleccionados] = useState([]);
   const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
-
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
   const [mostrarModalAuditoria, setMostrarModalAuditoria] = useState(false);
@@ -83,7 +81,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       setErrorApp("Error"); 
     } finally { 
       setCargando(false); 
-      setPuertosSeleccionados([]); // Limpia la selección al recargar
+      setPuertosSeleccionados([]); 
     }
   };
 
@@ -154,12 +152,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         await cargarDatosSistemas(); 
         alert("Modificación física guardada exitosamente en MT_DB."); 
       } else { 
-        const errData = await res.json();
-        console.error("Detalle Error 422:", errData);
         alert("Fallo de validación: No se pudo guardar la información."); 
       }
     } catch (err) { 
-      console.error(err); 
       alert("Fallo de red al intentar actualizar el puerto."); 
     } finally { setGuardando(false); }
   };
@@ -192,11 +187,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     return (
       String(p.PUERTO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.SERVICIO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
+      String(p.ESTATUS || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.EQUIPO_HOTEL_ID || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
-      String(p.DIRECCION || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
-      String(p.COORDENADAS || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
       String(p.IP_GESTION || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
-      String(p.IP_CLIENTE || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
       String(p.BDI || '').toLowerCase().includes(filtroTexto.toLowerCase())
     );
   }) || [];
@@ -228,27 +221,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
             onClick={handleExportarExcel} 
             disabled={cargando || !inventarioCd}
             className="ml-2 bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-md text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-lg cursor-pointer border border-emerald-500"
-            title="Descargar reporte con gráficas y formato"
           >
             <Download className="w-4 h-4" /> Exportar a Excel
           </button>
         </div>
-
-        {inventarioHub !== 'TODOS' && hubActivoDatos && (hubActivoDatos.direccion || hubActivoDatos.coordenadas) && (
-          <div className="bg-[#0b132b] border border-slate-800 rounded-full px-4 py-1.5 text-[11px] flex items-center text-slate-300 shadow-sm">
-            {hubActivoDatos.direccion && (
-              <a href={generarUrlGoogleMaps(hubActivoDatos.direccion)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-blue-400 transition-colors cursor-pointer" title="Ver en Google Maps">
-                <span className="text-pink-500 text-sm">📍</span> <span className="hover:underline">{hubActivoDatos.direccion}</span>
-              </a>
-            )}
-            {hubActivoDatos.direccion && hubActivoDatos.coordenadas && <div className="w-px h-4 bg-slate-700 mx-4"></div>}
-            {hubActivoDatos.coordenadas && (
-              <a href={generarUrlGoogleMaps(hubActivoDatos.coordenadas)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-amber-400 transition-colors cursor-pointer" title="Ver en Google Maps">
-                <MapPin className="w-3.5 h-3.5 text-amber-500" /> <span className="text-amber-500 font-mono hover:underline">{hubActivoDatos.coordenadas}</span>
-              </a>
-            )}
-          </div>
-        )}
       </div>
 
       {datosHub?.resumen && (
@@ -263,24 +239,20 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden">
         
-        {/* PANEL IZQUIERDO: LISTA DE PUERTOS */}
         <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden">
           
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full sm:max-w-md">
               <Search className="w-4 h-4 text-slate-500 shrink-0" />
-              <input type="text" placeholder="Buscar por interfaz, servicio, IP, BDI..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-transparent text-sm text-white focus:outline-none w-full" />
+              <input type="text" placeholder="Buscar por interfaz, servicio, Estatus, IP..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-transparent text-sm text-white focus:outline-none w-full" />
             </div>
 
             <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto overflow-hidden">
-              
-              {/* BOTON DINAMICO PARA EDICION MASIVA */}
               {puertosSeleccionados.length > 0 && puedeEditar && (
                 <button onClick={() => setMostrarModalMasivo(true)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 whitespace-nowrap shadow-[0_0_10px_rgba(217,119,6,0.3)] transition cursor-pointer">
                   <CheckSquare className="w-4 h-4" /> Editar {puertosSeleccionados.length} Puertos
                 </button>
               )}
-
               <div className="flex items-center gap-2 border-l border-slate-700 pl-4">
                 <span className="text-[10px] uppercase font-bold text-slate-500 whitespace-nowrap">Equipo ID:</span>
                 <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="bg-[#1c2541] border border-slate-700 text-xs p-1.5 rounded text-white min-w-[120px] max-w-[180px] truncate outline-none focus:border-blue-500">
@@ -296,7 +268,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               <thead className="bg-[#0b132b] text-slate-400 uppercase font-bold sticky top-0 border-b border-slate-800 z-10 shadow-sm">
                 <tr>
                   <th className="p-3 w-12 text-center border-r border-slate-800">
-                    {/* SELECT ALL CHECKBOX */}
                     <input 
                       type="checkbox" 
                       className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
@@ -322,7 +293,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   return (
                     <tr key={idx} onClick={() => seleccionarPuerto(p)} className={`hover:bg-slate-800/20 cursor-pointer ${puertoDetalle?.ID === p.ID ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
                       <td className="p-3 text-center border-r border-slate-800/50" onClick={(e) => e.stopPropagation()}>
-                        {/* SINGLE CHECKBOX */}
                         <input 
                           type="checkbox" 
                           className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
@@ -358,31 +328,27 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           </div>
         </div>
 
-        {/* PANEL DERECHO: EDICIÓN DE PUERTO ÚNICO */}
         <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl">
           {puertoDetalle ? (
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
               <div className="shrink-0 flex justify-between items-center border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-3">
                   <h3 className="text-xs font-black text-blue-400 tracking-widest">FICHA TÉCNICA DE INGENIERÍA</h3>
-                  <div className="flex items-center gap-3">
-                          <button onClick={() => setMostrarModalVisualizar(true)} className="bg-blue-900/30 hover:bg-blue-600 border border-blue-800 text-blue-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer" title="Ver ficha">
-                            <Eye className="w-3.5 h-3.5" /> Visualizar
-                          </button>
+                  <button onClick={() => setMostrarModalVisualizar(true)} className="bg-blue-900/30 hover:bg-blue-600 border border-blue-800 text-blue-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer" title="Ver ficha">
+                    <Eye className="w-3.5 h-3.5" /> Visualizar
+                  </button>
+                  
+                  {esAdmin && (
+                    <button onClick={() => setMostrarModalAuditoria(true)} className="bg-emerald-900/30 hover:bg-emerald-600 border border-emerald-800 text-emerald-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer shadow-lg" title="Ver Historial de Cambios Forense">
+                      <ShieldCheck className="w-3.5 h-3.5" /> Logs
+                    </button>
+                  )}
 
-                          {/* NUEVO BOTON DE AUDITORÍA (SOLO ADMINS) */}
-                          {esAdmin && (
-                            <button onClick={() => setMostrarModalAuditoria(true)} className="bg-emerald-900/30 hover:bg-emerald-600 border border-emerald-800 text-emerald-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer shadow-lg" title="Ver Historial de Cambios Forense">
-                              <ShieldCheck className="w-3.5 h-3.5" /> Logs Auditoría
-                            </button>
-                          )}
-
-                          {(esRnoc || esAdmin) && (
-                            <button onClick={() => setMostrarModalFalla(true)} className="bg-red-900/30 hover:bg-red-600 border border-red-800 text-red-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer">
-                              <AlertTriangle className="w-3.5 h-3.5" /> Desplegar Falla
-                            </button>
-                          )}
-                        </div>
+                  {(esRnoc || esAdmin) && (
+                    <button onClick={() => setMostrarModalFalla(true)} className="bg-red-900/30 hover:bg-red-600 border border-red-800 text-red-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer">
+                      <AlertTriangle className="w-3.5 h-3.5" /> Falla
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -392,16 +358,15 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-[10px] text-slate-500 block font-bold mb-1">STATUS</label>
-                      <select disabled={!puedeEditar} value={editCampos.ESTATUS || ''} onChange={e=>setEditCampos({...editCampos, ESTATUS: e.target.value.toUpperCase()})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white font-bold">
+                      <select disabled={!puedeEditar} value={editCampos.ESTATUS || ''} onChange={e=>setEditCampos({...editCampos, ESTATUS: e.target.value.toUpperCase()})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white font-bold cursor-pointer">
                         <option value="DISPONIBLE GI">DISPONIBLE GI</option>
                         <option value="DISPONIBLE TE">DISPONIBLE TE</option>
                         <option value="DISPONIBLE 25">DISPONIBLE 25</option>
                         <option value="DISPONIBLE 100">DISPONIBLE 100</option>
                         <option value="ACTIVO">ACTIVO</option>
                         <option value="SUSPENDIDO">SUSPENDIDO</option>
-                        <option value="TRONCAL">TRONCAL</option>
-                        <option value="TRONCAL GI">TRONCAL GI</option>
                         <option value="TRONCAL TE">TRONCAL TE</option>
+                        <option value="TRONCAL GI">TRONCAL GI</option>
                         <option value="TRONCAL 25">TRONCAL 25</option>
                         <option value="TRONCAL 100">TRONCAL 100</option>
                       </select>
@@ -516,15 +481,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       {mostrarModalFalla && <ModalFalla puertoDetalle={puertoDetalle} usuario={usuario} cerrarModal={() => setMostrarModalFalla(false)} />}
       {mostrarModalVisualizar && <ModalVisualizar puertoDetalle={puertoDetalle} cerrarModal={() => setMostrarModalVisualizar(false)} />}
       
-     {/* Renderizado de Auditoría */}
-              {mostrarModalAuditoria && (
-                <ModalAuditoria 
-                  token={token}
-                  cerrarModal={() => setMostrarModalAuditoria(false)}
-                />
-              )}
-
-      {/* RENDERIZADO DEL MODAL DE EDICIÓN MASIVA */}
       {mostrarModalMasivo && (
         <ModalEdicionMasiva 
           puertosIds={puertosSeleccionados} 
@@ -533,7 +489,13 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           recargarDatos={cargarDatosSistemas}
         />
       )}
-             
+
+      {mostrarModalAuditoria && (
+        <ModalAuditoria 
+          token={token}
+          cerrarModal={() => setMostrarModalAuditoria(false)}
+        />
+      )}
     </div>
   );
 }

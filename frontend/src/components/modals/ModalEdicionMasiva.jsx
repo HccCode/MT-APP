@@ -32,7 +32,6 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
   const handleLiberarPuertos = () => {
     if(!window.confirm(`⚠️ ESTÁS A PUNTO DE BORRAR DATOS\n\n¿Estás seguro de liberar ${puertosIds.length} puertos?\nSe cambiarán a DISPONIBLE GI y se borrarán las IPs, cliente y telemetría de todos ellos.`)) return;
     
-    // Al mandar strings vacíos, el backend borrará el contenido de la BD
     ejecutarActualizacion({
       ESTATUS: 'DISPONIBLE GI',
       SERVICIO: '',
@@ -68,7 +67,6 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
 
         <div className="p-6 space-y-6 bg-[#090f24]">
           
-          {/* OPCION 1: CAMBIAR SOLO ESTATUS */}
           <div className="bg-[#0b132b] p-5 rounded-lg border border-slate-700 shadow-inner">
             <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2"><Zap className="w-4 h-4 text-blue-400" /> Cambio de Estatus Rápido</h3>
             <p className="text-xs text-slate-400 mb-4">Modifica únicamente el estado de los puertos seleccionados, conservando intactos todos sus demás datos.</p>
@@ -80,7 +78,10 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
                 <option value="DISPONIBLE 100">DISPONIBLE 100</option>
                 <option value="ACTIVO">ACTIVO</option>
                 <option value="SUSPENDIDO">SUSPENDIDO</option>
-                <option value="TRONCAL">TRONCAL</option>
+                <option value="TRONCAL TE">TRONCAL TE</option>
+                <option value="TRONCAL GI">TRONCAL GI</option>
+                <option value="TRONCAL 25">TRONCAL 25</option>
+                <option value="TRONCAL 100">TRONCAL 100</option>
               </select>
               <button onClick={handleCambiarEstatusSolo} disabled={guardando} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-xs font-bold transition shadow-lg disabled:opacity-50 cursor-pointer">
                 Aplicar
@@ -94,7 +95,6 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
             <div className="flex-1 h-px bg-slate-800"></div>
           </div>
 
-          {/* OPCION 2: RESETEAR Y LIBERAR MASIVAMENTE */}
           <div className="bg-red-950/20 p-5 rounded-lg border border-red-900/50 shadow-inner">
             <h3 className="text-sm font-bold text-red-400 mb-2 flex items-center gap-2"><Eraser className="w-4 h-4" /> Limpieza y Liberación Completa</h3>
             <p className="text-xs text-slate-400 mb-4">Esta opción pasará los puertos a <span className="text-white font-bold">DISPONIBLE GI</span> y eliminará las IPs, servicios y contacto del cliente de forma permanente.</p>
