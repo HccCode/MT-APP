@@ -25,7 +25,6 @@ function App() {
   const esAdmin = userStr === 'admin' || roleStr === 'ADMIN' || permisos.includes('ADMIN');
   const puedeEditar = esAdmin || roleStr === 'MCM NOC' || roleStr === 'MCM INGENIERIA' || permisos.includes('ESCRITURA');
   const puedeCargar = esAdmin || roleStr === 'MCM INGENIERIA' || permisos.includes('CARGA');
-  
   const esMcmNoc = roleStr === 'MCM NOC' || permisos.includes('MCM NOC'); 
   const esRnoc = roleStr === 'RNOC' || permisos.includes('RNOC'); 
 
@@ -79,10 +78,14 @@ function App() {
     if (token) cargarGeographyDB(); 
   }, [token]);
 
-  // Si el usuario entra por primera vez y está en celular, mándalo directo al modo cuadrilla
+  // Si se inicia sesión desde un móvil, forzar la vista de cuadrilla
   useEffect(() => {
-    if (token && window.innerWidth < 768 && tabActiva === 'inventario') {
-      setTabActiva('cuadrilla');
+    if (token) {
+      if (window.innerWidth < 768) {
+        setTabActiva('cuadrilla');
+      } else if (tabActiva === 'cuadrilla') {
+        setTabActiva('inventario'); // Si es PC, asegurarse de no estar en cuadrilla
+      }
     }
   }, [token]);
 
@@ -93,11 +96,11 @@ function App() {
   return (
     <div className="h-screen w-screen bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
-      {/* NAVBAR GLOBAL REDISEÑADO PARA MÓVIL */}
+      {/* NAVBAR GLOBAL REDISEÑADO */}
       <header className="bg-[#0b132b] border-b border-slate-800 shrink-0">
         <div className="px-4 py-3 sm:px-6 sm:py-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">
           
-          {/* FILA SUPERIOR MÓVIL: LOGO + LOGOUT */}
+          {/* FILA SUPERIOR: LOGO + LOGOUT */}
           <div className="flex justify-between items-center w-full xl:w-auto">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20">
@@ -109,7 +112,7 @@ function App() {
               </div>
             </div>
 
-            {/* BOTÓN CERRAR SESIÓN (APARECE ARRIBA EN MÓVIL) */}
+            {/* BOTÓN CERRAR SESIÓN (MÓVIL) */}
             <button 
               onClick={handleLogout} 
               className="xl:hidden p-2 bg-red-950/30 border border-red-900/40 rounded-lg text-red-400 hover:bg-red-900/50 cursor-pointer transition-colors flex shrink-0"
@@ -119,70 +122,76 @@ function App() {
             </button>
           </div>
 
-          {/* FILA INFERIOR MÓVIL: MENÚ DESLIZABLE (SCROLL HORIZONTAL) */}
-          {/* 🟢 OCULTO EN CELULARES CON hidden md:flex */}
-          <div className="hidden md:flex w-full xl:w-auto overflow-hidden">
+          {/* MENÚ DESLIZABLE */}
+          <div className="w-full xl:w-auto overflow-hidden">
             <div className="flex bg-[#050814] p-1.5 rounded-xl border border-slate-800 overflow-x-auto gap-2 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               <style>{`.overflow-x-auto::-webkit-scrollbar { display: none; }`}</style>
               
+              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarInventario && (
                 <button 
                   onClick={() => setTabActiva('inventario')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">📋</span> Servicios Dedicados
                 </button>
               )}
 
+              {/* SOLO VISIBLE EN CELULAR (flex md:hidden) */}
               {mostrarCuadrilla && (
                 <button 
                   onClick={() => setTabActiva('cuadrilla')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'cuadrilla' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`flex md:hidden shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'cuadrilla' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">📱</span> Modo Cuadrilla
                 </button>
               )}
               
+              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarResumen && (
                 <button 
                   onClick={() => setTabActiva('resumen')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'resumen' ? 'bg-[#d97706] text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">📊</span> Disponibilidad
                 </button>
               )}
 
+              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarCabezales && (
                 <button 
                   onClick={() => setTabActiva('cabezales')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'cabezales' ? 'bg-cyan-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">📡</span> Cabezales
                 </button>
               )}
               
+              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarGeografia && (
                 <button 
                   onClick={() => setTabActiva('geografia')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'geografia' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'geografia' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">🌐</span> Configuración
                 </button>
               )}
               
+              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarCarga && (
                 <button 
                   onClick={() => setTabActiva('carga_excel')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">📤</span> Carga Masiva
                 </button>
               )}
 
+              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarUsuarios && (
                 <button 
                   onClick={() => setTabActiva('usuarios')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'usuarios' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'usuarios' ? 'bg-purple-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">👥</span> Usuarios
                 </button>
