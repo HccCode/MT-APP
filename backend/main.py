@@ -588,24 +588,19 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
 
 # ================= BUSCADOR MÓVIL =================
 @app.get("/api/ports/search")
-def search_ports_global(q: str = Query(..., min_length=2), db: Session = Depends(get_db)):
-    term = f"%{q}%"
+def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    termino = f"%{q.strip()}%"
+
     puertos = db.query(PortModel).filter(
-        (PortModel.puerto.ilike(term)) |
-        (PortModel.servicio.ilike(term)) |
-        (PortModel.ip_cliente.ilike(term)) |
-        (PortModel.serie_cpe.ilike(term)) |
-        (PortModel.equipo_hotel_id.ilike(term))
-    ).limit(30).all()
+        (PortModel.PUERTO.ilike(termino)) |
+        (PortModel.SERVICIO.ilike(termino)) |
+        (PortModel.IP_GESTION.ilike(termino)) |
+        (PortModel.EQUIPO_HOTEL_ID.ilike(termino)) |
+        (PortModel.BDI.ilike(termino)) |
+        (PortModel.CONTACTO_NOMBRE.ilike(termino))
+    ).limit(40).all()
     
-    return {"status": "success", "data": [
-        {
-            "ID": p.id, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto,
-            "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "SERVICIO": p.servicio,
-            "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe,
-            "SERIE_CPE": p.serie_cpe, "DIRECCION": p.direccion
-        } for p in puertos
-    ]}
+    return {"status": "success", "data": puertos}
 
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
