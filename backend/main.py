@@ -167,14 +167,14 @@ class ConfigCiudadModel(Base):
     ciudad_nombre = Column(String(100), primary_key=True, index=True)
     ancho_banda_total = Column(String(50), nullable=True)
 
-  class AuditLogModel(Base):
+class AuditLogModel(Base):
     __tablename__ = "sys_audit_logs"
     id = Column(Integer, primary_key=True, index=True)
     usuario = Column(String(50), index=True)
     accion = Column(String(100))
     modulo = Column(String(100))
     detalle = Column(Text)
-    fecha = Column(String(50)) # Formato ISO  
+    fecha = Column(String(50))
 
 Base.metadata.create_all(bind=engine)
 
@@ -207,6 +207,15 @@ def can_upload_excel(user: UserModel):
     if is_admin(user): return True
     roles = [r.strip().upper() for r in str(user.role).split(",")]
     return "CARGA" in roles or "MCM INGENIERIA" in roles
+
+def registrar_auditoria(db: Session, usuario: str, accion: str, modulo: str, detalle: str):
+    try:
+        ahora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        log = AuditLogModel(usuario=usuario, accion=accion, modulo=modulo, detalle=detalle, fecha=ahora)
+        db.add(log)
+        db.commit()
+    except Exception as e:
+        print("Error al guardar log de auditoría:", e)
 
 # ================= ESQUEMAS PYDANTIC =================
 class UserLogin(BaseModel):
@@ -315,7 +324,6 @@ class AlineacionUpdate(BaseModel):
 class ConfigCiudadUpdate(BaseModel):
     ancho_banda_total: str
 
-# ESQUEMAS PARA EXPORTACIÓN DEL RESUMEN
 class HubStatItem(BaseModel):
     nombre: str
     id: str
@@ -576,7 +584,7 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
         db.commit()
     return {"status": "success"}
 
-# ================= INTERFAZ DE PUERTOS (SERVICIOS DEDICADOS) =================
+# ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
     try:
@@ -620,9 +628,30 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
         if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
         setattr(db_port, attr_name, val)
     db.commit()
-    # AGREGA ESTA LÍNEA AQUÍ:
     registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", f"Actualizó puerto ID {port_id}. Cambios: {data.model_dump(exclude_unset=True)}")
     return {"status": "success"}
+
+@app.put("/api/ports/bulk-update")
+def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    update_data = data.updates.model_dump(exclude_unset=True)
+    if not update_data:
+        return {"status": "success", "detail": "Nada que actualizar"}
+        
+    mapped_updates = {}
+    for key, val in update_data.items():
+        attr_name = key.lower()
+        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
+        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
+        mapped_updates[attr_name] = val
+        
+    db.query(PortModel).filter(PortModel.id.in_(data.port_ids)).update(mapped_updates, synchronize_session=False)
+    db.commit()
+    
+    registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", f"Actualizó {len(data.port_ids)} puertos. Cambios aplicados: {update_data}")
+    return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
 
 @app.post("/api/hubs/upload-excel")
 async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -655,7 +684,6 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
                 if t in headers: return headers.index(t)
             return -1
 
-        # ====== MAPEO COMPLETO DE LAS 32 COLUMNAS ======
         idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
         idx_puerto = get_index(["PUERTO"], column_headers)
         idx_equipo = get_index(["EQUIPO ID (CHASIS)", "EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID", "EQUIPO ID"], column_headers)
@@ -667,8 +695,6 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
         idx_bdi = get_index(["BDI"], column_headers)
         idx_potcpe = get_index(["POTENCIA CPE"], column_headers)
         idx_pothub = get_index(["POTENCIA HUB"], column_headers)
-        
-        # Nuevos campos de ingeniería agregados:
         idx_id_mca = get_index(["ID MCA", "ID_MCA"], column_headers)
         idx_ruta = get_index(["RUTA"], column_headers)
         idx_distancia = get_index(["DIST. CLIENTE", "DISTANCIA CLIENTE", "DISTANCIA"], column_headers)
@@ -699,14 +725,12 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
             if not p_val or p_val.upper() == "NAN" or p_val == "": continue
             def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
             
-            # ====== GUARDADO COMPLETO AL MODELO DE BD ======
             db.add(PortModel(
                 region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
                 estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), 
                 ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), 
                 ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), 
-                potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), 
-                id_mca=read_val(idx_id_mca), 
+                potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), 
                 contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono),
                 serie_sfp_hub=read_val(idx_serie_sfp_hub), serie_sfp_client=read_val(idx_serie_sfp_cpe),
                 ruta=read_val(idx_ruta), distancia_cliente=read_val(idx_distancia), lambdas=read_val(idx_lambdas),
@@ -716,13 +740,14 @@ async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...
                 fecha_entrega=read_val(idx_fecha_entrega), comentarios=read_val(idx_comentarios)
             ))
         db.commit()
+        registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Se cargó el archivo en el HUB {id_hub}")
         return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
     except Exception as e:
         try: db.rollback() 
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
-# ================= ENDPOINT EXPORTAR A EXCEL (INVENTARIO) =================
+# ================= EXPORTACIÓN EXCEL DE INVENTARIO =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     try:
@@ -1242,39 +1267,7 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
-        # ================= ENDPOINT: EDICIÓN MASIVA DE PUERTOS =================
-@app.put("/api/ports/bulk-update")
-def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    
-    update_data = data.updates.model_dump(exclude_unset=True)
-    if not update_data:
-        return {"status": "success", "detail": "Nada que actualizar"}
-        
-    mapped_updates = {}
-    for key, val in update_data.items():
-        attr_name = key.lower()
-        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
-        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
-        mapped_updates[attr_name] = val
-        
-    # Actualiza todos los IDs proporcionados de un solo golpe en la BD
-    db.query(PortModel).filter(PortModel.id.in_(data.port_ids)).update(mapped_updates, synchronize_session=False)
-    db.commit()
-    
-    return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
-
-    # ================= MÓDULO DE AUDITORÍA =================
-def registrar_auditoria(db: Session, usuario: str, accion: str, modulo: str, detalle: str):
-    try:
-        ahora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        log = AuditLogModel(usuario=usuario, accion=accion, modulo=modulo, detalle=detalle, fecha=ahora)
-        db.add(log)
-        db.commit()
-    except Exception as e:
-        print("Error al guardar log de auditoría:", e)
-
+# ================= ENDPOINT DE LECTURA DE AUDITORIA =================
 @app.get("/api/auditoria")
 def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not is_admin(current_user): 
