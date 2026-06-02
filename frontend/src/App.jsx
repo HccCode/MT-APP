@@ -172,10 +172,11 @@ function App() {
                 </button>
               )}
               
+              {/* OCULTO EN CELULARES (hidden md:flex) */}
               {mostrarCarga && (
                 <button 
                   onClick={() => setTabActiva('carga_excel')} 
-                  className={`shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'carga_excel' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
                   <span className="text-[13px]">📤</span> Carga Masiva
                 </button>
