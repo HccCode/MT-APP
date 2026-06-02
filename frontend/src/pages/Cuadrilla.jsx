@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Save, X, Activity, MapPin } from 'lucide-react';
+import { Search, Save, X, Activity, MapPin, Zap, Server, Navigation, Users } from 'lucide-react';
 
 export default function Cuadrilla({ token }) {
   const [busqueda, setBusqueda] = useState('');
@@ -30,26 +30,13 @@ export default function Cuadrilla({ token }) {
     }
   };
 
+  // Al seleccionar el cliente, cargamos sus datos y preparamos las lecturas a editar
   const abrirEdicion = (puerto) => {
     setPuertoActivo(puerto);
     setForm({
       ESTATUS: puerto.ESTATUS || 'DISPONIBLE GI',
-      EQUIPO_HOTEL_ID: puerto.EQUIPO_HOTEL_ID || '',
-      PUERTO: puerto.PUERTO || '',
-      SERVICIO: puerto.SERVICIO || '',
-      IP_GESTION: puerto.IP_GESTION || '',
-      IP_CLIENTE: puerto.IP_CLIENTE || '',
-      BDI: puerto.BDI || '',
       POTENCIA_HUB: puerto.POTENCIA_HUB || '',
-      POTENCIA_CPE: puerto.POTENCIA_CPE || '',
-      RUTA: puerto.RUTA || '',
-      DISTANCIA_CLIENTE: puerto.DISTANCIA_CLIENTE || '',
-      LAMBDAS: puerto.LAMBDAS || '',
-      BUFFER: puerto.BUFFER || '',
-      HILOS: puerto.HILOS || '',
-      COORDENADAS: puerto.COORDENADAS || '',
-      CONTACTO_NOMBRE: puerto.CONTACTO_NOMBRE || '',
-      CONTACTO_TELEFONO: puerto.CONTACTO_TELEFONO || ''
+      POTENCIA_CPE: puerto.POTENCIA_CPE || ''
     });
   };
 
@@ -62,9 +49,10 @@ export default function Cuadrilla({ token }) {
         body: JSON.stringify(form)
       });
       if (res.ok) {
-        alert("✅ Datos actualizados correctamente en MT_DB");
-        setPuertoActivo(null);
+        alert("✅ Lecturas guardadas correctamente en MT_DB");
+        // Actualizamos la lista visual
         setResultados(resultados.map(p => p.ID === puertoActivo.ID ? { ...p, ...form } : p));
+        setPuertoActivo(null);
       } else {
         alert("Fallo al guardar la información.");
       }
@@ -75,235 +63,176 @@ export default function Cuadrilla({ token }) {
     }
   };
 
-  // Componente reutilizable para los inputs móviles en la vista de edición
-  const InputGroup = ({ label, prop, type = "text", placeholder = "" }) => (
-    <div>
-      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">{label}</label>
-      <input 
-        type={type} 
-        value={form[prop]} 
-        onChange={e => setForm({...form, [prop]: e.target.value})} 
-        placeholder={placeholder}
-        className="w-full bg-[#1c2541] border-2 border-slate-700 text-slate-200 text-sm p-3 rounded-xl outline-none focus:border-indigo-500" 
-      />
+  // Componente visual para mostrar filas de datos (Solo lectura)
+  const InfoRow = ({ label, value }) => (
+    <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
+      <span className="text-[11px] text-slate-400 font-medium">{label}</span>
+      <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">{value || '-'}</span>
     </div>
   );
 
   return (
-    <div className="flex-1 bg-[#050814] h-full overflow-y-auto custom-scrollbar">
+    <div className="flex-1 bg-[#050814] h-full overflow-hidden flex flex-col relative">
       
       {/* ========================================================================= */}
-      {/* VISTA PRINCIPAL: BUSCADOR Y RESULTADOS (TARJETAS AMPLIADAS)             */}
+      {/* VISTA 1: BUSCADOR (COMPACTO Y LIMPIO)                                     */}
       {/* ========================================================================= */}
-      {!puertoActivo ? (
-        <div className="max-w-md mx-auto p-4 flex flex-col min-h-full">
-          <div className="mb-6 mt-4 text-center">
-            <h1 className="text-2xl font-black text-indigo-400">Trabajo en Campo</h1>
-            <p className="text-slate-500 text-xs mt-1">Busca el puerto, IP o cliente a intervenir</p>
-          </div>
-
-          <form onSubmit={buscarPuerto} className="relative mb-6">
-            <input 
-              type="text" 
-              placeholder="Ej. Banamex, Nodo Centro, 10.50..." 
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400"
-            />
-            <Search className="absolute left-4 top-4.5 w-6 h-6 text-indigo-400" />
-            <button type="submit" className="hidden">Buscar</button>
-          </form>
-
-          {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Buscando en MT_DB...</p>}
-
-          <div className="flex-1 space-y-4 pb-10">
-            {resultados.length === 0 && !cargando && busqueda.length > 2 && (
-              <p className="text-center text-slate-600">No se encontraron coincidencias.</p>
-            )}
-            
-            {resultados.map((p) => (
-              <div key={p.ID} className="bg-[#0b132b] border border-slate-700 p-4 rounded-2xl shadow-lg cursor-pointer active:scale-[0.98] transition-transform flex flex-col gap-3" onClick={() => abrirEdicion(p)}>
-                
-                {/* CABECERA: PUERTO Y ESTATUS */}
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-black text-slate-100 text-xl">{p.PUERTO || '-'}</h3>
-                    <p className="text-[11px] text-slate-400 font-mono mt-0.5"><span className="text-slate-500 font-sans">Chasis:</span> {p.EQUIPO_HOTEL_ID || 'N/A'}</p>
-                  </div>
-                  <span className={`px-2 py-1 rounded-md text-[10px] font-black border uppercase ${String(p.ESTATUS).includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : String(p.ESTATUS).includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : String(p.ESTATUS).includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
-                    {p.ESTATUS}
-                  </span>
-                </div>
-
-                {/* NOMBRE DEL CLIENTE / SERVICIO */}
-                <div className="bg-[#050814] p-3 rounded-xl border border-slate-800">
-                  <p className="text-sm text-indigo-300 font-bold truncate">{p.SERVICIO || 'Sin cliente asignado'}</p>
-                </div>
-
-                {/* GRID DE DATOS TÉCNICOS (IPs, Óptica, Fibra) */}
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3 text-[10px] text-slate-300 bg-[#050814]/50 p-3 rounded-xl border border-slate-800/50">
-                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">IP Gestión</span><span className="font-mono">{p.IP_GESTION || '-'}</span></div>
-                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">IP Cliente</span><span className="font-mono">{p.IP_CLIENTE || '-'}</span></div>
-                  
-                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">BDI / VLAN</span><span className="font-mono">{p.BDI || '-'}</span></div>
-                  <div className="flex flex-col"><span className="text-slate-500 font-bold uppercase text-[9px] tracking-wider mb-0.5">Lambdas</span><span className="font-mono">{p.LAMBDAS || '-'}</span></div>
-                  
-                  <div className="flex flex-col"><span className="text-amber-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Potencia HUB</span><span className="text-amber-400 font-mono">{p.POTENCIA_HUB ? `${p.POTENCIA_HUB} dBm` : '-'}</span></div>
-                  <div className="flex flex-col"><span className="text-amber-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Potencia CPE</span><span className="text-amber-400 font-mono">{p.POTENCIA_CPE ? `${p.POTENCIA_CPE} dBm` : '-'}</span></div>
-                  
-                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Ruta Física</span><span className="truncate pr-2">{p.RUTA || '-'}</span></div>
-                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Dist. Cliente</span><span>{p.DISTANCIA_CLIENTE || '-'}</span></div>
-                  
-                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Buffer</span><span>{p.BUFFER || '-'}</span></div>
-                  <div className="flex flex-col"><span className="text-emerald-600 font-bold uppercase text-[9px] tracking-wider mb-0.5">Hilos</span><span>{p.HILOS || '-'}</span></div>
-                </div>
-
-                {/* CONTACTOS Y COORDENADAS RÁPIDAS */}
-                <div className="text-[11px] text-slate-400 flex flex-col gap-2 mt-1">
-                  {(p.CONTACTO_NOMBRE || p.CONTACTO_TELEFONO) && (
-                    <span className="flex items-center gap-2 bg-[#050814] p-2.5 rounded-lg border border-slate-800">
-                      <span className="text-slate-500">👤</span> 
-                      <span className="font-bold">{p.CONTACTO_NOMBRE || 'Sin Nombre'}</span> 
-                      {p.CONTACTO_TELEFONO && <span className="text-indigo-300 font-mono ml-auto">{p.CONTACTO_TELEFONO}</span>}
-                    </span>
-                  )}
-                  
-                  {p.COORDENADAS && (
-                     <div className="flex items-center justify-between bg-[#050814] border border-slate-800 rounded-lg pl-3 pr-1 py-1">
-                        <span className="font-mono text-amber-500 text-[10px] truncate max-w-[150px]">{p.COORDENADAS}</span>
-                        <a 
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.COORDENADAS)}`} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          onClick={(e) => e.stopPropagation()} 
-                          className="bg-emerald-600/80 px-3 py-1.5 rounded text-white active:bg-emerald-500 font-bold flex items-center gap-1.5 shadow-lg"
-                        >
-                          <MapPin className="w-3 h-3"/> Mapa
-                        </a>
-                     </div>
-                  )}
-                </div>
-                
-                <div className="w-full h-px bg-slate-800 my-1"></div>
-                <p className="text-[9px] text-center text-slate-500 uppercase tracking-widest font-black">Toca la tarjeta para editar la ficha</p>
-              </div>
-            ))}
-          </div>
+      <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
+        <div className="mb-6 mt-4 text-center shrink-0">
+          <h1 className="text-2xl font-black text-indigo-400">Trabajo en Campo</h1>
+          <p className="text-slate-500 text-xs mt-1">Busca el cliente o puerto a intervenir</p>
         </div>
-      ) : (
 
-      /* ========================================================================= */
-      /* VISTA SECUNDARIA: EDICIÓN COMPLETA MÓVIL (AL TOCAR UNA TARJETA)           */
-      /* ========================================================================= */
-        <div className="max-w-md mx-auto flex flex-col h-full bg-[#0b132b] animate-in slide-in-from-right-8 duration-200">
-          <div className="bg-[#050814] p-4 flex justify-between items-center border-b border-slate-800 sticky top-0 z-10 shadow-lg">
-            <div>
-              <h2 className="text-indigo-400 font-black text-xl">{puertoActivo.PUERTO}</h2>
-              <p className="text-xs text-slate-500 truncate max-w-[250px]">{puertoActivo.SERVICIO}</p>
+        <form onSubmit={buscarPuerto} className="relative mb-6 shrink-0">
+          <input 
+            type="text" 
+            placeholder="Ej. Banamex, Nodo Centro..." 
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400"
+          />
+          <Search className="absolute left-4 top-4.5 w-6 h-6 text-indigo-400" />
+          <button type="submit" className="hidden">Buscar</button>
+        </form>
+
+        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Buscando...</p>}
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10">
+          {resultados.length === 0 && !cargando && busqueda.length > 2 && (
+            <p className="text-center text-slate-600">No se encontraron coincidencias.</p>
+          )}
+          
+          {resultados.map((p) => (
+            <div key={p.ID} className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform" onClick={() => abrirEdicion(p)}>
+              <div className="flex justify-between items-start mb-1.5">
+                <h3 className="font-black text-slate-100 text-lg">{p.PUERTO || '-'}</h3>
+                <span className={`px-2 py-1 rounded-md text-[9px] font-black border uppercase ${String(p.ESTATUS).includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : String(p.ESTATUS).includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : String(p.ESTATUS).includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
+                  {p.ESTATUS}
+                </span>
+              </div>
+              <p className="text-[13px] text-indigo-300 font-bold mb-2 truncate">{p.SERVICIO || 'Sin cliente asignado'}</p>
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span className="flex items-center gap-1"><Server className="w-3 h-3 text-slate-500" /> {p.EQUIPO_HOTEL_ID || 'N/A'}</span>
+                {p.IP_GESTION && <span className="text-emerald-400 bg-emerald-900/20 px-1.5 rounded">{p.IP_GESTION}</span>}
+              </div>
             </div>
-            <button onClick={() => setPuertoActivo(null)} className="p-2 bg-slate-800 rounded-full text-slate-300 active:bg-slate-700 transition-colors">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          <div className="flex-1 p-4 space-y-5 overflow-y-auto custom-scrollbar pb-8">
-            
-            {/* SECCIÓN 1: IDENTIFICACIÓN */}
-            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
-              <h4 className="text-indigo-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">1. Identificación y Estatus</h4>
+      {/* ========================================================================= */}
+      {/* VISTA 2: FICHA TÉCNICA DE INGENIERÍA (AL SELECCIONAR CLIENTE)             */}
+      {/* ========================================================================= */}
+      <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
+        {puertoActivo && (
+          <>
+            {/* Cabecera / Botón Regresar */}
+            <div className="bg-[#0b132b] p-4 flex justify-between items-center border-b border-slate-800 shrink-0 shadow-md">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setPuertoActivo(null)} className="p-2 bg-slate-800 rounded-full text-slate-300 active:bg-slate-700 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+                <div>
+                  <h2 className="text-indigo-400 font-black text-sm uppercase tracking-widest leading-none">Ficha Técnica</h2>
+                  <p className="text-[10px] text-slate-500 truncate max-w-[200px] mt-0.5">{puertoActivo.SERVICIO || puertoActivo.PUERTO}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Contenido de la Ficha */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 pb-24">
               
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Estatus del Puerto</label>
-                <select value={form.ESTATUS} onChange={e=>setForm({...form, ESTATUS: e.target.value})} className="w-full bg-[#1c2541] border-2 border-slate-700 text-white text-sm p-3 rounded-xl outline-none focus:border-indigo-500 cursor-pointer font-bold">
-                  <option value="DISPONIBLE GI">DISPONIBLE GI</option>
-                  <option value="DISPONIBLE TE">DISPONIBLE TE</option>
-                  <option value="DISPONIBLE 25">DISPONIBLE 25</option>
-                  <option value="DISPONIBLE 100">DISPONIBLE 100</option>
-                  <option value="ACTIVO">ACTIVO</option>
-                  <option value="SUSPENDIDO">SUSPENDIDO</option>
-                  <option value="TRONCAL TE">TRONCAL TE</option>
-                </select>
+              {/* Bloque: Identificación */}
+              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
+                <p className="text-indigo-400 font-mono text-xs mb-3 font-bold">Chasis: {puertoActivo.EQUIPO_HOTEL_ID || '-'} <span className="text-slate-500 mx-1">|</span> Puerto: {puertoActivo.PUERTO || '-'}</p>
               </div>
-              
-              <InputGroup label="Chasis / Equipo ID" prop="EQUIPO_HOTEL_ID" />
-              <InputGroup label="Puerto" prop="PUERTO" />
-              <InputGroup label="Nombre del Cliente (Servicio)" prop="SERVICIO" />
-            </div>
 
-            {/* SECCIÓN 2: LÓGICA Y ENRUTAMIENTO */}
-            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
-              <h4 className="text-indigo-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">2. Enrutamiento (IPAM)</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <InputGroup label="IP Gestión" prop="IP_GESTION" />
-                <InputGroup label="IP Cliente" prop="IP_CLIENTE" />
+              {/* Bloque: Lógica (Solo Lectura) */}
+              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                <h3 className="text-blue-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Server className="w-4 h-4"/> Lógica y Enrutamiento</h3>
+                <InfoRow label="IP Gestión" value={puertoActivo.IP_GESTION} />
+                <InfoRow label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
+                <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
               </div>
-              <InputGroup label="BDI / VLAN" prop="BDI" />
-            </div>
 
-            {/* SECCIÓN 3: PARÁMETROS ÓPTICOS */}
-            <div className="bg-[#050814] p-4 rounded-2xl border border-amber-900/30 space-y-4 shadow-[0_0_15px_rgba(217,119,6,0.05)]">
-              <h4 className="text-amber-500 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">3. Potencias Ópticas</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <InputGroup label="Potencia HUB" prop="POTENCIA_HUB" placeholder="-18.5" type="number" />
-                <InputGroup label="Potencia CPE" prop="POTENCIA_CPE" placeholder="-22.1" type="number" />
+              {/* Bloque: Planta Externa (Solo Lectura) */}
+              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                <h3 className="text-emerald-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Activity className="w-4 h-4"/> Planta Externa</h3>
+                <InfoRow label="Ruta OSP" value={puertoActivo.RUTA} />
+                <InfoRow label="Distancia" value={puertoActivo.DISTANCIA_CLIENTE} />
+                <InfoRow label="Lambdas" value={puertoActivo.LAMBDAS} />
+                <InfoRow label="Buffer" value={puertoActivo.BUFFER} />
+                <InfoRow label="Hilos" value={puertoActivo.HILOS} />
               </div>
-            </div>
 
-            {/* SECCIÓN 4: PLANTA EXTERNA */}
-            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
-              <h4 className="text-emerald-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">4. Planta Externa y Rutas</h4>
-              <InputGroup label="Ruta Física" prop="RUTA" />
-              <div className="grid grid-cols-2 gap-4">
-                <InputGroup label="Distancia Cliente" prop="DISTANCIA_CLIENTE" placeholder="Ej. 4.2 km" />
-                <InputGroup label="Lambdas" prop="LAMBDAS" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <InputGroup label="Buffer" prop="BUFFER" />
-                <InputGroup label="Hilos" prop="HILOS" type="number" />
-              </div>
-            </div>
-
-            {/* SECCIÓN 5: UBICACIÓN Y CONTACTO */}
-            <div className="bg-[#050814] p-4 rounded-2xl border border-slate-800 space-y-4">
-              <h4 className="text-blue-400 font-black text-[11px] uppercase tracking-widest border-b border-slate-800 pb-2">5. Ubicación y Contacto</h4>
-              
-              <div>
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Coordenadas (GPS)</label>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={form.COORDENADAS} 
-                    onChange={e => setForm({...form, COORDENADAS: e.target.value})} 
-                    placeholder="Ej. 32.6278, -115.4544"
-                    className="flex-1 bg-[#1c2541] border-2 border-slate-700 text-slate-200 text-sm p-3 rounded-xl outline-none focus:border-indigo-500 font-mono" 
-                  />
-                  {form.COORDENADAS && (
+              {/* Bloque: Ubicación y Contacto (Solo Lectura) */}
+              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                <h3 className="text-pink-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Users className="w-4 h-4"/> Contacto y Sitio</h3>
+                <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
+                <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} />
+                
+                {/* Botón de Google Maps */}
+                {puertoActivo.COORDENADAS ? (
+                  <div className="mt-4 pt-3 border-t border-slate-800">
+                    <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
                     <a 
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.COORDENADAS)}`} 
+                      href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} 
                       target="_blank" 
                       rel="noreferrer" 
-                      className="bg-emerald-600 px-4 rounded-xl flex items-center justify-center text-white active:bg-emerald-500 shadow-lg"
+                      className="w-full bg-[#1c2541] hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-lg"
                     >
-                      <MapPin className="w-5 h-5"/>
+                      <Navigation className="w-5 h-5 text-emerald-400"/> Abrir en Google Maps
                     </a>
-                  )}
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1.5">Agrega las coordenadas para activar el botón del mapa.</p>
+                  </div>
+                ) : (
+                  <InfoRow label="Coordenadas" value="No registradas" />
+                )}
               </div>
 
-              <InputGroup label="Nombre de Contacto" prop="CONTACTO_NOMBRE" />
-              <InputGroup label="Teléfono de Contacto" prop="CONTACTO_TELEFONO" type="tel" />
+              {/* ============================================================== */}
+              {/* FORMULARIO EDITABLE (LECTURAS EN CAMPO)                        */}
+              {/* ============================================================== */}
+              <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-4 shadow-md">
+                <h3 className="text-amber-500 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2"><Zap className="w-4 h-4"/> Reportar Lecturas en Campo</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Estatus Físico</label>
+                    <select value={form.ESTATUS} onChange={e=>setForm({...form, ESTATUS: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white text-sm p-3 rounded-xl outline-none focus:border-amber-500 cursor-pointer font-bold shadow-inner">
+                      <option value="DISPONIBLE GI">DISPONIBLE GI</option>
+                      <option value="DISPONIBLE TE">DISPONIBLE TE</option>
+                      <option value="DISPONIBLE 25">DISPONIBLE 25</option>
+                      <option value="DISPONIBLE 100">DISPONIBLE 100</option>
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="SUSPENDIDO">SUSPENDIDO</option>
+                      <option value="TRONCAL TE">TRONCAL TE</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 text-center">Potencia HUB</label>
+                      <input type="text" value={form.POTENCIA_HUB} onChange={e=>setForm({...form, POTENCIA_HUB: e.target.value})} placeholder="-18.5" className="w-full bg-[#0b132b] border border-slate-700 text-amber-400 text-center text-sm p-3 rounded-xl outline-none focus:border-amber-500 font-mono font-bold shadow-inner" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 text-center">Potencia CPE</label>
+                      <input type="text" value={form.POTENCIA_CPE} onChange={e=>setForm({...form, POTENCIA_CPE: e.target.value})} placeholder="-22.1" className="w-full bg-[#0b132b] border border-slate-700 text-amber-400 text-center text-sm p-3 rounded-xl outline-none focus:border-amber-500 font-mono font-bold shadow-inner" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-          </div>
-
-          <div className="p-4 border-t border-slate-800 bg-[#050814] shrink-0">
-            <button onClick={guardarCambios} disabled={guardando} className="w-full bg-emerald-600 active:bg-emerald-500 hover:bg-emerald-500 text-white font-black text-lg py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2 transition-colors">
-              <Save className="w-6 h-6" /> {guardando ? 'Guardando MT_DB...' : 'GUARDAR CAMBIOS'}
-            </button>
-          </div>
-        </div>
-      )}
+            {/* BOTÓN FLOTANTE PARA GUARDAR */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#050814] via-[#050814] to-transparent shrink-0">
+              <button onClick={guardarCambios} disabled={guardando} className="w-full max-w-md mx-auto bg-emerald-600 active:scale-95 text-white font-black text-base py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2 transition-transform">
+                <Save className="w-5 h-5" /> {guardando ? 'Guardando...' : 'GUARDAR LECTURAS'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
