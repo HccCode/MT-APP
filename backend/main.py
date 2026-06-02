@@ -584,6 +584,44 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
         db.commit()
     return {"status": "success"}
 
+# ================= ENDPOINT: MAPA TOPOLÓGICO (GIS) =================
+@app.get("/api/mapa/topologia")
+def get_mapa_topologia(ciudad: str = None, db: Session = Depends(get_db)):
+    query_hubs = db.query(HubMappingModel).filter(HubMappingModel.coordenadas != None, HubMappingModel.coordenadas != "")
+    if ciudad: 
+        ciudad_obj = db.query(CityModel).filter(CityModel.nombre == ciudad).first()
+        if ciudad_obj:
+            query_hubs = query_hubs.filter(HubMappingModel.ciudad_id == ciudad_obj.id)
+    
+    hubs = query_hubs.all()
+    
+    query_puertos = db.query(PortModel).filter(PortModel.coordenadas != None, PortModel.coordenadas != "")
+    if ciudad: query_puertos = query_puertos.filter(PortModel.ciudad == ciudad)
+    puertos = query_puertos.all()
+
+    nodos_geo = []
+    
+    for h in hubs:
+        try:
+            lat, lng = map(float, h.coordenadas.split(","))
+            nodos_geo.append({
+                "id": h.id, "tipo": "HUB", "nombre": h.nombre, "direccion": h.direccion,
+                "lat": lat, "lng": lng, "estatus": "ACTIVO"
+            })
+        except: pass
+
+    for p in puertos:
+        try:
+            lat, lng = map(float, p.coordenadas.split(","))
+            nodos_geo.append({
+                "id": p.id, "tipo": "CPE", "nombre": p.servicio, "puerto": p.puerto,
+                "hub_id": p.hub_id, "lat": lat, "lng": lng, "estatus": p.estatus,
+                "mbps": p.mbps, "direccion": p.direccion
+            })
+        except: pass
+
+    return {"status": "success", "data": nodos_geo}
+
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
@@ -617,8 +655,6 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
         }
     except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
-
-# 1. ACTUALIZACIÓN MASIVA (RUTA ESTÁTICA)
 @app.put("/api/ports/bulk-update")
 def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): 
@@ -644,12 +680,9 @@ def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(ge
     db.commit()
     
     detalle_log = f"Edición Masiva a {len(data.port_ids)} puertos (IDs afectados: {', '.join(map(str, data.port_ids))}). Se forzaron los siguientes valores: " + " | ".join(cambios_desc)
-    
     registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", detalle_log)
     return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
 
-
-# 2. ACTUALIZACIÓN INDIVIDUAL (RUTA DINÁMICA)
 @app.put("/api/ports/{port_id}")
 def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
@@ -681,9 +714,7 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
         detalle_log = f"Abrió y guardó el puerto {db_port.puerto} (ID {port_id}) sin alterar ningún valor."
         
     registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", detalle_log)
-    
     return {"status": "success"}
-
 
 @app.post("/api/hubs/upload-excel")
 async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -789,7 +820,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         puertos = query.all()
 
         wb = Workbook()
-        
         ws_dash = wb.active
         ws_dash.title = "Dashboard MT_DB"
         ws_dash.sheet_view.showGridLines = False
@@ -929,10 +959,8 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             
             for c_idx in range(1, len(row_data)+1):
                 c_cell = ws_data.cell(row=r_idx, column=c_idx)
-                if c_idx in [24, 27, 32]: 
-                    c_cell.alignment = left_align
-                else:
-                    c_cell.alignment = center_align
+                if c_idx in [24, 27, 32]: c_cell.alignment = left_align
+                else: c_cell.alignment = center_align
 
             c_est = ws_data.cell(row=r_idx, column=4)
             val = str(p.estatus).upper()
@@ -954,12 +982,9 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             column = col[0].column_letter
             for cell in col:
                 try:
-                    if cell.value and len(str(cell.value)) > max_length:
-                        max_length = len(str(cell.value))
+                    if cell.value and len(str(cell.value)) > max_length: max_length = len(str(cell.value))
                 except: pass
-            
-            adjusted_width = min(max_length + 3, 45)
-            ws_data.column_dimensions[column].width = max(12, adjusted_width)
+            ws_data.column_dimensions[column].width = max(12, min(max_length + 3, 45))
 
         if len(puertos) > 0:
             tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:AF{len(puertos)+1}")
@@ -971,7 +996,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-
         safe_scope = str(scope).replace("/", "-").replace(" ", "_")
         
         return StreamingResponse(
@@ -1066,11 +1090,9 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         idx_udp = get_idx(["UDP"])
         idx_sid = get_idx(["SID"])
 
-        if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1:
-            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes."})
+        if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes."})
 
         cabezales_procesados = set()
-
         for _, row in df.iterrows():
             vals = list(row.values)
             def read_val(idx): return str(vals[idx]).strip() if idx != -1 and idx < len(vals) else ""
@@ -1119,11 +1141,9 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
 def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-        if not cabezal:
-            raise HTTPException(status_code=404, detail="Cabezal no encontrado")
+        if not cabezal: raise HTTPException(status_code=404, detail="Cabezal no encontrado")
             
         alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
-        
         wb = Workbook()
         ws = wb.active
         ws.title = "Alineacion_Canales"
@@ -1137,13 +1157,9 @@ def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends
             cell.fill = PatternFill("solid", fgColor="0B132B")
             
         for al in alineaciones:
-            ws.append([
-                al.portadora, al.formato, al.canal_num, al.nombre_canal,
-                al.mcast_ip, al.source_ip, al.udp, al.sid
-            ])
+            ws.append([al.portadora, al.formato, al.canal_num, al.nombre_canal, al.mcast_ip, al.source_ip, al.udp, al.sid])
             
-        for col in ws.columns:
-            ws.column_dimensions[col[0].column_letter].width = 18
+        for col in ws.columns: ws.column_dimensions[col[0].column_letter].width = 18
             
         if len(alineaciones) > 0:
             tab = Table(displayName=f"TablaAlineacion", ref=f"A1:H{len(alineaciones)+1}")
@@ -1162,8 +1178,7 @@ def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends
                 "Access-Control-Expose-Headers": "Content-Disposition"
             }
         )
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 # ================= ENDPOINTS ANCHO DE BANDA CIUDADES =================
 @app.get("/api/config-ciudades/{ciudad_nombre}")
@@ -1239,8 +1254,7 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         ws['B10'].font = Font(bold=True, size=12, color="0F172A")
         
         headers = [
-            "NODO / HUB", "ID NODO", 
-            "DISP. GI", "TOTAL GI", "DISP. TE", "TOTAL TE", 
+            "NODO / HUB", "ID NODO", "DISP. GI", "TOTAL GI", "DISP. TE", "TOTAL TE", 
             "DISP. 25G", "TOTAL 25G", "DISP. 100G", "TOTAL 100G",
             "ACTIVOS", "SUSPENDIDOS", "TRONCALES", "TOTAL DISP.", "LIBRES %"
         ]
@@ -1256,8 +1270,7 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         r_idx = start_row + 1
         for h in req.hubs:
             row_data = [
-                h.nombre, h.id, 
-                h.disp_gi, h.total_gi, h.disp_te, h.total_te,
+                h.nombre, h.id, h.disp_gi, h.total_gi, h.disp_te, h.total_te,
                 h.disp_25, h.total_25, h.disp_100, h.total_100,
                 h.activos, h.suspendidos, h.troncales, h.total_disp, f"{h.pct_libres}%"
             ]
@@ -1277,8 +1290,7 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
             ws.add_table(tab)
             
-        for col in range(2, 17):
-            ws.column_dimensions[chr(64+col)].width = 13
+        for col in range(2, 17): ws.column_dimensions[chr(64+col)].width = 13
         ws.column_dimensions['B'].width = 25 
         ws.column_dimensions['C'].width = 12
 
@@ -1295,14 +1307,12 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
                 "Access-Control-Expose-Headers": "Content-Disposition"
             }
         )
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 # ================= ENDPOINT DE LECTURA DE AUDITORIA =================
 @app.get("/api/auditoria")
 def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not is_admin(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
     return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
 
