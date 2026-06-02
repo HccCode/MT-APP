@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
+import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
 
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
   const [inventarioReg, setInventarioReg] = useState(localStorage.getItem('mcm_inv_reg') || '');
@@ -26,6 +27,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   
   const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});
+
+  // ESTADOS NUEVOS PARA EDICIÓN MASIVA
+  const [puertosSeleccionados, setPuertosSeleccionados] = useState([]);
+  const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
 
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
@@ -72,7 +77,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         }
         setDatosHub(data);
       }
-    } catch { setErrorApp("Error"); } finally { setCargando(false); }
+    } catch { 
+      setErrorApp("Error"); 
+    } finally { 
+      setCargando(false); 
+      setPuertosSeleccionados([]); // Limpia la selección al recargar
+    }
   };
 
   useEffect(() => { 
@@ -80,7 +90,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     setFiltroEquipo('TODOS'); 
   }, [inventarioHub, estructuraGeografica, inventarioReg, inventarioCd]);
 
-  // FUNCION DE EXPORTACIÓN EXCEL
   const handleExportarExcel = async () => {
     try {
       setCargando(true);
@@ -108,7 +117,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     }
   };
 
-  // SANITIZACIÓN FIX 422
   const handleGuardarCambios = async () => {
     if (!puertoDetalle?.ID) return;
     setGuardando(true);
@@ -222,7 +230,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           >
             <Download className="w-4 h-4" /> Exportar a Excel
           </button>
-
         </div>
 
         {inventarioHub !== 'TODOS' && hubActivoDatos && (hubActivoDatos.direccion || hubActivoDatos.coordenadas) && (
@@ -253,34 +260,76 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       )}
 
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden">
+        
+        {/* PANEL IZQUIERDO: LISTA DE PUERTOS */}
         <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden">
-          <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center gap-4 shrink-0">
-            <div className="flex items-center gap-3 w-full">
+          
+          <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+            <div className="flex items-center gap-3 w-full sm:max-w-md">
               <Search className="w-4 h-4 text-slate-500 shrink-0" />
-              <input type="text" placeholder="Buscar por interfaz, servicio, IP, BDI, chasis o ubicación..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-transparent text-sm text-white focus:outline-none w-full" />
+              <input type="text" placeholder="Buscar por interfaz, servicio, IP, BDI..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-transparent text-sm text-white focus:outline-none w-full" />
             </div>
-            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-              <span className="text-[10px] uppercase font-bold text-slate-500 whitespace-nowrap">Equipo ID:</span>
-              <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="bg-[#1c2541] border border-slate-700 text-xs p-1.5 rounded text-white min-w-[150px] max-w-[220px] truncate outline-none focus:border-blue-500">
-                <option value="TODOS">-- TODOS --</option>
-                {equiposDisponibles.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-              </select>
+
+            <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto overflow-hidden">
+              
+              {/* BOTON DINAMICO PARA EDICION MASIVA */}
+              {puertosSeleccionados.length > 0 && puedeEditar && (
+                <button onClick={() => setMostrarModalMasivo(true)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 whitespace-nowrap shadow-[0_0_10px_rgba(217,119,6,0.3)] transition cursor-pointer">
+                  <CheckSquare className="w-4 h-4" /> Editar {puertosSeleccionados.length} Puertos
+                </button>
+              )}
+
+              <div className="flex items-center gap-2 border-l border-slate-700 pl-4">
+                <span className="text-[10px] uppercase font-bold text-slate-500 whitespace-nowrap">Equipo ID:</span>
+                <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="bg-[#1c2541] border border-slate-700 text-xs p-1.5 rounded text-white min-w-[120px] max-w-[180px] truncate outline-none focus:border-blue-500">
+                  <option value="TODOS">-- TODOS --</option>
+                  {equiposDisponibles.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                </select>
+              </div>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <table className="w-full text-xs text-slate-300 text-left border-collapse table-fixed">
-              <thead className="bg-[#0b132b] text-slate-400 uppercase font-bold sticky top-0 border-b border-slate-800 z-10">
-                <tr><th className="p-3 w-32">ESTATUS</th><th className="p-3 w-40">INTERFAZ</th><th className="p-3 w-56">EQUIPO ID</th><th className="p-3">SERVICIO</th></tr>
+              <thead className="bg-[#0b132b] text-slate-400 uppercase font-bold sticky top-0 border-b border-slate-800 z-10 shadow-sm">
+                <tr>
+                  <th className="p-3 w-12 text-center border-r border-slate-800">
+                    {/* SELECT ALL CHECKBOX */}
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
+                      checked={puertosFiltrados.length > 0 && puertosSeleccionados.length === puertosFiltrados.length}
+                      onChange={(e) => {
+                        if (e.target.checked) setPuertosSeleccionados(puertosFiltrados.map(p => p.ID));
+                        else setPuertosSeleccionados([]);
+                      }}
+                    />
+                  </th>
+                  <th className="p-3 w-32">ESTATUS</th>
+                  <th className="p-3 w-40">INTERFAZ</th>
+                  <th className="p-3 w-56">EQUIPO ID</th>
+                  <th className="p-3">SERVICIO</th>
+                </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
-                {cargando ? <tr><td colSpan="4" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
-                puertosFiltrados.length === 0 ? <tr><td colSpan="4" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr> :
+                {cargando ? <tr><td colSpan="5" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
+                puertosFiltrados.length === 0 ? <tr><td colSpan="5" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr> :
                 puertosFiltrados.map((p, idx) => {
                   const est = String(p.ESTATUS || '').toUpperCase().trim();
                   const isDisponible = est.includes('DISPONIBLE');
                   return (
                     <tr key={idx} onClick={() => seleccionarPuerto(p)} className={`hover:bg-slate-800/20 cursor-pointer ${puertoDetalle?.ID === p.ID ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
+                      <td className="p-3 text-center border-r border-slate-800/50" onClick={(e) => e.stopPropagation()}>
+                        {/* SINGLE CHECKBOX */}
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
+                          checked={puertosSeleccionados.includes(p.ID)}
+                          onChange={() => {
+                            setPuertosSeleccionados(prev => prev.includes(p.ID) ? prev.filter(id => id !== p.ID) : [...prev, p.ID]);
+                          }}
+                        />
+                      </td>
                       <td className="p-3">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
                           isDisponible ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
@@ -307,6 +356,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           </div>
         </div>
 
+        {/* PANEL DERECHO: EDICIÓN DE PUERTO ÚNICO */}
         <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl">
           {puertoDetalle ? (
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
@@ -441,7 +491,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 </div>
               </div>
               
-              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-2">💾 Guardar Ficha</button>)}
+              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-2 shadow-lg transition">💾 Guardar Ficha</button>)}
             </div>
           ) : (
             <div className="h-full flex flex-col justify-center items-center text-center p-4 text-slate-600">
@@ -454,6 +504,16 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
       {mostrarModalFalla && <ModalFalla puertoDetalle={puertoDetalle} usuario={usuario} cerrarModal={() => setMostrarModalFalla(false)} />}
       {mostrarModalVisualizar && <ModalVisualizar puertoDetalle={puertoDetalle} cerrarModal={() => setMostrarModalVisualizar(false)} />}
+      
+      {/* RENDERIZADO DEL MODAL DE EDICIÓN MASIVA */}
+      {mostrarModalMasivo && (
+        <ModalEdicionMasiva 
+          puertosIds={puertosSeleccionados} 
+          token={token}
+          cerrarModal={() => setMostrarModalMasivo(false)}
+          recargarDatos={cargarDatosSistemas}
+        />
+      )}
     </div>
   );
 }

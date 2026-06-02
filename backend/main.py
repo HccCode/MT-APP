@@ -280,6 +280,10 @@ class PortUpdate(BaseModel):
     CONTACTO_NOMBRE: str = None
     CONTACTO_TELEFONO: str = None
 
+class PortBulkUpdate(BaseModel):
+    port_ids: List[int]
+    updates: PortUpdate
+
 class CabezalUpdate(BaseModel):
     id_equipo: str = None
     ciudad: str = None
@@ -1226,6 +1230,29 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         )
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+
+        # ================= ENDPOINT: EDICIÓN MASIVA DE PUERTOS =================
+@app.put("/api/ports/bulk-update")
+def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    update_data = data.updates.model_dump(exclude_unset=True)
+    if not update_data:
+        return {"status": "success", "detail": "Nada que actualizar"}
+        
+    mapped_updates = {}
+    for key, val in update_data.items():
+        attr_name = key.lower()
+        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
+        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
+        mapped_updates[attr_name] = val
+        
+    # Actualiza todos los IDs proporcionados de un solo golpe en la BD
+    db.query(PortModel).filter(PortModel.id.in_(data.port_ids)).update(mapped_updates, synchronize_session=False)
+    db.commit()
+    
+    return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
 
 if __name__ == "__main__":
     import uvicorn
