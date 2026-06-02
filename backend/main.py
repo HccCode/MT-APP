@@ -620,15 +620,41 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
 @app.put("/api/ports/{port_id}")
 def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    # 1. Buscamos el puerto ANTES de modificarlo
     db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
     if not db_port: raise HTTPException(status_code=404)
+    
+    cambios_realizados = []
+    
+    # 2. Comparamos campo por campo
     for key, val in data.model_dump(exclude_unset=True).items(): 
         attr_name = key.lower()
         if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
         if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
+        
+        valor_antiguo = getattr(db_port, attr_name)
+        
+        # Limpiamos los "None" para que no se vean feos en el log
+        v_antiguo = str(valor_antiguo).strip() if valor_antiguo is not None else ""
+        v_nuevo = str(val).strip() if val is not None else ""
+        
+        # 3. Solo lo registramos si de verdad hubo un cambio
+        if v_antiguo != v_nuevo:
+            cambios_realizados.append(f"[{key.upper()}: '{v_antiguo}' ➔ '{v_nuevo}']")
+            
         setattr(db_port, attr_name, val)
+        
     db.commit()
-    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", f"Actualizó puerto ID {port_id}. Cambios: {data.model_dump(exclude_unset=True)}")
+    
+    # 4. Redactamos el log final detallado
+    if cambios_realizados:
+        detalle_log = f"Modificó el puerto {db_port.puerto} (ID {port_id}). Cambios exactos: " + " | ".join(cambios_realizados)
+    else:
+        detalle_log = f"Abrió y guardó el puerto {db_port.puerto} (ID {port_id}) sin alterar ningún valor."
+        
+    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", detalle_log)
+    
     return {"status": "success"}
 
 @app.put("/api/ports/bulk-update")
@@ -641,16 +667,24 @@ def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(ge
         return {"status": "success", "detail": "Nada que actualizar"}
         
     mapped_updates = {}
+    cambios_desc = []
+    
     for key, val in update_data.items():
         attr_name = key.lower()
         if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
         if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
         mapped_updates[attr_name] = val
         
+        # Registramos qué valor se forzó a la selección masiva
+        v_nuevo = str(val).strip() if val is not None else "(Vacío)"
+        cambios_desc.append(f"[{key.upper()} ➔ '{v_nuevo}']")
+        
     db.query(PortModel).filter(PortModel.id.in_(data.port_ids)).update(mapped_updates, synchronize_session=False)
     db.commit()
     
-    registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", f"Actualizó {len(data.port_ids)} puertos. Cambios aplicados: {update_data}")
+    detalle_log = f"Edición Masiva a {len(data.port_ids)} puertos (IDs afectados: {', '.join(map(str, data.port_ids))}). Se forzaron los siguientes valores: " + " | ".join(cambios_desc)
+    
+    registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", detalle_log)
     return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
 
 @app.post("/api/hubs/upload-excel")
