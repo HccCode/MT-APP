@@ -1349,69 +1349,6 @@ def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_curre
     logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
     return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
 
-# ================= ENDPOINT: HERRAMIENTAS NOC (PING EN VIVO) =================
-@app.get("/api/diagnostico/ping")
-def ping_ip(ip: str = Query(...), current_user: UserModel = Depends(get_current_user)):
-    if not is_admin(current_user) and "MCM NOC" not in str(current_user.role).upper():
-        raise HTTPException(status_code=403, detail="Permisos insuficientes para lanzar diagnósticos.")
-
-    ip_limpia = ip.strip()
-    # Filtro de seguridad crítico
-    caracteres_prohibidos = [";", "&", "|", "$", ">", "<", "`", "\\", "!", "\n"]
-    if any(c in ip_limpia for c in caracteres_prohibidos) or " " in ip_limpia:
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=400, content={"status": "error", "detail": "Formato de IP inválido."})
-
-    import platform
-    import subprocess
-    import socket
-    import time
-    
-    # INTENTO 1: Usar comando ICMP nativo (Si estás programando en tu PC Windows/Linux local)
-    try:
-        param = '-n' if platform.system().lower() == 'windows' else '-c'
-        comando = ['ping', param, '4', ip_limpia]
-        resultado = subprocess.run(comando, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12)
-        return {"status": "success", "output": resultado.stdout}
-        
-    # INTENTO 2: Fallback a "TCP Ping" (Para la nube de Render donde no existe la consola ICMP)
-    except FileNotFoundError:
-        puertos_gestion = [22, 80, 443, 8291, 23, 8080] # SSH, HTTP, HTTPS, Winbox, Telnet, Webalt
-        output = [f"ICMP bloqueado por el proveedor de nube."]
-        output.append(f"Iniciando diagnóstico TCP Ping (Capa 4) hacia {ip_limpia}...\n")
-        exito = False
-        
-        for puerto in puertos_gestion:
-            inicio = time.time()
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(1.5) # Máximo 1.5 segs de espera por puerto
-                    s.connect((ip_limpia, puerto))
-                    tiempo_ms = max(1, int((time.time() - inicio) * 1000))
-                    output.append(f"Respuesta desde {ip_limpia}: puerto={puerto}/tcp [ABIERTO] tiempo={tiempo_ms}ms")
-                    exito = True
-                    break
-            except ConnectionRefusedError:
-                # El equipo está VIVO en la red, pero tiene ese puerto de gestión cerrado
-                tiempo_ms = max(1, int((time.time() - inicio) * 1000))
-                output.append(f"Respuesta desde {ip_limpia}: puerto={puerto}/tcp [CERRADO pero HOST VIVO] tiempo={tiempo_ms}ms")
-                exito = True
-                break
-            except Exception:
-                continue # Timeout o inalcanzable en este puerto, intentamos el siguiente
-                
-        if exito:
-            output.append(f"\n--- {ip_limpia} TCP ping statistics ---")
-            output.append("1 paquetes transmitidos, 1 recibidos, 0% packet loss")
-            return {"status": "success", "output": "\n".join(output)}
-        else:
-            return {"status": "error", "detail": f"Timeout: La IP {ip_limpia} no respondió en ningún puerto de red. El equipo podría estar apagado, aislado, o la fibra dañada."}
-            
-    except subprocess.TimeoutExpired:
-        return {"status": "error", "detail": f"Timeout: La IP {ip_limpia} no respondió al diagnóstico de red."}
-    except Exception as e:
-        return {"status": "error", "detail": f"Error del sistema: {str(e)}"}
-
 # ================= ARRANQUE DEL SERVIDOR =================
 if __name__ == "__main__":
     import uvicorn
