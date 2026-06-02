@@ -8,7 +8,7 @@ import Geografia from './pages/Geografia';
 import CargaExcel from './pages/CargaExcel';
 import Usuarios from './pages/Usuarios';
 import Cabezales from './pages/Cabezales';
-import Cuadrilla from './pages/Cuadrilla';
+
 
 
 function App() {
@@ -145,7 +145,7 @@ function App() {
             >
               <span className="text-[13px]">📱</span> Modo Cuadrilla
             </button>
-            
+
 
           {mostrarGeografia && (
             <button 
