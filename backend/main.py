@@ -1316,6 +1316,28 @@ def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_curre
     logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
     return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
 
+# ================= ENDPOINT: BUSCADOR MÓVIL (MODO CUADRILLA) =================
+@app.get("/api/ports/search")
+def search_ports_global(q: str = Query(..., min_length=2), db: Session = Depends(get_db)):
+    term = f"%{q}%"
+    # Busca coincidencias en múltiples columnas clave a la vez
+    puertos = db.query(PortModel).filter(
+        (PortModel.puerto.ilike(term)) |
+        (PortModel.servicio.ilike(term)) |
+        (PortModel.ip_cliente.ilike(term)) |
+        (PortModel.serie_cpe.ilike(term)) |
+        (PortModel.equipo_hotel_id.ilike(term))
+    ).limit(30).all() # Límite de 30 para no saturar el celular
+    
+    return {"status": "success", "data": [
+        {
+            "ID": p.id, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto,
+            "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "SERVICIO": p.servicio,
+            "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe,
+            "SERIE_CPE": p.serie_cpe, "DIRECCION": p.direccion
+        } for p in puertos
+    ]}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

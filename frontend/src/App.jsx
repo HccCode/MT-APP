@@ -8,6 +8,7 @@ import Geografia from './pages/Geografia';
 import CargaExcel from './pages/CargaExcel';
 import Usuarios from './pages/Usuarios';
 import Cabezales from './pages/Cabezales';
+import Cuadrilla from './pages/Cuadrilla';
 
 
 function App() {
@@ -138,6 +139,14 @@ function App() {
             </button>
           )}
           
+            <button 
+              onClick={() => setTabActiva('cuadrilla')} 
+              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'cuadrilla' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <span className="text-[13px]">📱</span> Modo Cuadrilla
+            </button>
+
+
           {mostrarGeografia && (
             <button 
               onClick={() => setTabActiva('geografia')} 
@@ -188,6 +197,9 @@ function App() {
         )}
         {tabActiva === 'geografia' && (
           <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
+        )}
+        {tabActiva === 'cuadrilla' && (
+          <Cuadrilla token={token} />
         )}
         {tabActiva === 'carga_excel' && (
           <CargaExcel token={token} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
