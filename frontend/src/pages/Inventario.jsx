@@ -526,6 +526,14 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       {mostrarModalFalla && <ModalFalla puertoDetalle={puertoDetalle} usuario={usuario} cerrarModal={() => setMostrarModalFalla(false)} />}
       {mostrarModalVisualizar && <ModalVisualizar puertoDetalle={puertoDetalle} cerrarModal={() => setMostrarModalVisualizar(false)} />}
       
+     {/* Renderizado de Auditoría */}
+              {mostrarModalAuditoria && (
+                <ModalAuditoria 
+                  token={token}
+                  cerrarModal={() => setMostrarModalAuditoria(false)}
+                />
+              )}
+      
       {/* RENDERIZADO DEL MODAL DE EDICIÓN MASIVA */}
       {mostrarModalMasivo && (
         <ModalEdicionMasiva 
@@ -535,13 +543,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           recargarDatos={cargarDatosSistemas}
         />
       )}
-                  {/* Renderizado de Auditoría */}
-              {mostrarModalAuditoria && (
-                <ModalAuditoria 
-                  token={token}
-                  cerrarModal={() => setMostrarModalAuditoria(false)}
-                />
-              )}
+             
     </div>
   );
 }
