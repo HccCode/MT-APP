@@ -617,46 +617,8 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
         }
     except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
-@app.put("/api/ports/{port_id}")
-def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    
-    # 1. Buscamos el puerto ANTES de modificarlo
-    db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
-    if not db_port: raise HTTPException(status_code=404)
-    
-    cambios_realizados = []
-    
-    # 2. Comparamos campo por campo
-    for key, val in data.model_dump(exclude_unset=True).items(): 
-        attr_name = key.lower()
-        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
-        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
-        
-        valor_antiguo = getattr(db_port, attr_name)
-        
-        # Limpiamos los "None" para que no se vean feos en el log
-        v_antiguo = str(valor_antiguo).strip() if valor_antiguo is not None else ""
-        v_nuevo = str(val).strip() if val is not None else ""
-        
-        # 3. Solo lo registramos si de verdad hubo un cambio
-        if v_antiguo != v_nuevo:
-            cambios_realizados.append(f"[{key.upper()}: '{v_antiguo}' ➔ '{v_nuevo}']")
-            
-        setattr(db_port, attr_name, val)
-        
-    db.commit()
-    
-    # 4. Redactamos el log final detallado
-    if cambios_realizados:
-        detalle_log = f"Modificó el puerto {db_port.puerto} (ID {port_id}). Cambios exactos: " + " | ".join(cambios_realizados)
-    else:
-        detalle_log = f"Abrió y guardó el puerto {db_port.puerto} (ID {port_id}) sin alterar ningún valor."
-        
-    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", detalle_log)
-    
-    return {"status": "success"}
 
+# 1️⃣ ¡OBLIGATORIO: LA RUTA MASIVA (ESTÁTICA) VA PRIMERO!
 @app.put("/api/ports/bulk-update")
 def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): 
@@ -675,7 +637,6 @@ def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(ge
         if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
         mapped_updates[attr_name] = val
         
-        # Registramos qué valor se forzó a la selección masiva
         v_nuevo = str(val).strip() if val is not None else "(Vacío)"
         cambios_desc.append(f"[{key.upper()} ➔ '{v_nuevo}']")
         
@@ -687,99 +648,41 @@ def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(ge
     registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", detalle_log)
     return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
 
-@app.post("/api/hubs/upload-excel")
-async def upload_hub_excel(id_hub: str = Query(...), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    filename = file.filename or ""
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
-        return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido."})
-    try:
-        contents = await file.read()
-        if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera los 5MB."})
-        df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
-        header_row_idx = 0
-        
-        for idx, row in df.iterrows():
-            if "PUERTO" in [str(cell).upper().strip() for cell in row.values]:
-                header_row_idx = idx
-                break
-                
-        column_headers = [str(cell).upper().strip() for cell in df.iloc[header_row_idx].values]
-        df_data = df.iloc[header_row_idx + 1:]
-        
-        hub_cfg = db.query(HubMappingModel).filter(HubMappingModel.id == str(id_hub).upper().strip()).first()
-        if not hub_cfg: return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
-        
-        ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
-        region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
-        
-        def get_index(targets, headers):
-            for t in targets:
-                if t in headers: return headers.index(t)
-            return -1
 
-        idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
-        idx_puerto = get_index(["PUERTO"], column_headers)
-        idx_equipo = get_index(["EQUIPO ID (CHASIS)", "EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID", "EQUIPO ID"], column_headers)
-        idx_iphub = get_index(["IP HUB", "IP_HUB"], column_headers)
-        idx_serv = get_index(["CLIENTE / SERVICIO", "SERVICIO", "CLIENTE"], column_headers)
-        idx_mbps = get_index(["ANCHO BANDA (MBPS)", "MBPS", "ANCHO BANDA"], column_headers)
-        idx_ipgest = get_index(["IP GESTIÓN", "IP GESTION", "IP_GESTION"], column_headers)
-        idx_ipcli = get_index(["IP CLIENTE", "IP_CLIENTE"], column_headers)
-        idx_bdi = get_index(["BDI"], column_headers)
-        idx_potcpe = get_index(["POTENCIA CPE"], column_headers)
-        idx_pothub = get_index(["POTENCIA HUB"], column_headers)
-        idx_id_mca = get_index(["ID MCA", "ID_MCA"], column_headers)
-        idx_ruta = get_index(["RUTA"], column_headers)
-        idx_distancia = get_index(["DIST. CLIENTE", "DISTANCIA CLIENTE", "DISTANCIA"], column_headers)
-        idx_lambdas = get_index(["LAMBDAS", "LAMBDA"], column_headers)
-        idx_buffer = get_index(["BUFFER"], column_headers)
-        idx_hilos = get_index(["HILOS", "HILO"], column_headers)
-        idx_parcheo = get_index(["PARCHEO"], column_headers)
-        idx_serie_sfp_hub = get_index(["SERIE SFP HUB", "SFP HUB"], column_headers)
-        idx_serie_sfp_cpe = get_index(["SERIE SFP CPE", "SERIE SFP CLIENTE", "SFP CPE"], column_headers)
-        idx_marca = get_index(["MARCA", "MARCA CPE"], column_headers)
-        idx_modelo = get_index(["MODELO", "MODELO CPE"], column_headers)
-        idx_serie_cpe = get_index(["SERIE CPE", "SERIE"], column_headers)
-        idx_tipo_servicio = get_index(["TIPO SERVICIO", "TIPO DE SERVICIO"], column_headers)
-        idx_direccion = get_index(["DIRECCIÓN SERVICIO", "DIRECCION SERVICIO", "DIRECCIÓN", "DIRECCION"], column_headers)
-        idx_coordenadas = get_index(["COORDENADAS"], column_headers)
-        idx_contacto_nombre = get_index(["NOMBRE CONTACTO", "CONTACTO", "CONTACTO NOMBRE"], column_headers)
-        idx_contacto_telefono = get_index(["TELÉFONO CONTACTO", "TELEFONO CONTACTO", "TELEFONO", "TELÉFONO"], column_headers)
-        idx_fecha_entrega = get_index(["FECHA DE ENTREGA", "FECHA ENTREGA", "FECHA"], column_headers)
-        idx_comentarios = get_index(["COMENTARIOS", "OBSERVACIONES"], column_headers)
-
-        if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
-        db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
+# 2️⃣ LA RUTA INDIVIDUAL (DINÁMICA) VA DESPUÉS
+@app.put("/api/ports/{port_id}")
+def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
+    if not db_port: raise HTTPException(status_code=404)
+    
+    cambios_realizados = []
+    
+    for key, val in data.model_dump(exclude_unset=True).items(): 
+        attr_name = key.lower()
+        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
+        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
         
-        for _, row in df_data.iterrows():
-            vals = list(row.values)
-            if idx_puerto >= len(vals): continue
-            p_val = str(vals[idx_puerto]).strip()
-            if not p_val or p_val.upper() == "NAN" or p_val == "": continue
-            def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
+        valor_antiguo = getattr(db_port, attr_name)
+        v_antiguo = str(valor_antiguo).strip() if valor_antiguo is not None else ""
+        v_nuevo = str(val).strip() if val is not None else ""
+        
+        if v_antiguo != v_nuevo:
+            cambios_realizados.append(f"[{key.upper()}: '{v_antiguo}' ➔ '{v_nuevo}']")
             
-            db.add(PortModel(
-                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
-                estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), 
-                ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), 
-                ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), 
-                potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), 
-                contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono),
-                serie_sfp_hub=read_val(idx_serie_sfp_hub), serie_sfp_client=read_val(idx_serie_sfp_cpe),
-                ruta=read_val(idx_ruta), distancia_cliente=read_val(idx_distancia), lambdas=read_val(idx_lambdas),
-                buffer=read_val(idx_buffer), hilos=read_val(idx_hilos), parcheo=read_val(idx_parcheo),
-                marca_cpe=read_val(idx_marca), modelo_cpe=read_val(idx_modelo), serie_cpe=read_val(idx_serie_cpe),
-                tipo_servicio=read_val(idx_tipo_servicio), direccion=read_val(idx_direccion), coordenadas=read_val(idx_coordenadas),
-                fecha_entrega=read_val(idx_fecha_entrega), comentarios=read_val(idx_comentarios)
-            ))
-        db.commit()
-        registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Se cargó el archivo en el HUB {id_hub}")
-        return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
-    except Exception as e:
-        try: db.rollback() 
-        except: pass
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
+        setattr(db_port, attr_name, val)
+        
+    db.commit()
+    
+    if cambios_realizados:
+        detalle_log = f"Modificó el puerto {db_port.puerto} (ID {port_id}). Cambios exactos: " + " | ".join(cambios_realizados)
+    else:
+        detalle_log = f"Abrió y guardó el puerto {db_port.puerto} (ID {port_id}) sin alterar ningún valor."
+        
+    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", detalle_log)
+    
+    return {"status": "success"}
 
 # ================= EXPORTACIÓN EXCEL DE INVENTARIO =================
 @app.get("/api/hubs/exportar-excel")
