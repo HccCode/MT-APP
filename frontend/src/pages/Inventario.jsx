@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, Activity } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
-
+import TerminalPing from '../components/TerminalPing';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
@@ -25,6 +25,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroEstatus, setFiltroEstatus] = useState('TODOS');
   const [filtroEquipo, setFiltroEquipo] = useState('TODOS');
+  const [ipDiagnostico, setIpDiagnostico] = useState(null);
   
   const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});
@@ -281,12 +282,13 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   <th className="p-3 w-32">ESTATUS</th>
                   <th className="p-3 w-40">INTERFAZ</th>
                   <th className="p-3 w-56">EQUIPO ID</th>
+                  <th className="p-3 w-40 text-emerald-400">IP GESTIÓN</th>
                   <th className="p-3">SERVICIO</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
-                {cargando ? <tr><td colSpan="5" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
-                puertosFiltrados.length === 0 ? <tr><td colSpan="5" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr> :
+                {cargando ? <tr><td colSpan="6" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
+                puertosFiltrados.length === 0 ? <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr> :
                 puertosFiltrados.map((p, idx) => {
                   const est = String(p.ESTATUS || '').toUpperCase().trim();
                   const isDisponible = est.includes('DISPONIBLE');
@@ -319,6 +321,25 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                           <div className="text-[9px] text-blue-400 mt-0.5 font-bold">NODO: {p.HUB_PERTENENCIA}</div>
                         )}
                       </td>
+                      
+                      {/* === NUEVA COLUMNA: BOTÓN DE PING === */}
+                      <td className="p-3 whitespace-nowrap text-left">
+                        {p.IP_GESTION ? (
+                          <button 
+                            onClick={(e) => { 
+                              e.stopPropagation(); // Evita que se abra la ficha técnica al dar clic al Ping
+                              setIpDiagnostico(p.IP_GESTION); 
+                            }}
+                            className="text-emerald-400 hover:text-white font-mono flex items-center gap-1.5 bg-emerald-950/40 hover:bg-emerald-600 px-2.5 py-1 rounded border border-emerald-900/50 transition-all shadow-sm"
+                            title="Ejecutar Ping en Vivo"
+                          >
+                            <Activity className="w-3.5 h-3.5" /> {p.IP_GESTION}
+                          </button>
+                        ) : (
+                          <span className="text-slate-600 pl-2">-</span>
+                        )}
+                      </td>
+
                       <td className="p-3 text-slate-200 truncate font-medium">{p.SERVICIO || '-'}</td>
                     </tr>
                   );
@@ -494,6 +515,15 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         <ModalAuditoria 
           token={token}
           cerrarModal={() => setMostrarModalAuditoria(false)}
+        />
+      )}
+
+      {/* RENDERIZADO CONDICIONAL DE LA TERMINAL */}
+      {ipDiagnostico && (
+        <TerminalPing 
+          ipTarget={ipDiagnostico} 
+          token={token} 
+          onClose={() => setIpDiagnostico(null)} 
         />
       )}
     </div>

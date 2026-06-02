@@ -13,6 +13,8 @@ import bcrypt
 import pandas as pd
 import io
 import os
+import subprocess
+import platform
 
 # IMPORTS PARA EXCEL AVANZADO (OPENPYXL)
 from openpyxl import Workbook
@@ -1378,13 +1380,37 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         )
     except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
-# ================= ENDPOINT DE LECTURA DE AUDITORIA =================
-@app.get("/api/auditoria")
-def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
-    return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
+            # ================= ENDPOINT DE LECTURA DE AUDITORIA =================
+            @app.get("/api/auditoria")
+            def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+                if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+                logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
+                return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+            # ================= ENDPOINT: HERRAMIENTAS NOC (PING EN VIVO) =================
+            @app.get("/api/diagnostico/ping")
+            def ping_ip(ip: str = Query(...), current_user: UserModel = Depends(get_current_user)):
+                if not is_admin(current_user) and "MCM NOC" not in str(current_user.role).upper():
+                    raise HTTPException(status_code=403, detail="Permisos insuficientes para lanzar diagnósticos.")
+
+                ip_limpia = ip.strip()
+                # Filtro de seguridad crítico: Evitar inyección de comandos bash/cmd
+                caracteres_prohibidos = [";", "&", "|", "$", ">", "<", "`", "\\", "!", "\n"]
+                if any(c in ip_limpia for c in caracteres_prohibidos) or " " in ip_limpia:
+                    return JSONResponse(status_code=400, content={"status": "error", "detail": "Formato de IP inválido."})
+
+                # Detectar si el servidor es Windows o Linux para usar la bandera correcta (-n vs -c)
+                param = '-n' if platform.system().lower() == 'windows' else '-c'
+                comando = ['ping', param, '4', ip_limpia]
+                
+                try:
+                    resultado = subprocess.run(comando, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12)
+                    return {"status": "success", "output": resultado.stdout}
+                except subprocess.TimeoutExpired:
+                    return {"status": "error", "detail": f"Timeout: La IP {ip_limpia} no respondió en el tiempo esperado."}
+                except Exception as e:
+                    return {"status": "error", "detail": f"Error del sistema: {str(e)}"}
+
+            if __name__ == "__main__":
+                import uvicorn
+                uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
