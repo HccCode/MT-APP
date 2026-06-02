@@ -167,6 +167,15 @@ class ConfigCiudadModel(Base):
     ciudad_nombre = Column(String(100), primary_key=True, index=True)
     ancho_banda_total = Column(String(50), nullable=True)
 
+  class AuditLogModel(Base):
+    __tablename__ = "sys_audit_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    usuario = Column(String(50), index=True)
+    accion = Column(String(100))
+    modulo = Column(String(100))
+    detalle = Column(Text)
+    fecha = Column(String(50)) # Formato ISO  
+
 Base.metadata.create_all(bind=engine)
 
 def get_db():
@@ -611,6 +620,8 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
         if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
         setattr(db_port, attr_name, val)
     db.commit()
+    # AGREGA ESTA LÍNEA AQUÍ:
+    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", f"Actualizó puerto ID {port_id}. Cambios: {data.model_dump(exclude_unset=True)}")
     return {"status": "success"}
 
 @app.post("/api/hubs/upload-excel")
@@ -1253,6 +1264,23 @@ def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(ge
     db.commit()
     
     return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
+
+    # ================= MÓDULO DE AUDITORÍA =================
+def registrar_auditoria(db: Session, usuario: str, accion: str, modulo: str, detalle: str):
+    try:
+        ahora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        log = AuditLogModel(usuario=usuario, accion=accion, modulo=modulo, detalle=detalle, fecha=ahora)
+        db.add(log)
+        db.commit()
+    except Exception as e:
+        print("Error al guardar log de auditoría:", e)
+
+@app.get("/api/auditoria")
+def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not is_admin(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
+    return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
 
 if __name__ == "__main__":
     import uvicorn
