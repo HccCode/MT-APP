@@ -110,10 +110,10 @@ function App() {
         </div>
 
         <div className="flex bg-[#050814] p-1 rounded-xl border border-slate-800 flex-wrap justify-center gap-2.5">
-          {mostrarInventario && (
+         {mostrarInventario && (
             <button 
               onClick={() => setTabActiva('inventario')} 
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`hidden md:flex px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
               <span className="text-[13px]">📋</span> Servicios Dedicados
             </button>
@@ -137,11 +137,11 @@ function App() {
             </button>
           )}
 
-          {/* BOTÓN DEL MODO CUADRILLA */}
+      {/* BOTÓN DEL MODO CUADRILLA (SOLO VISIBLE EN MÓVILES) */}
           {mostrarCuadrilla && (
             <button 
               onClick={() => setTabActiva('cuadrilla')} 
-              className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${tabActiva === 'cuadrilla' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+              className={`md:hidden flex px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'cuadrilla' ? 'bg-indigo-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
             >
               <span className="text-[13px]">📱</span> Modo Cuadrilla
             </button>
