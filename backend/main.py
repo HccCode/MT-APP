@@ -819,9 +819,10 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             errores_fila = []
             
             # REGLA 1: Duplicidad interna de interfaces en el Excel
-            if p_val in puertos_vistos:
-                errores_fila.append(f"Interfaz duplicada en este Excel.")
-            puertos_vistos.add(p_val)
+            clave_unica = f"{p_val}_{eq_id}"
+            if clave_unica in puertos_vistos:
+                errores_fila.append(f"El puerto {p_val} está duplicado en el equipo {eq_id or 'Sin ID'}.")
+            puertos_vistos.add(clave_unica)
             
             # REGLA 2: Cliente Omitido
             if "ACTIVO" in est and not serv:
