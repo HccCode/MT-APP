@@ -586,11 +586,12 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
         db.commit()
     return {"status": "success"}
 
-# ================= BUSCADOR MÓVIL =================
+# ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
 @app.get("/api/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     termino = f"%{q.strip()}%"
-
+    
+    # Buscar en la base de datos
     puertos = db.query(PortModel).filter(
         (PortModel.PUERTO.ilike(termino)) |
         (PortModel.SERVICIO.ilike(termino)) |
@@ -600,7 +601,14 @@ def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_curr
         (PortModel.CONTACTO_NOMBRE.ilike(termino))
     ).limit(40).all()
     
-    return {"status": "success", "data": puertos}
+    # Traducir los objetos SQLAlchemy a diccionarios JSON puros (Evita el Error 500)
+    resultados_limpios = []
+    for p in puertos:
+        diccionario = dict(p.__dict__)
+        diccionario.pop('_sa_instance_state', None) # Borramos metadatos internos de la BD
+        resultados_limpios.append(diccionario)
+        
+    return {"status": "success", "data": resultados_limpios}
 
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
