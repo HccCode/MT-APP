@@ -585,13 +585,31 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
     return {"status": "success"}
 
 # ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
+# ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
 @app.get("/api/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     from fastapi.responses import JSONResponse
     try:
         termino = q.strip().lower()
-        todos_los_puertos = db.query(PortModel).all()
         
+        # 1. CANDADO DE SEGURIDAD: Leer la base de datos completa vs. limitada
+        query_puertos = db.query(PortModel)
+        
+        # Si el usuario no es ADMIN y no tiene el asterisco (*) de acceso total:
+        if not is_admin(current_user) and current_user.plazas != "*":
+            # Extraemos los IDs de las ciudades que sí tiene permitidas (Ej. ["MXL", "TIJ"])
+            ids_permitidos = [x.strip().upper() for x in str(current_user.plazas).split(",") if x.strip()]
+            
+            # Buscamos los nombres reales de esas ciudades en la tabla CityModel
+            ciudades_permitidas = db.query(CityModel).filter(CityModel.id.in_(ids_permitidos)).all()
+            nombres_ciudades = [c.nombre for c in ciudades_permitidas]
+            
+            # Aplicamos el candado: La base de datos ahora solo devolverá puertos de esas ciudades
+            query_puertos = query_puertos.filter(PortModel.ciudad.in_(nombres_ciudades))
+            
+        todos_los_puertos = query_puertos.all()
+        
+        # 2. PROCESO DE BÚSQUEDA ESTRICTA
         resultados = []
         for p in todos_los_puertos:
             servicio = str(p.servicio or '').lower()
@@ -630,6 +648,7 @@ def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_curr
     except Exception as e:
         print(f"Error en buscador: {e}")
         return JSONResponse(status_code=500, content={"status": "error", "data": [], "detail": str(e)})
+# ================= FIN ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================        
 
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
