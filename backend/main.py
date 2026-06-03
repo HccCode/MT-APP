@@ -13,8 +13,6 @@ import bcrypt
 import pandas as pd
 import io
 import os
-import subprocess
-import platform
 
 # IMPORTS PARA EXCEL AVANZADO (OPENPYXL)
 from openpyxl import Workbook
@@ -217,7 +215,7 @@ def registrar_auditoria(db: Session, usuario: str, accion: str, modulo: str, det
         db.add(log)
         db.commit()
     except Exception as e:
-        print("Error al guardar log de auditoría:", e)
+        pass
 
 # ================= ESQUEMAS PYDANTIC =================
 class UserLogin(BaseModel):
@@ -587,18 +585,15 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
     return {"status": "success"}
 
 # ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
-# ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
 @app.get("/api/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     from fastapi.responses import JSONResponse
-    
     try:
         termino = q.strip().lower()
         todos_los_puertos = db.query(PortModel).all()
         
         resultados = []
         for p in todos_los_puertos:
-            # 1. Extraemos los campos estrictos en minúsculas desde el modelo SQLAlchemy
             servicio = str(p.servicio or '').lower()
             puerto = str(p.puerto or '').lower()
             equipo = str(p.equipo_hotel_id or '').lower()
@@ -606,10 +601,7 @@ def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_curr
             ip_cliente = str(p.ip_cliente or '').lower()
             contacto = str(p.contacto_nombre or '').lower()
             
-            # 2. Validamos que la palabra buscada esté ÚNICAMENTE en esos campos
             if (termino in servicio) or (termino in puerto) or (termino in equipo) or (termino in ip_gestion) or (termino in ip_cliente) or (termino in contacto):
-                
-                # 3. CONSTRUIMOS EL DICCIONARIO EXACTO PARA REACT (EN MAYÚSCULAS)
                 dic_para_react = {
                     "ID": p.id,
                     "ESTATUS": p.estatus,
@@ -630,18 +622,106 @@ def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_curr
                     "CONTACTO_NOMBRE": p.contacto_nombre,
                     "CONTACTO_TELEFONO": p.contacto_telefono
                 }
-                
                 resultados.append(dic_para_react)
-                
-                # Limitamos a 40 para que el celular cargue a la velocidad de la luz
                 if len(resultados) >= 40:
                     break
                     
         return {"status": "success", "data": resultados}
-        
     except Exception as e:
         print(f"Error en buscador: {e}")
         return JSONResponse(status_code=500, content={"status": "error", "data": [], "detail": str(e)})
+
+# ================= INTERFAZ DE PUERTOS =================
+@app.get("/api/hubs")
+def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    try:
+        query_ports = db.query(PortModel).filter(PortModel.hub_id == str(id_hub).strip()).all()
+        puertos_lista = []
+        for p in query_ports:
+            puertos_lista.append({
+                "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto, 
+                "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, 
+                "ID_MCA": p.id_mca, "SERVICIO": p.servicio, "POTENCIA_HUB": p.potencia_hub, 
+                "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio, "MBPS": p.mbps, 
+                "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta, 
+                "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, 
+                "DISTANCIA_CLIENTE": p.distancia_cliente, "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, 
+                "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, "SERIE_SFP_HUB": p.serie_sfp_hub, 
+                "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie, 
+                "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,
+                "CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono
+            })
+        total_disp = sum(1 for x in puertos_lista if str(x["ESTATUS"]).strip().upper() in ["DISPONIBLE GI", "DISPONIBLE TE"])
+        return {
+            "status": "success", "hub": id_hub, 
+            "resumen": {
+                "total": len(puertos_lista), "disponibles": total_disp, 
+                "activos": sum(1 for x in puertos_lista if "ACTIVO" in str(x["ESTATUS"]).upper()), 
+                "suspendidos": sum(1 for x in puertos_lista if "SUSPENDIDO" in str(x["ESTATUS"]).upper()), 
+                "troncales": sum(1 for x in puertos_lista if "TRONCAL" in str(x["ESTATUS"]).upper())
+            }, 
+            "puertos": puertos_lista
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+
+@app.put("/api/ports/bulk-update")
+def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    update_data = data.updates.model_dump(exclude_unset=True)
+    if not update_data:
+        return {"status": "success", "detail": "Nada que actualizar"}
+        
+    mapped_updates = {}
+    cambios_desc = []
+    
+    for key, val in update_data.items():
+        attr_name = key.lower()
+        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
+        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
+        mapped_updates[attr_name] = val
+        
+        v_nuevo = str(val).strip() if val is not None else "(Vacío)"
+        cambios_desc.append(f"[{key.upper()} ➔ '{v_nuevo}']")
+        
+    db.query(PortModel).filter(PortModel.id.in_(data.port_ids)).update(mapped_updates, synchronize_session=False)
+    db.commit()
+    
+    detalle_log = f"Edición Masiva a {len(data.port_ids)} puertos (IDs afectados: {', '.join(map(str, data.port_ids))}). Se forzaron los siguientes valores: " + " | ".join(cambios_desc)
+    registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", detalle_log)
+    return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
+
+@app.put("/api/ports/{port_id}")
+def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
+    if not db_port: raise HTTPException(status_code=404)
+    
+    cambios_realizados = []
+    for key, val in data.model_dump(exclude_unset=True).items(): 
+        attr_name = key.lower()
+        if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
+        if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
+        
+        valor_antiguo = getattr(db_port, attr_name)
+        v_antiguo = str(valor_antiguo).strip() if valor_antiguo is not None else ""
+        v_nuevo = str(val).strip() if val is not None else ""
+        
+        if v_antiguo != v_nuevo: cambios_realizados.append(f"[{key.upper()}: '{v_antiguo}' ➔ '{v_nuevo}']")
+        setattr(db_port, attr_name, val)
+        
+    db.commit()
+    if cambios_realizados:
+        detalle_log = f"Modificó el puerto {db_port.puerto} (ID {port_id}). Cambios exactos: " + " | ".join(cambios_realizados)
+    else:
+        detalle_log = f"Abrió y guardó el puerto {db_port.puerto} (ID {port_id}) sin alterar ningún valor."
+        
+    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", detalle_log)
+    return {"status": "success"}
 
 # ================= MOTOR AVANZADO DE CARGA Y STAGING AREA =================
 @app.post("/api/hubs/upload-excel")
