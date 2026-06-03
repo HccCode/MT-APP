@@ -587,42 +587,41 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
     return {"status": "success"}
 
         # ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
-        @app.get("/api/ports/search")
-        def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-            from fastapi.responses import JSONResponse
-            from fastapi.encoders import jsonable_encoder
+# CORRECTO: Pegado totalmente a la izquierda
+@app.get("/api/ports/search")
+def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    from fastapi.encoders import jsonable_encoder
+    
+    try:
+        termino = q.strip().lower()
+        todos_los_puertos = db.query(PortModel).all()
+        
+        resultados = []
+        for p in todos_los_puertos:
+            dic = dict(p.__dict__)
+            dic.pop('_sa_instance_state', None)
             
-            try:
-                termino = q.strip().lower()
-                todos_los_puertos = db.query(PortModel).all()
+            # 1. Extraemos de forma ESTRICTA solo los campos que identifican a un servicio real
+            servicio = str(dic.get('SERVICIO', '') or '').lower()
+            puerto = str(dic.get('PUERTO', '') or '').lower()
+            equipo = str(dic.get('EQUIPO_HOTEL_ID', '') or '').lower()
+            ip_gestion = str(dic.get('IP_GESTION', '') or '').lower()
+            ip_cliente = str(dic.get('IP_CLIENTE', '') or '').lower()
+            contacto = str(dic.get('CONTACTO_NOMBRE', '') or '').lower()
+            
+            # 2. Validamos que la palabra buscada esté ÚNICAMENTE en esos campos
+            if (termino in servicio) or (termino in puerto) or (termino in equipo) or (termino in ip_gestion) or (termino in ip_cliente) or (termino in contacto):
+                resultados.append(dic)
                 
-                resultados = []
-                for p in todos_los_puertos:
-                    dic = dict(p.__dict__)
-                    dic.pop('_sa_instance_state', None)
+                if len(resultados) >= 40:
+                    break
                     
-                    # 1. Extraemos de forma ESTRICTA solo los campos que identifican a un servicio real
-                    servicio = str(dic.get('SERVICIO', '') or '').lower()
-                    puerto = str(dic.get('PUERTO', '') or '').lower()
-                    equipo = str(dic.get('EQUIPO_HOTEL_ID', '') or '').lower()
-                    ip_gestion = str(dic.get('IP_GESTION', '') or '').lower()
-                    ip_cliente = str(dic.get('IP_CLIENTE', '') or '').lower()
-                    contacto = str(dic.get('CONTACTO_NOMBRE', '') or '').lower()
-                    
-                    # 2. Validamos que la palabra buscada esté ÚNICAMENTE en esos campos
-                    if (termino in servicio) or (termino in puerto) or (termino in equipo) or (termino in ip_gestion) or (termino in ip_cliente) or (termino in contacto):
-                        resultados.append(dic)
-                        
-                        # Límite para no saturar la memoria del teléfono
-                        if len(resultados) >= 40:
-                            break
-                            
-                return {"status": "success", "data": jsonable_encoder(resultados)}
-                
-            except Exception as e:
-                print(f"Error en buscador estricto: {e}")
-                return JSONResponse(status_code=500, content={"status": "error", "data": [], "detail": str(e)})
-
+        return {"status": "success", "data": jsonable_encoder(resultados)}
+        
+    except Exception as e:
+        print(f"Error en buscador estricto: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "data": [], "detail": str(e)})
         # ================= INTERFAZ DE PUERTOS =================
         @app.get("/api/hubs")
         def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
