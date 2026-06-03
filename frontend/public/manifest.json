@@ -1,0 +1,15 @@
+{
+  "name": "MT Manager",
+  "short_name": "Cuadrilla",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#070b19",
+  "theme_color": "#0b132b",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3254/3254068.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

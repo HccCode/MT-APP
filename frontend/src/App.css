@@ -182,3 +182,17 @@
     border-right-color: var(--border);
   }
 }
+body {
+  overscroll-behavior-y: none;
+  /* Evita que el técnico seleccione el texto de la app por accidente al tocar la pantalla */
+  user-select: none;
+  -webkit-user-select: none;
+  /* Quita el molesto parpadeo gris/azul al tocar botones en Android e iOS */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Excepción: Los campos de texto SÍ deben permitir selección para poder borrar o pegar IPs */
+input, textarea, select {
+  user-select: text;
+  -webkit-user-select: text;
+}
