@@ -589,27 +589,20 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
 # ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
 @app.get("/api/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Importamos la herramienta mágica de FastAPI para serializar
+    from fastapi.encoders import jsonable_encoder
+    
     termino = f"%{q.strip()}%"
     
-    # Buscar en la base de datos
     puertos = db.query(PortModel).filter(
         (PortModel.PUERTO.ilike(termino)) |
         (PortModel.SERVICIO.ilike(termino)) |
         (PortModel.IP_GESTION.ilike(termino)) |
-        (PortModel.EQUIPO_HOTEL_ID.ilike(termino)) |
-        (PortModel.BDI.ilike(termino)) |
-        (PortModel.CONTACTO_NOMBRE.ilike(termino))
+        (PortModel.EQUIPO_HOTEL_ID.ilike(termino))
     ).limit(40).all()
     
-    # Traducir los objetos SQLAlchemy a diccionarios JSON puros (Evita el Error 500)
-    resultados_limpios = []
-    for p in puertos:
-        diccionario = dict(p.__dict__)
-        diccionario.pop('_sa_instance_state', None) # Borramos metadatos internos de la BD
-        resultados_limpios.append(diccionario)
-        
-    return {"status": "success", "data": resultados_limpios}
-
+    # jsonable_encoder convierte todo (incluso las fechas) a JSON perfecto sin errores 500
+    return {"status": "success", "data": jsonable_encoder(puertos)}
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
