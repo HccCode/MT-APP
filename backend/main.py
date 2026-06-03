@@ -589,20 +589,36 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
 # ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
 @app.get("/api/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    # Importamos la herramienta mágica de FastAPI para serializar
+    from fastapi.responses import JSONResponse
     from fastapi.encoders import jsonable_encoder
+    from sqlalchemy import cast, String, or_
     
-    termino = f"%{q.strip()}%"
-    
-    puertos = db.query(PortModel).filter(
-        (PortModel.PUERTO.ilike(termino)) |
-        (PortModel.SERVICIO.ilike(termino)) |
-        (PortModel.IP_GESTION.ilike(termino)) |
-        (PortModel.EQUIPO_HOTEL_ID.ilike(termino))
-    ).limit(40).all()
-    
-    # jsonable_encoder convierte todo (incluso las fechas) a JSON perfecto sin errores 500
-    return {"status": "success", "data": jsonable_encoder(puertos)}
+    try:
+        termino = f"%{q.strip()}%"
+        
+        # 1. Buscamos dinámicamente solo en las columnas que SÍ existen en tu modelo.
+        # Esto evita el Error 500 si alguna columna cambió de nombre o no existe.
+        columnas_a_buscar = ["PUERTO", "SERVICIO", "IP_GESTION", "EQUIPO_HOTEL_ID", "BDI", "CONTACTO_NOMBRE"]
+        filtros = []
+        
+        for col in columnas_a_buscar:
+            if hasattr(PortModel, col):
+                # Usamos cast(String) para evitar errores con columnas numéricas
+                filtros.append(cast(getattr(PortModel, col), String).ilike(termino))
+                
+        # 2. Ejecutamos la búsqueda con los filtros validados
+        if filtros:
+            puertos = db.query(PortModel).filter(or_(*filtros)).limit(40).all()
+        else:
+            puertos = db.query(PortModel).limit(40).all()
+            
+        # 3. jsonable_encoder traduce perfectamente las fechas y objetos a JSON web
+        return {"status": "success", "data": jsonable_encoder(puertos)}
+        
+    except Exception as e:
+        # ESCUDO ANTI-CHOQUES: Evade el error de CORS y nos manda el texto del error
+        return JSONResponse(status_code=200, content={"status": "error", "data": [], "detail": str(e)})
+
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):

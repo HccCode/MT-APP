@@ -22,7 +22,13 @@ export default function Cuadrilla({ token }) {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
-      if (json.status === 'success') setResultados(json.data);
+      
+      if (json.status === 'success') {
+        setResultados(json.data);
+      } else {
+        // AQUÍ ATRAPAMOS EL ERROR REAL DEL SERVIDOR
+        alert("Fallo interno del servidor: " + json.detail);
+      }
     } catch (err) {
       alert("Error de conexión con el servidor.");
     } finally {
