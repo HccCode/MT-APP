@@ -76,7 +76,7 @@ export default function Cuadrilla({ token }) {
       {isPhone && value && value !== '-' ? (
         <a 
           href={`tel:${value.replace(/[^0-9+]/g, '')}`} 
-          className="text-[12px] text-emerald-400 font-mono font-black text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform bg-emerald-900/20 px-2 py-1 rounded"
+          className="text-[12px] text-emerald-400 font-mono font-black text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform bg-emerald-450/20 px-2 py-1 rounded"
           onClick={(e) => e.stopPropagation()}
         >
           📞 {value}
@@ -183,7 +183,7 @@ export default function Cuadrilla({ token }) {
                 <h3 className="text-pink-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Users className="w-4 h-4"/> Contacto y Sitio</h3>
                 <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
                 <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
-                
+
                 {/* Botón de Google Maps */}
                 {puertoActivo.COORDENADAS ? (
                   <div className="mt-4 pt-3 border-t border-slate-800">
