@@ -70,19 +70,27 @@ export default function Cuadrilla({ token }) {
   };
 
   // Componente visual para mostrar filas de datos (Solo lectura)
-  const InfoRow = ({ label, value }) => (
+  const InfoRow = ({ label, value, isPhone }) => (
     <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
       <span className="text-[11px] text-slate-400 font-medium">{label}</span>
-      <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">{value || '-'}</span>
+      {isPhone && value && value !== '-' ? (
+        <a 
+          href={`tel:${value.replace(/[^0-9+]/g, '')}`} 
+          className="text-[12px] text-emerald-400 font-mono font-black text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform bg-emerald-900/20 px-2 py-1 rounded"
+          onClick={(e) => e.stopPropagation()}
+        >
+          📞 {value}
+        </a>
+      ) : (
+        <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">{value || '-'}</span>
+      )}
     </div>
   );
 
   return (
     <div className="flex-1 bg-[#050814] h-full overflow-hidden flex flex-col relative">
       
-      {/* ========================================================================= */}
-      {/* VISTA 1: BUSCADOR (COMPACTO Y LIMPIO)                                     */}
-      {/* ========================================================================= */}
+      {/* VISTA 1: BUSCADOR                                      */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         <div className="mb-6 mt-4 text-center shrink-0">
           <h1 className="text-2xl font-black text-indigo-400">Trabajo en Campo</h1>
@@ -126,9 +134,7 @@ export default function Cuadrilla({ token }) {
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* VISTA 2: FICHA TÉCNICA DE INGENIERÍA (AL SELECCIONAR CLIENTE)             */}
-      {/* ========================================================================= */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
         {puertoActivo && (
           <>
@@ -176,7 +182,7 @@ export default function Cuadrilla({ token }) {
               <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
                 <h3 className="text-pink-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Users className="w-4 h-4"/> Contacto y Sitio</h3>
                 <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
-                <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} />
+                <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
                 
                 {/* Botón de Google Maps */}
                 {puertoActivo.COORDENADAS ? (
@@ -196,9 +202,7 @@ export default function Cuadrilla({ token }) {
                 )}
               </div>
 
-              {/* ============================================================== */}
               {/* FORMULARIO EDITABLE (LECTURAS EN CAMPO)                        */}
-              {/* ============================================================== */}
               <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-4 shadow-md">
                 <h3 className="text-amber-500 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2"><Zap className="w-4 h-4"/> Reportar Lecturas en Campo</h3>
                 
