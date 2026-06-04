@@ -38,14 +38,14 @@ export default function Cuadrilla({ token }) {
     setPuertoActivo(puerto);
   };
 
-  // Componente visual para mostrar filas de datos (Solo lectura)
+  // Componente visual para mostrar filas de datos (Solo lectura y sin fondo verde en teléfono)
   const InfoRow = ({ label, value, isPhone }) => (
     <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
       <span className="text-[11px] text-slate-400 font-medium">{label}</span>
       {isPhone && value && value !== '-' ? (
         <a 
           href={`tel:${value.replace(/[^0-9+]/g, '')}`} 
-          className="text-[12px] text-emerald-400 font-mono font-black text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform bg-emerald-900/20 px-2 py-1 rounded"
+          className="text-[11px] text-emerald-400 font-mono font-bold text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform"
           onClick={(e) => e.stopPropagation()}
         >
           📞 {value}
@@ -168,23 +168,7 @@ export default function Cuadrilla({ token }) {
               <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
                 <h3 className="text-pink-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Users className="w-4 h-4"/> Contacto y Sitio</h3>
                 <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
-                
-                const InfoRow = ({ label, value, isPhone }) => (
-                    <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
-                      <span className="text-[11px] text-slate-400 font-medium">{label}</span>
-                      {isPhone && value && value !== '-' ? (
-                        <a 
-                          href={`tel:${value.replace(/[^0-9+]/g, '')}`} 
-                          className="text-[11px] text-emerald-400 font-mono font-bold text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          📞 {value}
-                        </a>
-                      ) : (
-                        <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">{value || '-'}</span>
-                      )}
-                    </div>
-                  );
+                <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
                 
                 {/* Botón de Google Maps */}
                 {puertoActivo.COORDENADAS ? (
