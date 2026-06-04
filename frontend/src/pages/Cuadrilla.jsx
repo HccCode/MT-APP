@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap } from 'lucide-react';
+import { Search, X, Activity, Server, Navigation, Users, Zap } from 'lucide-react';
 
 export default function Cuadrilla({ token }) {
   const [busqueda, setBusqueda] = useState('');
@@ -33,12 +33,10 @@ export default function Cuadrilla({ token }) {
     }
   };
 
-  // Al seleccionar el cliente, SOLO cargamos sus datos para visualización
   const abrirDetalle = (puerto) => {
     setPuertoActivo(puerto);
   };
 
-  // Componente visual para mostrar filas de datos (Solo lectura y sin fondo verde en teléfono)
   const InfoRow = ({ label, value, isPhone }) => (
     <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
       <span className="text-[11px] text-slate-400 font-medium">{label}</span>
@@ -59,16 +57,17 @@ export default function Cuadrilla({ token }) {
   return (
     <div className="flex-1 bg-[#050814] h-full overflow-hidden flex flex-col relative">
       
+      {/* MAGIA OSCURA: Oculta la barra de navegación del Layout principal para pantalla completa */}
+      <style>{`
+        header, nav { display: none !important; }
+        main, #root > div { padding-top: 0 !important; margin-top: 0 !important; }
+      `}</style>
+
       {/* ========================================================================= */}
       {/* VISTA 1: BUSCADOR (COMPACTO Y LIMPIO)                                     */}
       {/* ========================================================================= */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         <div className="mb-6 mt-4 text-center shrink-0">
-          <div className="flex justify-center mb-2">
-            <span className="bg-blue-900/40 text-blue-400 text-[10px] font-black px-3 py-1 rounded-full border border-blue-800 flex items-center gap-1.5">
-              <ShieldAlert className="w-3 h-3" /> MODO SOLO LECTURA
-            </span>
-          </div>
           <h1 className="text-2xl font-black text-indigo-400">Trabajo en Campo</h1>
           <p className="text-slate-500 text-xs mt-1">Busca el cliente o puerto a intervenir</p>
         </div>
@@ -129,7 +128,7 @@ export default function Cuadrilla({ token }) {
               </div>
             </div>
 
-            {/* Contenido de la Ficha (Sin botón flotante) */}
+            {/* Contenido de la Ficha */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 pb-10">
               
               {/* Bloque: Identificación */}
@@ -138,7 +137,7 @@ export default function Cuadrilla({ token }) {
                 <p className="text-indigo-400 font-mono text-xs mb-3 font-bold">Chasis: {puertoActivo.EQUIPO_HOTEL_ID || '-'} <span className="text-slate-500 mx-1">|</span> Puerto: {puertoActivo.PUERTO || '-'}</p>
               </div>
 
-              {/* Bloque: Estado Operativo y Potencias (Ahora es info visual) */}
+              {/* Bloque: Estado Operativo y Potencias */}
               <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-4 shadow-sm">
                 <h3 className="text-amber-500 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-amber-900/50 pb-2"><Zap className="w-4 h-4"/> Estado Operativo y Potencias</h3>
                 <InfoRow label="Estatus Físico" value={puertoActivo.ESTATUS} />
