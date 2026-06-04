@@ -109,7 +109,7 @@ export default function Cuadrilla({ token, handleLogout }) {
       `}</style>
 
       {/* BARRA SUPERIOR NATIVA */}
-      <div className="bg-[#0b132b] border-b border-slate-800 p-4 flex justify-between items-center shrink-0 shadow-md relative z-20">
+      <div className="bg-[#0b132b] border-0 border-slate-800 p-4 flex justify-between items-center shrink-0 shadow-md relative z-20">
         <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2">
           MT<span className="text-indigo-500">_MANAGER</span>
         </h1>
