@@ -1,28 +1,43 @@
-import React, { useState } from 'react';
-import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 
 export default function Cuadrilla({ token, handleLogout }) {
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
   const [cargando, setCargando] = useState(false);
-  
   const [puertoActivo, setPuertoActivo] = useState(null);
+
+  // ESTADO: Memoria de Búsquedas Recientes (Carga desde el celular al abrir la app)
+  const [busquedasRecientes, setBusquedasRecientes] = useState(() => {
+    const guardadas = localStorage.getItem('mt_busquedas_recientes');
+    return guardadas ? JSON.parse(guardadas) : [];
+  });
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  const buscarPuerto = async (e) => {
-    e.preventDefault();
-    if (busqueda.length < 3) return alert("Escribe al menos 3 letras para buscar");
+  // Función maestra de búsqueda
+  const ejecutarBusqueda = async (termino) => {
+    if (!termino || termino.length < 3) return alert("Escribe al menos 3 letras para buscar");
     
     setCargando(true);
+    setPuertoActivo(null); // Si había un puerto abierto, lo cerramos
+    
     try {
-      const res = await fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(busqueda)}`, {
+      const res = await fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
       
       if (json.status === 'success') {
         setResultados(json.data);
+        
+        // GUARDADO EN MEMORIA: Solo guardamos si la búsqueda fue exitosa
+        const terminoLimpio = termino.trim();
+        // Filtramos para evitar duplicados y mantenemos solo las últimas 5
+        const nuevaLista = [terminoLimpio, ...busquedasRecientes.filter(b => b.toLowerCase() !== terminoLimpio.toLowerCase())].slice(0, 5);
+        setBusquedasRecientes(nuevaLista);
+        localStorage.setItem('mt_busquedas_recientes', JSON.stringify(nuevaLista));
+        
       } else {
         alert("Fallo interno del servidor: " + json.detail);
       }
@@ -46,7 +61,6 @@ export default function Cuadrilla({ token, handleLogout }) {
     }
   };
 
-  // Componente visual para mostrar filas de datos
   const InfoRow = ({ label, value, isPhone }) => (
     <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
       <span className="text-[11px] text-slate-400 font-medium">{label}</span>
@@ -64,7 +78,6 @@ export default function Cuadrilla({ token, handleLogout }) {
     </div>
   );
 
-  // NUEVO COMPONENTE: Sección Acordeón Colapsable
   const SeccionDesplegable = ({ titulo, icono, children, colorTexto, bgClass="bg-[#0b132b]", borderClass="border-slate-800", abiertoPorDefecto = false }) => {
     const [abierto, setAbierto] = useState(abiertoPorDefecto);
     return (
@@ -100,7 +113,6 @@ export default function Cuadrilla({ token, handleLogout }) {
         <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2">
           MT<span className="text-indigo-500">_MANAGER</span>
         </h1>
-        
         <button 
           onClick={cerrarSesion} 
           className="flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all shadow-sm"
@@ -121,19 +133,49 @@ export default function Cuadrilla({ token, handleLogout }) {
           <p className="text-slate-500 text-xs mt-1">Busca el cliente o puerto a intervenir</p>
         </div>
 
-        <form onSubmit={buscarPuerto} className="relative mb-6 shrink-0">
+        <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda); }} className="relative mb-6 shrink-0">
           <input 
             type="text" 
             placeholder="Ej. Banamex, Nodo Centro..." 
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400"
+            className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
           />
           <Search className="absolute left-4 top-4.5 w-6 h-6 text-indigo-400" />
+          
+          {busqueda.length > 0 && (
+            <button type="button" onClick={() => { setBusqueda(''); setResultados([]); }} className="absolute right-4 top-4.5 text-slate-500 hover:text-slate-300 transition-colors">
+              <X className="w-6 h-6" />
+            </button>
+          )}
           <button type="submit" className="hidden">Buscar</button>
         </form>
 
-        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Buscando...</p>}
+        {/* HISTORIAL: ÚLTIMAS BÚSQUEDAS (Se oculta si hay resultados o se está escribiendo) */}
+        {!cargando && resultados.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
+          <div className="mb-6 animate-in fade-in shrink-0">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Búsquedas Recientes</p>
+            </div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {busquedasRecientes.map((termino, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setBusqueda(termino);
+                    ejecutarBusqueda(termino);
+                  }}
+                  className="bg-[#1c2541] hover:bg-slate-700 text-indigo-300 font-bold text-[11px] px-4 py-2 rounded-full border border-slate-700 transition-colors active:scale-95 shadow-sm"
+                >
+                  {termino}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Consultando MT_DB...</p>}
 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10">
           {resultados.length === 0 && !cargando && busqueda.length > 2 && (
@@ -176,13 +218,11 @@ export default function Cuadrilla({ token, handleLogout }) {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3 pb-10">
               
-              {/* Bloque Identificación (Siempre visible, no es acordeón) */}
               <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
                 <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
                 <p className="text-indigo-400 font-mono text-xs font-bold">Chasis: {puertoActivo.EQUIPO_HOTEL_ID || '-'} <span className="text-slate-500 mx-1">|</span> Puerto: {puertoActivo.PUERTO || '-'}</p>
               </div>
 
-              {/* SECCIÓN: ESTADO OPERATIVO (Abierto por defecto) */}
               <SeccionDesplegable 
                 titulo="Estado Operativo y Potencias" 
                 icono={<Zap className="w-4 h-4"/>} 
@@ -196,7 +236,6 @@ export default function Cuadrilla({ token, handleLogout }) {
                 <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
               </SeccionDesplegable>
 
-              {/* SECCIÓN: LÓGICA Y ENRUTAMIENTO */}
               <SeccionDesplegable 
                 titulo="Lógica y Enrutamiento" 
                 icono={<Server className="w-4 h-4"/>} 
@@ -207,7 +246,6 @@ export default function Cuadrilla({ token, handleLogout }) {
                 <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
               </SeccionDesplegable>
 
-              {/* SECCIÓN: PLANTA EXTERNA */}
               <SeccionDesplegable 
                 titulo="Planta Externa" 
                 icono={<Activity className="w-4 h-4"/>} 
@@ -220,7 +258,6 @@ export default function Cuadrilla({ token, handleLogout }) {
                 <InfoRow label="Hilos" value={puertoActivo.HILOS} />
               </SeccionDesplegable>
 
-              {/* SECCIÓN: UBICACIÓN Y CONTACTO */}
               <SeccionDesplegable 
                 titulo="Contacto y Sitio" 
                 icono={<Users className="w-4 h-4"/>} 
