@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Save, X, Activity, MapPin, Zap, Server, Navigation, Users } from 'lucide-react';
+import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap } from 'lucide-react';
 
 export default function Cuadrilla({ token }) {
   const [busqueda, setBusqueda] = useState('');
@@ -7,8 +7,6 @@ export default function Cuadrilla({ token }) {
   const [cargando, setCargando] = useState(false);
   
   const [puertoActivo, setPuertoActivo] = useState(null);
-  const [form, setForm] = useState({});
-  const [guardando, setGuardando] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
@@ -26,7 +24,6 @@ export default function Cuadrilla({ token }) {
       if (json.status === 'success') {
         setResultados(json.data);
       } else {
-        // AQUÍ ATRAPAMOS EL ERROR REAL DEL SERVIDOR
         alert("Fallo interno del servidor: " + json.detail);
       }
     } catch (err) {
@@ -36,37 +33,9 @@ export default function Cuadrilla({ token }) {
     }
   };
 
-  // Al seleccionar el cliente, cargamos sus datos y preparamos las lecturas a editar
-  const abrirEdicion = (puerto) => {
+  // Al seleccionar el cliente, SOLO cargamos sus datos para visualización
+  const abrirDetalle = (puerto) => {
     setPuertoActivo(puerto);
-    setForm({
-      ESTATUS: puerto.ESTATUS || 'DISPONIBLE GI',
-      POTENCIA_HUB: puerto.POTENCIA_HUB || '',
-      POTENCIA_CPE: puerto.POTENCIA_CPE || ''
-    });
-  };
-
-  const guardarCambios = async () => {
-    setGuardando(true);
-    try {
-      const res = await fetch(`${API_URL}/api/ports/${puertoActivo.ID}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(form)
-      });
-      if (res.ok) {
-        alert("✅ Lecturas guardadas correctamente en MT_DB");
-        // Actualizamos la lista visual
-        setResultados(resultados.map(p => p.ID === puertoActivo.ID ? { ...p, ...form } : p));
-        setPuertoActivo(null);
-      } else {
-        alert("Fallo al guardar la información.");
-      }
-    } catch (e) {
-      alert("Error de red.");
-    } finally {
-      setGuardando(false);
-    }
   };
 
   // Componente visual para mostrar filas de datos (Solo lectura)
@@ -76,7 +45,7 @@ export default function Cuadrilla({ token }) {
       {isPhone && value && value !== '-' ? (
         <a 
           href={`tel:${value.replace(/[^0-9+]/g, '')}`} 
-          className="text-[12px] text-emerald-400 font-mono font-black text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform bg-emerald-450/20 px-2 py-1 rounded"
+          className="text-[12px] text-emerald-400 font-mono font-black text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform bg-emerald-900/20 px-2 py-1 rounded"
           onClick={(e) => e.stopPropagation()}
         >
           📞 {value}
@@ -90,9 +59,16 @@ export default function Cuadrilla({ token }) {
   return (
     <div className="flex-1 bg-[#050814] h-full overflow-hidden flex flex-col relative">
       
-      {/* VISTA 1: BUSCADOR                                      */}
+      {/* ========================================================================= */}
+      {/* VISTA 1: BUSCADOR (COMPACTO Y LIMPIO)                                     */}
+      {/* ========================================================================= */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         <div className="mb-6 mt-4 text-center shrink-0">
+          <div className="flex justify-center mb-2">
+            <span className="bg-blue-900/40 text-blue-400 text-[10px] font-black px-3 py-1 rounded-full border border-blue-800 flex items-center gap-1.5">
+              <ShieldAlert className="w-3 h-3" /> MODO SOLO LECTURA
+            </span>
+          </div>
           <h1 className="text-2xl font-black text-indigo-400">Trabajo en Campo</h1>
           <p className="text-slate-500 text-xs mt-1">Busca el cliente o puerto a intervenir</p>
         </div>
@@ -117,7 +93,7 @@ export default function Cuadrilla({ token }) {
           )}
           
           {resultados.map((p) => (
-            <div key={p.ID} className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform" onClick={() => abrirEdicion(p)}>
+            <div key={p.ID} className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform" onClick={() => abrirDetalle(p)}>
               <div className="flex justify-between items-start mb-1.5">
                 <h3 className="font-black text-slate-100 text-lg">{p.PUERTO || '-'}</h3>
                 <span className={`px-2 py-1 rounded-md text-[9px] font-black border uppercase ${String(p.ESTATUS).includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : String(p.ESTATUS).includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : String(p.ESTATUS).includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
@@ -134,7 +110,9 @@ export default function Cuadrilla({ token }) {
         </div>
       </div>
 
-      {/* VISTA 2: FICHA TÉCNICA DE INGENIERÍA (AL SELECCIONAR CLIENTE)             */}
+      {/* ========================================================================= */}
+      {/* VISTA 2: FICHA TÉCNICA DE INGENIERÍA (SOLO LECTURA)                       */}
+      {/* ========================================================================= */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
         {puertoActivo && (
           <>
@@ -151,13 +129,21 @@ export default function Cuadrilla({ token }) {
               </div>
             </div>
 
-            {/* Contenido de la Ficha */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 pb-24">
+            {/* Contenido de la Ficha (Sin botón flotante) */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 pb-10">
               
               {/* Bloque: Identificación */}
               <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
                 <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
                 <p className="text-indigo-400 font-mono text-xs mb-3 font-bold">Chasis: {puertoActivo.EQUIPO_HOTEL_ID || '-'} <span className="text-slate-500 mx-1">|</span> Puerto: {puertoActivo.PUERTO || '-'}</p>
+              </div>
+
+              {/* Bloque: Estado Operativo y Potencias (Ahora es info visual) */}
+              <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-4 shadow-sm">
+                <h3 className="text-amber-500 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-amber-900/50 pb-2"><Zap className="w-4 h-4"/> Estado Operativo y Potencias</h3>
+                <InfoRow label="Estatus Físico" value={puertoActivo.ESTATUS} />
+                <InfoRow label="Potencia HUB" value={puertoActivo.POTENCIA_HUB ? `${puertoActivo.POTENCIA_HUB} dBm` : '-'} />
+                <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
               </div>
 
               {/* Bloque: Lógica (Solo Lectura) */}
@@ -183,7 +169,7 @@ export default function Cuadrilla({ token }) {
                 <h3 className="text-pink-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Users className="w-4 h-4"/> Contacto y Sitio</h3>
                 <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
                 <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
-
+                
                 {/* Botón de Google Maps */}
                 {puertoActivo.COORDENADAS ? (
                   <div className="mt-4 pt-3 border-t border-slate-800">
@@ -201,44 +187,11 @@ export default function Cuadrilla({ token }) {
                   <InfoRow label="Coordenadas" value="No registradas" />
                 )}
               </div>
-
-              {/* FORMULARIO EDITABLE (LECTURAS EN CAMPO)                        */}
-              <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-4 shadow-md">
-                <h3 className="text-amber-500 font-black text-[11px] uppercase tracking-widest mb-4 flex items-center gap-2"><Zap className="w-4 h-4"/> Reportar Lecturas en Campo</h3>
-                
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">Estatus Físico</label>
-                    <select value={form.ESTATUS} onChange={e=>setForm({...form, ESTATUS: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white text-sm p-3 rounded-xl outline-none focus:border-amber-500 cursor-pointer font-bold shadow-inner">
-                      <option value="DISPONIBLE GI">DISPONIBLE GI</option>
-                      <option value="DISPONIBLE TE">DISPONIBLE TE</option>
-                      <option value="DISPONIBLE 25">DISPONIBLE 25</option>
-                      <option value="DISPONIBLE 100">DISPONIBLE 100</option>
-                      <option value="ACTIVO">ACTIVO</option>
-                      <option value="SUSPENDIDO">SUSPENDIDO</option>
-                      <option value="TRONCAL TE">TRONCAL TE</option>
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 text-center">Potencia HUB</label>
-                      <input type="text" value={form.POTENCIA_HUB} onChange={e=>setForm({...form, POTENCIA_HUB: e.target.value})} placeholder="-18.5" className="w-full bg-[#0b132b] border border-slate-700 text-amber-400 text-center text-sm p-3 rounded-xl outline-none focus:border-amber-500 font-mono font-bold shadow-inner" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5 text-center">Potencia CPE</label>
-                      <input type="text" value={form.POTENCIA_CPE} onChange={e=>setForm({...form, POTENCIA_CPE: e.target.value})} placeholder="-22.1" className="w-full bg-[#0b132b] border border-slate-700 text-amber-400 text-center text-sm p-3 rounded-xl outline-none focus:border-amber-500 font-mono font-bold shadow-inner" />
-                    </div>
-                  </div>
-                </div>
+              
+              <div className="text-center pt-2">
+                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Edición de datos restringida a la plataforma de escritorio.</p>
               </div>
-            </div>
 
-            {/* BOTÓN FLOTANTE PARA GUARDAR */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#050814] via-[#050814] to-transparent shrink-0">
-              <button onClick={guardarCambios} disabled={guardando} className="w-full max-w-md mx-auto bg-emerald-600 active:scale-95 text-white font-black text-base py-4 rounded-xl shadow-[0_0_20px_rgba(16,185,129,0.3)] flex justify-center items-center gap-2 transition-transform">
-                <Save className="w-5 h-5" /> {guardando ? 'Guardando...' : 'GUARDAR LECTURAS'}
-              </button>
             </div>
           </>
         )}
