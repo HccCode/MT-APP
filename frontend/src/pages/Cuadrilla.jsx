@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut } from 'lucide-react';
+import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function Cuadrilla({ token, handleLogout }) {
   const [busqueda, setBusqueda] = useState('');
@@ -37,7 +37,6 @@ export default function Cuadrilla({ token, handleLogout }) {
     setPuertoActivo(puerto);
   };
 
-  // Función segura para cerrar sesión
   const cerrarSesion = () => {
     if (handleLogout) {
       handleLogout();
@@ -47,6 +46,7 @@ export default function Cuadrilla({ token, handleLogout }) {
     }
   };
 
+  // Componente visual para mostrar filas de datos
   const InfoRow = ({ label, value, isPhone }) => (
     <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
       <span className="text-[11px] text-slate-400 font-medium">{label}</span>
@@ -64,21 +64,41 @@ export default function Cuadrilla({ token, handleLogout }) {
     </div>
   );
 
+  // NUEVO COMPONENTE: Sección Acordeón Colapsable
+  const SeccionDesplegable = ({ titulo, icono, children, colorTexto, bgClass="bg-[#0b132b]", borderClass="border-slate-800", abiertoPorDefecto = false }) => {
+    const [abierto, setAbierto] = useState(abiertoPorDefecto);
+    return (
+      <div className={`${bgClass} border ${borderClass} rounded-xl shadow-sm overflow-hidden transition-all duration-300`}>
+        <button
+          onClick={() => setAbierto(!abierto)}
+          className={`w-full p-4 flex justify-between items-center transition-colors outline-none active:bg-slate-800/50 ${abierto ? `border-b ${borderClass}` : ''}`}
+        >
+          <h3 className={`${colorTexto} font-black text-[11px] uppercase tracking-widest flex items-center gap-2`}>
+            {icono} {titulo}
+          </h3>
+          {abierto ? <ChevronUp className={`w-4 h-4 ${colorTexto}`} /> : <ChevronDown className={`w-4 h-4 text-slate-500`} />}
+        </button>
+        {abierto && (
+          <div className="p-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 bg-[#050814] h-full overflow-hidden flex flex-col relative">
       
-      {/* Oculta la barra de navegación gigante de la PC */}
       <style>{`
         header, nav { display: none !important; }
         main, #root > div { padding-top: 0 !important; margin-top: 0 !important; }
       `}</style>
 
-      {/* ========================================================================= */}
-      {/* BARRA SUPERIOR NATIVA (Solo Logo y Cerrar Sesión)                         */}
-      {/* ========================================================================= */}
+      {/* BARRA SUPERIOR NATIVA */}
       <div className="bg-[#0b132b] border-b border-slate-800 p-4 flex justify-between items-center shrink-0 shadow-md relative z-20">
         <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2">
-          Memoria<span className="text-indigo-500">Tecnica</span>
+          MT<span className="text-indigo-500">_MANAGER</span>
         </h1>
         
         <button 
@@ -89,9 +109,7 @@ export default function Cuadrilla({ token, handleLogout }) {
         </button>
       </div>
 
-      {/* ========================================================================= */}
-      {/* VISTA 1: BUSCADOR (COMPACTO Y LIMPIO)                                     */}
-      {/* ========================================================================= */}
+      {/* VISTA 1: BUSCADOR */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         <div className="mb-6 mt-2 text-center shrink-0">
           <div className="flex justify-center mb-2">
@@ -140,9 +158,7 @@ export default function Cuadrilla({ token, handleLogout }) {
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* VISTA 2: FICHA TÉCNICA DE INGENIERÍA (SOLO LECTURA)                       */}
-      {/* ========================================================================= */}
+      {/* VISTA 2: FICHA TÉCNICA EN ACORDEÓN */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
         {puertoActivo && (
           <>
@@ -158,56 +174,77 @@ export default function Cuadrilla({ token, handleLogout }) {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4 pb-10">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3 pb-10">
+              
+              {/* Bloque Identificación (Siempre visible, no es acordeón) */}
               <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
                 <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
-                <p className="text-indigo-400 font-mono text-xs mb-3 font-bold">Chasis: {puertoActivo.EQUIPO_HOTEL_ID || '-'} <span className="text-slate-500 mx-1">|</span> Puerto: {puertoActivo.PUERTO || '-'}</p>
+                <p className="text-indigo-400 font-mono text-xs font-bold">Chasis: {puertoActivo.EQUIPO_HOTEL_ID || '-'} <span className="text-slate-500 mx-1">|</span> Puerto: {puertoActivo.PUERTO || '-'}</p>
               </div>
 
-              <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-4 shadow-sm">
-                <h3 className="text-amber-500 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-amber-900/50 pb-2"><Zap className="w-4 h-4"/> Estado Operativo y Potencias</h3>
+              {/* SECCIÓN: ESTADO OPERATIVO (Abierto por defecto) */}
+              <SeccionDesplegable 
+                titulo="Estado Operativo y Potencias" 
+                icono={<Zap className="w-4 h-4"/>} 
+                colorTexto="text-amber-500" 
+                bgClass="bg-amber-950/20" 
+                borderClass="border-amber-900/30"
+                abiertoPorDefecto={true}
+              >
                 <InfoRow label="Estatus Físico" value={puertoActivo.ESTATUS} />
                 <InfoRow label="Potencia HUB" value={puertoActivo.POTENCIA_HUB ? `${puertoActivo.POTENCIA_HUB} dBm` : '-'} />
                 <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
-              </div>
+              </SeccionDesplegable>
 
-              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
-                <h3 className="text-blue-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Server className="w-4 h-4"/> Lógica y Enrutamiento</h3>
+              {/* SECCIÓN: LÓGICA Y ENRUTAMIENTO */}
+              <SeccionDesplegable 
+                titulo="Lógica y Enrutamiento" 
+                icono={<Server className="w-4 h-4"/>} 
+                colorTexto="text-blue-400"
+              >
                 <InfoRow label="IP Gestión" value={puertoActivo.IP_GESTION} />
                 <InfoRow label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
                 <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
-              </div>
+              </SeccionDesplegable>
 
-              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
-                <h3 className="text-emerald-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Activity className="w-4 h-4"/> Planta Externa</h3>
+              {/* SECCIÓN: PLANTA EXTERNA */}
+              <SeccionDesplegable 
+                titulo="Planta Externa" 
+                icono={<Activity className="w-4 h-4"/>} 
+                colorTexto="text-emerald-400"
+              >
                 <InfoRow label="Ruta OSP" value={puertoActivo.RUTA} />
                 <InfoRow label="Distancia" value={puertoActivo.DISTANCIA_CLIENTE} />
                 <InfoRow label="Lambdas" value={puertoActivo.LAMBDAS} />
                 <InfoRow label="Buffer" value={puertoActivo.BUFFER} />
                 <InfoRow label="Hilos" value={puertoActivo.HILOS} />
-              </div>
+              </SeccionDesplegable>
 
-              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
-                <h3 className="text-pink-400 font-black text-[11px] uppercase tracking-widest mb-2 flex items-center gap-2 border-b border-slate-800 pb-2"><Users className="w-4 h-4"/> Contacto y Sitio</h3>
+              {/* SECCIÓN: UBICACIÓN Y CONTACTO */}
+              <SeccionDesplegable 
+                titulo="Contacto y Sitio" 
+                icono={<Users className="w-4 h-4"/>} 
+                colorTexto="text-pink-400"
+              >
                 <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
                 <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
                 
                 {puertoActivo.COORDENADAS ? (
-                  <div className="mt-4 pt-3 border-t border-slate-800">
+                  <div className="mt-3 pt-3 border-t border-slate-800/50">
                     <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
                     <a 
                       href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} 
                       target="_blank" 
                       rel="noreferrer" 
-                      className="w-full bg-[#1c2541] hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-lg"
+                      className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-sm"
                     >
-                      <Navigation className="w-5 h-5 text-emerald-400"/> Abrir en Google Maps
+                      <Navigation className="w-4 h-4 text-emerald-400"/> Abrir en Google Maps
                     </a>
                   </div>
                 ) : (
                   <InfoRow label="Coordenadas" value="No registradas" />
                 )}
-              </div>
+              </SeccionDesplegable>
               
               <div className="text-center pt-2">
                 <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Edición de datos restringida a la plataforma de escritorio.</p>
