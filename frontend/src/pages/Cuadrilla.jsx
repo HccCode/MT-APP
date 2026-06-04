@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp, Clock, Smartphone, Calculator } from 'lucide-react';
 
 export default function Cuadrilla({ token, handleLogout }) {
+  // ================= ESTADO DE SEGURIDAD =================
+  const [esMovil, setEsMovil] = useState(true);
+
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [puertoActivo, setPuertoActivo] = useState(null);
 
-  // ESTADO: Memoria de Búsquedas Recientes (Carga desde el celular al abrir la app)
   const [busquedasRecientes, setBusquedasRecientes] = useState(() => {
     const guardadas = localStorage.getItem('mt_busquedas_recientes');
     return guardadas ? JSON.parse(guardadas) : [];
@@ -15,12 +17,74 @@ export default function Cuadrilla({ token, handleLogout }) {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // Función maestra de búsqueda
+  // ================= EFECTO: FINGERPRINT DE DISPOSITIVO =================
+  useEffect(() => {
+    const verificarDispositivo = () => {
+      const anchoFisico = window.innerWidth < 1024;
+      const agenteCelular = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (!anchoFisico && !agenteCelular) {
+        setEsMovil(false);
+      } else {
+        setEsMovil(true);
+      }
+    };
+
+    verificarDispositivo();
+    window.addEventListener('resize', verificarDispositivo);
+    return () => window.removeEventListener('resize', verificarDispositivo);
+  }, []);
+
+  // ================= LÓGICA DE SUBREDES (CIDR) =================
+  const calcularSubred = (cidr) => {
+    if (!cidr || typeof cidr !== 'string' || !cidr.includes('/')) return null;
+    try {
+      const [ip, prefixStr] = cidr.split('/');
+      const prefix = parseInt(prefixStr, 10);
+      if (isNaN(prefix) || prefix < 0 || prefix > 32) return null;
+
+      const ipParts = ip.split('.').map(Number);
+      if (ipParts.length !== 4 || ipParts.some(isNaN)) return null;
+
+      // Operaciones seguras a 32-bits sin signo
+      const ipInt = ((ipParts[0] << 24) >>> 0) + ((ipParts[1] << 16) >>> 0) + ((ipParts[2] << 8) >>> 0) + ipParts[3];
+      const maskInt = (0xFFFFFFFF << (32 - prefix)) >>> 0;
+      const networkInt = (ipInt & maskInt) >>> 0;
+      const invertedMask = (~maskInt) >>> 0;
+      const broadcastInt = (networkInt | invertedMask) >>> 0;
+
+      const intToIp = (int) => [(int >>> 24) & 255, (int >>> 16) & 255, (int >>> 8) & 255, int & 255].join('.');
+
+      let firstUsable = networkInt;
+      let lastUsable = broadcastInt;
+      let hosts = 0;
+
+      if (prefix < 31) {
+        firstUsable = networkInt + 1;
+        lastUsable = broadcastInt - 1;
+        hosts = (lastUsable - firstUsable) + 1;
+      } else if (prefix === 31) {
+        hosts = 2; // Punto a punto
+      } else if (prefix === 32) {
+        hosts = 1; // Un solo host
+      }
+
+      return {
+        mask: intToIp(maskInt),
+        rango: `${intToIp(firstUsable)} - ${intToIp(lastUsable)}`,
+        hosts: hosts
+      };
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // ================= FUNCIONES DE LÓGICA =================
   const ejecutarBusqueda = async (termino) => {
     if (!termino || termino.length < 3) return alert("Escribe al menos 3 letras para buscar");
     
     setCargando(true);
-    setPuertoActivo(null); // Si había un puerto abierto, lo cerramos
+    setPuertoActivo(null);
     
     try {
       const res = await fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, {
@@ -30,14 +94,10 @@ export default function Cuadrilla({ token, handleLogout }) {
       
       if (json.status === 'success') {
         setResultados(json.data);
-        
-        // GUARDADO EN MEMORIA: Solo guardamos si la búsqueda fue exitosa
         const terminoLimpio = termino.trim();
-        // Filtramos para evitar duplicados y mantenemos solo las últimas 5
         const nuevaLista = [terminoLimpio, ...busquedasRecientes.filter(b => b.toLowerCase() !== terminoLimpio.toLowerCase())].slice(0, 5);
         setBusquedasRecientes(nuevaLista);
         localStorage.setItem('mt_busquedas_recientes', JSON.stringify(nuevaLista));
-        
       } else {
         alert("Fallo interno del servidor: " + json.detail);
       }
@@ -48,19 +108,17 @@ export default function Cuadrilla({ token, handleLogout }) {
     }
   };
 
-  const abrirDetalle = (puerto) => {
-    setPuertoActivo(puerto);
-  };
+  const abrirDetalle = (puerto) => setPuertoActivo(puerto);
 
   const cerrarSesion = () => {
-    if (handleLogout) {
-      handleLogout();
-    } else {
+    if (handleLogout) handleLogout();
+    else {
       localStorage.clear();
       window.location.href = '/';
     }
   };
 
+  // ================= COMPONENTES VISUALES =================
   const InfoRow = ({ label, value, isPhone }) => (
     <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
       <span className="text-[11px] text-slate-400 font-medium">{label}</span>
@@ -77,6 +135,47 @@ export default function Cuadrilla({ token, handleLogout }) {
       )}
     </div>
   );
+
+  // NUEVO COMPONENTE: Fila de IP Inteligente con Calculadora
+  const InfoRowIP = ({ label, value }) => {
+    const [abierto, setAbierto] = useState(false);
+    const detallesSubred = calcularSubred(value);
+
+    if (!value || value === '-') return <InfoRow label={label} value="-" />;
+    if (!detallesSubred) return <InfoRow label={label} value={value} />;
+
+    return (
+      <div className="py-2.5 border-b border-slate-800/50 last:border-0 flex flex-col">
+        <div 
+          className="flex justify-between items-center cursor-pointer active:bg-slate-800/50 rounded -mx-1 px-1 transition-colors"
+          onClick={() => setAbierto(!abierto)}
+        >
+          <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+            {label} <Calculator className="w-3 h-3 text-indigo-400" />
+          </span>
+          <span className="text-[11px] text-blue-400 font-mono font-black text-right border-b border-dashed border-blue-400/50 pb-0.5">
+            {value}
+          </span>
+        </div>
+        {abierto && (
+          <div className="mt-3 bg-[#1c2541]/40 rounded-lg p-3 border border-indigo-500/20 grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 shadow-inner">
+            <div>
+              <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Máscara</p>
+              <p className="text-[11px] text-slate-200 font-mono font-bold">{detallesSubred.mask}</p>
+            </div>
+            <div>
+              <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Hosts Útiles</p>
+              <p className="text-[11px] text-slate-200 font-mono font-bold">{detallesSubred.hosts} IPs</p>
+            </div>
+            <div className="col-span-2 pt-1 mt-1 border-t border-slate-800">
+              <p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Rango Asignable (Gateway Recomendado)</p>
+              <p className="text-[11px] text-emerald-400 font-mono font-black">{detallesSubred.rango}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const SeccionDesplegable = ({ titulo, icono, children, colorTexto, bgClass="bg-[#0b132b]", borderClass="border-slate-800", abiertoPorDefecto = false }) => {
     const [abierto, setAbierto] = useState(abiertoPorDefecto);
@@ -100,6 +199,29 @@ export default function Cuadrilla({ token, handleLogout }) {
     );
   };
 
+  // ================= PANTALLA DE BLOQUEO (DESKTOP) =================
+  if (!esMovil) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen w-full bg-[#050814] text-white p-6 text-center">
+        <div className="bg-red-900/20 p-6 rounded-full mb-6 border border-red-500/30 animate-pulse">
+          <Smartphone className="w-16 h-16 text-red-500" />
+        </div>
+        <h1 className="text-3xl font-black text-slate-100 mb-3 tracking-tight">Acceso Restringido</h1>
+        <p className="text-slate-400 mb-8 max-w-md text-sm leading-relaxed">
+          El <strong>Modo Cuadrilla</strong> es una herramienta táctica de uso exclusivo en campo. 
+          Su visualización se encuentra bloqueada en computadoras de escritorio.
+        </p>
+        <button 
+          onClick={() => window.location.href = '/'} 
+          className="bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-[11px] py-3.5 px-8 rounded-xl transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] active:scale-95"
+        >
+          Volver a la Plataforma Web
+        </button>
+      </div>
+    );
+  }
+
+  // ================= PANTALLA PRINCIPAL (MÓVIL) =================
   return (
     <div className="fixed top-0 left-0 w-full h-[100dvh] z-[9999] bg-[#050814] flex flex-col overflow-hidden">
       
@@ -108,7 +230,7 @@ export default function Cuadrilla({ token, handleLogout }) {
         body { overflow: hidden !important; }
       `}</style>
 
-      {/* BARRA SUPERIOR (Ahora anclada hasta el borde superior) */}
+      {/* BARRA SUPERIOR */}
       <div className="bg-[#0b132b] border-b border-slate-800 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex justify-between items-center shrink-0 shadow-md relative z-20">
         <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2">
           MT<span className="text-indigo-500">_MANAGER</span>
@@ -121,7 +243,7 @@ export default function Cuadrilla({ token, handleLogout }) {
         </button>
       </div>
 
-      {/* VISTA 1: BUSCADOR */}
+      {/* BUSCADOR */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         <div className="mb-6 mt-2 text-center shrink-0">
           <div className="flex justify-center mb-2">
@@ -151,7 +273,7 @@ export default function Cuadrilla({ token, handleLogout }) {
           <button type="submit" className="hidden">Buscar</button>
         </form>
 
-        {/* HISTORIAL: ÚLTIMAS BÚSQUEDAS (Se oculta si hay resultados o se está escribiendo) */}
+        {/* HISTORIAL */}
         {!cargando && resultados.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
           <div className="mb-6 animate-in fade-in shrink-0">
             <div className="flex items-center justify-center gap-2 mb-3">
@@ -200,7 +322,7 @@ export default function Cuadrilla({ token, handleLogout }) {
         </div>
       </div>
 
-      {/* VISTA 2: FICHA TÉCNICA EN ACORDEÓN */}
+      {/* FICHA TÉCNICA */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
         {puertoActivo && (
           <>
@@ -241,8 +363,9 @@ export default function Cuadrilla({ token, handleLogout }) {
                 icono={<Server className="w-4 h-4"/>} 
                 colorTexto="text-blue-400"
               >
-                <InfoRow label="IP Gestión" value={puertoActivo.IP_GESTION} />
-                <InfoRow label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
+                {/* Aquí implementamos la nueva fila interactiva para las IPs */}
+                <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
+                <InfoRowIP label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
                 <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
               </SeccionDesplegable>
 
