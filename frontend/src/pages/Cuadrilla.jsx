@@ -101,15 +101,15 @@ export default function Cuadrilla({ token, handleLogout }) {
   };
 
   return (
-    <div className="flex-1 bg-[#050814] h-full overflow-hidden flex flex-col relative">
+    <div className="fixed top-0 left-0 w-full h-[100dvh] z-[9999] bg-[#050814] flex flex-col overflow-hidden">
       
       <style>{`
-        header, nav { display: none !important; }
-        main, #root > div { padding-top: 0 !important; margin-top: 0 !important; }
+        header, nav, aside { display: none !important; }
+        body { overflow: hidden !important; }
       `}</style>
 
-      {/* BARRA SUPERIOR NATIVA */}
-      <div className="bg-[#0b132b] border-0 border-slate-800 p-4 flex justify-between items-center shrink-0 shadow-md relative z-20">
+      {/* BARRA SUPERIOR (Ahora anclada hasta el borde superior) */}
+      <div className="bg-[#0b132b] border-b border-slate-800 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex justify-between items-center shrink-0 shadow-md relative z-20">
         <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2">
           MT<span className="text-indigo-500">_MANAGER</span>
         </h1>
