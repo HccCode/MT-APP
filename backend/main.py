@@ -887,6 +887,61 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
+        # ================= CARGA DE NUEVO CHASIS (MODO MANUAL) =================
+@app.post("/api/hubs/upload-json")
+async def upload_json_chasis(
+    request: Request,
+    id_hub: str = Query(...), 
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    if not can_upload_excel(current_user): 
+        raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    
+    try:
+        payload = await request.json()
+        puertos = payload.get("puertos", [])
+        
+        # 1. Validar que el Hub y la geografía existan
+        hub_cfg = db.query(HubMappingModel).filter(HubMappingModel.id == str(id_hub).upper().strip()).first()
+        if not hub_cfg:
+            return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
+            
+        ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
+        region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
+        
+        # 2. Inyectar cada puerto en la base de datos de forma quirúrgica
+        for p in puertos:
+            db.add(PortModel(
+                region=region_obj.nombre, 
+                ciudad=ciudad_obj.nombre, 
+                hub_id=str(id_hub).upper().strip(), 
+                estatus=p.get("ESTATUS", "DISPONIBLE GI"), 
+                puerto=p.get("PUERTO"), 
+                equipo_hotel_id=p.get("EQUIPO_HOTEL_ID", ""), 
+                ip_hub=p.get("IP_HUB", ""),
+                servicio=""
+            ))
+            
+        db.commit()
+        
+        # 3. Registrar el movimiento en la bitácora de auditoría forense
+        equipo = puertos[0].get("EQUIPO_HOTEL_ID", "Desconocido") if puertos else "Desconocido"
+        registrar_auditoria(
+            db, 
+            current_user.username, 
+            "ALTA DE CHASIS MANUAL", 
+            "INVENTARIO", 
+            f"Se aprovisionó el chasis {equipo} con {len(puertos)} puertos en el HUB {id_hub}"
+        )
+        
+        return {"status": "success", "detail": f"{len(puertos)} puertos creados exitosamente."}
+        
+    except Exception as e:
+        try: db.rollback() 
+        except: pass
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error al inyectar el chasis: {str(e)}"})
+
 # ================= EXPORTACIÓN EXCEL =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
