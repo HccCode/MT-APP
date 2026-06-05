@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UploadCloud, CheckCircle, AlertOctagon, FileSpreadsheet, Server, XCircle, ArrowRight, PlusSquare, Settings2, Database, Zap, Network, Layers } from 'lucide-react';
 
 export default function CargaExcel({ token, estructuraGeografica }) {
@@ -14,6 +14,10 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [previewData, setPreviewData] = useState([]);
   const [hayErrores, setHayErrores] = useState(false);
 
+  // ESTADOS NUEVOS: Lógica de Equipos Existentes
+  const [equiposExistentes, setEquiposExistentes] = useState([]);
+  const [tipoAccionChasis, setTipoAccionChasis] = useState('nuevo'); // 'nuevo' | 'existente'
+
   // ESTADOS DEL FORMULARIO CON "INICIO DE PUERTO" PARA PERMITIR EXPANSIONES
   const [nuevoEquipo, setNuevoEquipo] = useState({
     chasis: '',
@@ -22,7 +26,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     // Bloque Principal
     cantidad_puertos: 24,
     prefijo_puerto: 'Gi1/0/',
-    inicio_puerto: 1, // <--- NUEVO: Control de inicio para expansión
+    inicio_puerto: 1, 
     estatus_inicial: 'DISPONIBLE GI',
     
     // Bloque Uplink
@@ -30,11 +34,48 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
     prefijo_uplink: 'Te1/0/',
-    inicio_uplink: 1, // <--- NUEVO: Control de inicio para expansión de Uplinks
+    inicio_uplink: 1, 
     estatus_uplink: 'DISPONIBLE TE'
   });
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+  // EFECTO MAGICO: Buscar chasis existentes cuando se selecciona un Hub
+  useEffect(() => {
+    if (!hubSelec) {
+      setEquiposExistentes([]);
+      setTipoAccionChasis('nuevo');
+      setNuevoEquipo(prev => ({...prev, chasis: ''}));
+      return;
+    }
+    
+    const fetchEquiposDelHub = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/hubs?id_hub=${hubSelec}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const json = await res.json();
+        
+        if (res.ok && json.puertos) {
+           // Extraer todos los EQUIPO_HOTEL_ID únicos
+           const unicos = Array.from(new Set(json.puertos.map(p => p.EQUIPO_HOTEL_ID).filter(Boolean))).sort();
+           setEquiposExistentes(unicos);
+           
+           if(unicos.length > 0){
+               setTipoAccionChasis('existente');
+               setNuevoEquipo(prev => ({...prev, chasis: unicos[0]})); // Seleccionar el primero por defecto
+           } else {
+               setTipoAccionChasis('nuevo');
+               setNuevoEquipo(prev => ({...prev, chasis: ''}));
+           }
+        }
+      } catch (e) {
+        console.error("Error buscando equipos del hub", e);
+      }
+    };
+    
+    fetchEquiposDelHub();
+  }, [hubSelec, token, API_URL]);
 
   const manejarArchivo = (e) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -98,11 +139,10 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   };
 
   const generarPreviewManual = () => {
-    if (!hubSelec || !nuevoEquipo.chasis) return alert("Selecciona un HUB y escribe el nombre del Chasis.");
+    if (!hubSelec || !nuevoEquipo.chasis) return alert("Selecciona un HUB y escribe/selecciona el nombre del Chasis.");
     
     const dataGenerada = [];
     
-    // 1. LÓGICA DE BUCLE MEJORADA PARA PERMITIR EXPANSIONES
     const limitePrincipal = nuevoEquipo.inicio_puerto + nuevoEquipo.cantidad_puertos;
     for (let i = nuevoEquipo.inicio_puerto; i < limitePrincipal; i++) {
       dataGenerada.push({
@@ -139,8 +179,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const guardarChasisManual = async () => {
     setCargando(true);
     try {
-      // Como este endpoint es POST puro y hace un DB.Add secuencial, 
-      // nunca va a sobreescribir ni borrar puertos antiguos. Es seguro para expansiones.
       const res = await fetch(`${API_URL}/api/hubs/upload-json?id_hub=${encodeURIComponent(hubSelec)}`, {
         method: 'POST',
         headers: { 
@@ -239,14 +277,53 @@ export default function CargaExcel({ token, estructuraGeografica }) {
               <div className="xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border border-emerald-900/50 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Settings2 className="w-5 h-5 text-emerald-400"/> Generador y Expansor de Chasis</h2>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2 md:col-span-1">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">ID de Equipo a crear o expandir</label>
-                    <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. OLT-01" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#050814] p-4 rounded-xl border border-slate-800">
+                  
+                  {/* SELECTOR: NUEVO VS EXISTENTE */}
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Tipo de Operación</label>
+                    <div className="flex bg-[#1c2541] border border-slate-700 rounded-lg p-1 gap-1">
+                        <button 
+                            onClick={() => {
+                                setTipoAccionChasis('nuevo');
+                                setNuevoEquipo({...nuevoEquipo, chasis: ''});
+                            }}
+                            className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors ${tipoAccionChasis === 'nuevo' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                        >
+                            Nuevo
+                        </button>
+                        <button 
+                            onClick={() => {
+                                if(equiposExistentes.length > 0){
+                                    setTipoAccionChasis('existente');
+                                    setNuevoEquipo({...nuevoEquipo, chasis: equiposExistentes[0]});
+                                }
+                            }}
+                            disabled={equiposExistentes.length === 0}
+                            className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${tipoAccionChasis === 'existente' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                        >
+                            Expandir
+                        </button>
+                    </div>
                   </div>
-                  <div className="col-span-2 md:col-span-1">
+
+                  {/* INPUT / SELECT DE CHASIS */}
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">
+                        {tipoAccionChasis === 'nuevo' ? 'Nombre del Nuevo Equipo' : 'Equipo a Expandir'}
+                    </label>
+                    {tipoAccionChasis === 'nuevo' ? (
+                        <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. OLT-01" />
+                    ) : (
+                        <select value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none">
+                            {equiposExistentes.map(eq => <option key={eq} value={eq}>{eq}</option>)}
+                        </select>
+                    )}
+                  </div>
+
+                  <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">IP Gestión del Hub (Opcional)</label>
-                    <input type="text" value={nuevoEquipo.ip_hub} onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="10.50.0.1" />
+                    <input type="text" value={nuevoEquipo.ip_hub} onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="10.50.0.1" />
                   </div>
                 </div>
 
@@ -263,7 +340,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                             <input type="text" value={nuevoEquipo.prefijo_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_puerto: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Gi1/0/" />
                         </div>
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en el #</label>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar a contar en #</label>
                             <input type="number" min="1" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Ej. 1 o 25" />
                         </div>
                         <div>
@@ -307,11 +384,11 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                                 <input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" />
                             </div>
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en el #</label>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar a contar en #</label>
                                 <input type="number" min="1" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" />
                             </div>
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a sumar</label>
                                 <select value={nuevoEquipo.cantidad_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_uplinks: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none">
                                     <option value={1}>1 Puerto</option>
                                     <option value={2}>2 Puertos</option>
