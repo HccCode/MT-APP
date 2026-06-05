@@ -620,6 +620,13 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           recargarDatos={cargarDatosSistemas}
         />
       )}
+
+      {mostrarModalAuditoria && (
+        <ModalAuditoria 
+          token={token}
+          cerrarModal={() => setMostrarModalAuditoria(false)}
+        />
+      )}
     </div>
   );
 }
