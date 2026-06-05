@@ -38,7 +38,7 @@ export default function Auditoria({ token }) {
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 shadow-sm z-10">
         <div>
           <h2 className="text-lg font-black text-emerald-400 flex items-center gap-2 uppercase tracking-widest">
-            <ShieldCheck className="w-5 h-5" /> Centro de Auditoría Forense
+            <ShieldCheck className="w-5 h-5" /> Historial de registros
           </h2>
           <p className="text-xs text-slate-500 mt-1 font-medium">Historial inmutable de los últimos 200 movimientos tácticos en MT_DB.</p>
         </div>
