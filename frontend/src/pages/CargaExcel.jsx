@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UploadCloud, CheckCircle, AlertOctagon, FileSpreadsheet, Server, XCircle, ArrowRight, PlusSquare, Settings2, Database } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertOctagon, FileSpreadsheet, Server, XCircle, ArrowRight, PlusSquare, Settings2, Database, Zap } from 'lucide-react';
 
 export default function CargaExcel({ token, estructuraGeografica }) {
   const [modoCarga, setModoCarga] = useState('manual'); // 'excel' | 'manual'
@@ -14,11 +14,12 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [previewData, setPreviewData] = useState([]);
   const [hayErrores, setHayErrores] = useState(false);
 
-  // ESTADOS PARA EL FORMULARIO MANUAL
+  // ESTADOS PARA EL FORMULARIO MANUAL ACTUALIZADO CON TIPO DE INTERFAZ
   const [nuevoEquipo, setNuevoEquipo] = useState({
     chasis: '',
     ip_hub: '',
     cantidad_puertos: 24,
+    tipo_interfaz: '1G',
     prefijo_puerto: 'Gi1/0/',
     estatus_inicial: 'DISPONIBLE GI'
   });
@@ -71,6 +72,32 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   // ==========================================
   // LÓGICA DE MODO MANUAL (NUEVO CHASIS)
   // ==========================================
+  
+  // Función para manejar el cambio de velocidad (1G vs 10G)
+  const handleCambioInterfaz = (e) => {
+    const tipo = e.target.value;
+    let prefijo = 'Gi1/0/';
+    let estatus = 'DISPONIBLE GI';
+
+    if (tipo === '10G') {
+      prefijo = 'Te1/0/'; // TenGigabitEthernet
+      estatus = 'DISPONIBLE TE';
+    } else if (tipo === '25G') {
+      prefijo = 'Twe1/0/'; // TwentyFiveGigE
+      estatus = 'DISPONIBLE 25';
+    } else if (tipo === '100G') {
+      prefijo = 'Hu1/0/'; // HundredGigE
+      estatus = 'DISPONIBLE 100';
+    }
+
+    setNuevoEquipo({
+      ...nuevoEquipo,
+      tipo_interfaz: tipo,
+      prefijo_puerto: prefijo,
+      estatus_inicial: estatus
+    });
+  };
+
   const generarPreviewManual = () => {
     if (!hubSelec || !nuevoEquipo.chasis) return alert("Selecciona un HUB y escribe el nombre del Chasis.");
     
@@ -95,7 +122,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const guardarChasisManual = async () => {
     setCargando(true);
     try {
-      // Nota: Esta función asume que crearás un endpoint en Python que reciba un JSON puro.
       const res = await fetch(`${API_URL}/api/hubs/upload-json?id_hub=${encodeURIComponent(hubSelec)}`, {
         method: 'POST',
         headers: { 
@@ -203,19 +229,33 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">IP Gestión del Hub (Opcional)</label>
                     <input type="text" value={nuevoEquipo.ip_hub} onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="10.50.0.1" />
                   </div>
-                  <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo de Puerto</label>
-                    <input type="text" value={nuevoEquipo.prefijo_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_puerto: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Gi1/0/" />
+                  
+                  {/* NUEVO SELECTOR INTELIGENTE DE INTERFAZ */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-[10px] uppercase font-bold text-blue-400 flex items-center gap-1 mb-1"><Zap className="w-3 h-3"/> Capacidad (Velocidad)</label>
+                    <select value={nuevoEquipo.tipo_interfaz} onChange={handleCambioInterfaz} className="w-full bg-[#1c2541] border border-blue-900/50 text-blue-300 p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none transition-colors">
+                      <option value="1G">Gigabit Ethernet (1G)</option>
+                      <option value="10G">TenGigabit (10G)</option>
+                      <option value="25G">25 Gigabit (25G)</option>
+                      <option value="100G">100 Gigabit (100G)</option>
+                    </select>
                   </div>
-                  <div>
+
+                  <div className="col-span-2 sm:col-span-1">
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a Generar</label>
                     <select value={nuevoEquipo.cantidad_puertos} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_puertos: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
                       <option value={8}>8 Puertos</option>
                       <option value={16}>16 Puertos</option>
                       <option value={24}>24 Puertos</option>
                       <option value={48}>48 Puertos</option>
-                      <option value={128}>128 Puertos (GPON)</option>
                     </select>
+                  </div>
+                  
+                  <div className="col-span-2">
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
+                      Prefijo Físico de Interfaz <span className="text-emerald-500">{nuevoEquipo.estatus_inicial}</span>
+                    </label>
+                    <input type="text" value={nuevoEquipo.prefijo_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_puerto: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Gi1/0/" />
                   </div>
                 </div>
 
@@ -286,7 +326,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     <th className="p-3 w-10 text-center">St</th>
                     <th className="p-3 w-40">CHASIS ID</th>
                     <th className="p-3 w-32">INTERFAZ</th>
-                    <th className="p-3 w-32">ESTATUS</th>
+                    <th className="p-3 w-40">ESTATUS INICIAL</th>
                     <th className="p-3 w-32">IP HUB</th>
                     <th className="p-3">VEREDICTO DE SISTEMA</th>
                   </tr>
@@ -299,7 +339,14 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                       </td>
                       <td className="p-3 text-indigo-300 font-bold">{fila.EQUIPO_HOTEL_ID || '-'}</td>
                       <td className="p-3 font-mono font-bold text-white">{fila.PUERTO}</td>
-                      <td className="p-3"><span className="bg-emerald-900/30 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded">{fila.ESTATUS}</span></td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded border text-[10px] font-bold tracking-wider uppercase
+                          ${fila.ESTATUS.includes('TE') ? 'bg-indigo-900/40 text-indigo-300 border-indigo-700' : 
+                          fila.ESTATUS.includes('GI') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800' : 
+                          'bg-blue-900/30 text-blue-400 border-blue-800'}`}>
+                          {fila.ESTATUS}
+                        </span>
+                      </td>
                       <td className="p-3 text-slate-400 font-mono">{fila.IP_HUB || '-'}</td>
                       <td className="p-3">
                         {!fila._valido ? (
