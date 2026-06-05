@@ -4,7 +4,7 @@ import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
-import ModalAuditoria from '../components/modals/ModalAuditoria';
+
 
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
   const [inventarioReg, setInventarioReg] = useState(localStorage.getItem('mcm_inv_reg') || '');
@@ -526,7 +526,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               {puedeEditar && (
                 <div className="pt-4 border-t border-slate-800 shrink-0">
                   <button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-2.5 rounded-lg transition-colors flex justify-center items-center gap-2 uppercase tracking-widest text-xs cursor-pointer shadow-lg disabled:opacity-50">
-                    {guardando ? 'Escribiendo en MT_DB...' : 'Sobrescribir Ficha Técnica'}
+                    {guardando ? 'Escribiendo en DB...' : 'Sobrescribir Ficha Técnica'}
                   </button>
                 </div>
               )}
