@@ -15,6 +15,8 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [hayErrores, setHayErrores] = useState(false);
 
   const [equiposExistentes, setEquiposExistentes] = useState([]);
+  // NUEVO ESTADO: Diccionario para recordar las IPs de los equipos existentes
+  const [mapaIpsEquipos, setMapaIpsEquipos] = useState({});
   const [tipoAccionChasis, setTipoAccionChasis] = useState('nuevo'); 
 
   const [nuevoEquipo, setNuevoEquipo] = useState({
@@ -39,11 +41,13 @@ export default function CargaExcel({ token, estructuraGeografica }) {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
+  // LÓGICA MÁGICA: Extraer nombres e IPs del Hub seleccionado
   useEffect(() => {
     if (!hubSelec) {
       setEquiposExistentes([]);
+      setMapaIpsEquipos({});
       setTipoAccionChasis('nuevo');
-      setNuevoEquipo(prev => ({...prev, chasis: ''}));
+      setNuevoEquipo(prev => ({...prev, chasis: '', ip_hub: ''}));
       return;
     }
     
@@ -55,15 +59,29 @@ export default function CargaExcel({ token, estructuraGeografica }) {
         const json = await res.json();
         
         if (res.ok && json.puertos) {
+           // Mapear qué IP tiene cada Chasis existente
+           const mapIps = {};
+           json.puertos.forEach(p => {
+               if (p.EQUIPO_HOTEL_ID && p.IP_HUB && !mapIps[p.EQUIPO_HOTEL_ID]) {
+                   mapIps[p.EQUIPO_HOTEL_ID] = p.IP_HUB;
+               }
+           });
+           setMapaIpsEquipos(mapIps);
+
            const unicos = Array.from(new Set(json.puertos.map(p => p.EQUIPO_HOTEL_ID).filter(Boolean))).sort();
            setEquiposExistentes(unicos);
            
            if(unicos.length > 0){
                setTipoAccionChasis('existente');
-               setNuevoEquipo(prev => ({...prev, chasis: unicos[0]})); 
+               // Autocompletar el nombre del equipo y su IP automáticamente
+               setNuevoEquipo(prev => ({
+                   ...prev, 
+                   chasis: unicos[0], 
+                   ip_hub: mapIps[unicos[0]] || '' 
+               })); 
            } else {
                setTipoAccionChasis('nuevo');
-               setNuevoEquipo(prev => ({...prev, chasis: ''}));
+               setNuevoEquipo(prev => ({...prev, chasis: '', ip_hub: ''}));
            }
         }
       } catch (e) {
@@ -165,7 +183,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const generarPreviewManual = () => {
     if (!hubSelec || !nuevoEquipo.chasis) return alert("Selecciona un HUB y escribe/selecciona el nombre del Chasis.");
     
-    // REGLA DE NEGOCIO: Validar IP Obligatoria si el equipo es nuevo
     if (tipoAccionChasis === 'nuevo' && (!nuevoEquipo.ip_hub || nuevoEquipo.ip_hub.trim() === '')) {
       return alert("Falta información crítica: Al dar de alta un EQUIPO NUEVO, es obligatorio ingresar su IP de Gestión.");
     }
@@ -309,7 +326,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                         <button 
                             onClick={() => {
                                 setTipoAccionChasis('nuevo');
-                                setNuevoEquipo({...nuevoEquipo, chasis: ''});
+                                setNuevoEquipo({...nuevoEquipo, chasis: '', ip_hub: ''});
                             }}
                             className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors ${tipoAccionChasis === 'nuevo' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
                         >
@@ -319,7 +336,12 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                             onClick={() => {
                                 if(equiposExistentes.length > 0){
                                     setTipoAccionChasis('existente');
-                                    setNuevoEquipo({...nuevoEquipo, chasis: equiposExistentes[0]});
+                                    // Al cambiar a "Expandir", rellenar automáticamente la IP del primer equipo
+                                    setNuevoEquipo({
+                                        ...nuevoEquipo, 
+                                        chasis: equiposExistentes[0],
+                                        ip_hub: mapaIpsEquipos[equiposExistentes[0]] || ''
+                                    });
                                 }
                             }}
                             disabled={equiposExistentes.length === 0}
@@ -337,20 +359,31 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     {tipoAccionChasis === 'nuevo' ? (
                         <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. SW-CORE-01" />
                     ) : (
-                        <select value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none">
+                        <select 
+                            value={nuevoEquipo.chasis} 
+                            onChange={e => {
+                                const chasisSeleccionado = e.target.value;
+                                // Al cambiar de chasis en el dropdown, rellenar su IP correspondiente
+                                setNuevoEquipo({
+                                    ...nuevoEquipo, 
+                                    chasis: chasisSeleccionado,
+                                    ip_hub: mapaIpsEquipos[chasisSeleccionado] || ''
+                                });
+                            }} 
+                            className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none"
+                        >
                             {equiposExistentes.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                         </select>
                     )}
                   </div>
 
-                  {/* CAMBIO: LABEL Y BORDE DINÁMICOS BASADOS EN EL TIPO DE ACCIÓN */}
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
                         IP Gestión del Hub
                         {tipoAccionChasis === 'nuevo' ? (
                             <span className="text-red-400">* OBLIGATORIA</span>
                         ) : (
-                            <span className="text-slate-500">(Opcional)</span>
+                            <span className="text-slate-500">(Auto-Completada)</span>
                         )}
                     </label>
                     <input 
