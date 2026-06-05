@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck } from 'lucide-react';
+import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck, Thermometer, MapPin } from 'lucide-react';
 
 export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
@@ -7,6 +7,10 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   
   const [stats, setStats] = useState({ activos: 0, suspendidos: 0, troncales: 0, total_disp: 0, disp_gi: 0, disp_te: 0, trafico_mbps: 0 });
   const [datosHubs, setDatosHubs] = useState([]);
+  
+  // ESTADO: Datos granulares para el Mapa de Calor de Chasis
+  const [datosChasis, setDatosChasis] = useState([]);
+  
   const [cargando, setCargando] = useState(false);
 
   // Estados para la capacidad de carga (Backbone)
@@ -20,9 +24,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   useEffect(() => { localStorage.setItem('mcm_res_reg', regionSelec); }, [regionSelec]);
   useEffect(() => { localStorage.setItem('mcm_res_cd', ciudadSelec); }, [ciudadSelec]);
 
-  // ==========================================
-  // FUNCIÓN LIMPIADORA DE IDs GENERADOS
-  // ==========================================
   const limpiarNombreSitio = (nombreRaw) => {
     if (!nombreRaw) return '';
     return String(nombreRaw)
@@ -54,6 +55,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
 
       let global = { activos: 0, suspendidos: 0, troncales: 0, total_disp: 0, disp_gi: 0, disp_te: 0, trafico_mbps: 0 };
       let infoHubs = [];
+      let mapChasis = {}; 
 
       resultados.forEach(data => {
         if (!data?.puertos) return;
@@ -97,6 +99,22 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                 else if (tipo === 'TE') { global.disp_te++; subDispTe++; }
                 else { global.disp_gi++; subDispGi++; }
             }
+
+            const chasisID = String(p.EQUIPO_HOTEL_ID || '').trim();
+            if (chasisID && chasisID !== '-' && chasisID.toLowerCase() !== 'null') {
+                if (!mapChasis[chasisID]) {
+                    mapChasis[chasisID] = {
+                        id: chasisID,
+                        hub: nombreHub,
+                        total: 0,
+                        disp: 0,
+                        activos: 0
+                    };
+                }
+                mapChasis[chasisID].total++;
+                if (isDisp) mapChasis[chasisID].disp++;
+                if (est === 'ACTIVO') mapChasis[chasisID].activos++;
+            }
         });
 
         const totalPuertos = data.puertos.length;
@@ -114,8 +132,16 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
         });
       });
 
+      const arrChasis = Object.values(mapChasis).map(c => {
+          c.pct_libres = c.total > 0 ? ((c.disp / c.total) * 100).toFixed(1) : 0;
+          return c;
+      });
+      arrChasis.sort((a, b) => parseFloat(a.pct_libres) - parseFloat(b.pct_libres));
+
       setStats(global);
       setDatosHubs(infoHubs.sort((a,b) => b.total_disp - a.total_disp));
+      setDatosChasis(arrChasis);
+
     } catch (e) { console.error(e); } finally { setCargando(false); }
   };
 
@@ -141,7 +167,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const mostrar25G = datosHubs.some(h => h.total_25 > 0);
   const mostrar100G = datosHubs.some(h => h.total_100 > 0);
 
-  // ================= SISTEMA DE ALERTAS =================
   const alertas = [];
   if (ciudadSelec && !cargando) {
     if (parseFloat(disponibilidadAnchoBanda) < 15 && capacidadNum > 0) {
@@ -221,13 +246,11 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
             <ShieldCheck className="w-5 h-5 text-indigo-500 hidden md:block" />
             <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); }} className="bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none focus:border-indigo-500 transition-colors w-full md:w-auto">
                 <option value="" className="text-slate-500">-- REGIÓN --</option>
-                {/* BLINDAJE APLICADO: estructuraGeografica || {} */}
                 {Object.keys(estructuraGeografica || {}).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
             <span className="text-indigo-600/50">➔</span>
             <select value={ciudadSelec} onChange={(e) => setCiudadSelec(e.target.value)} disabled={!regionSelec} className="bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-md text-sm text-indigo-300 font-bold outline-none focus:border-indigo-500 disabled:opacity-50 transition-colors w-full md:w-auto">
                 <option value="" className="text-slate-500">-- CIUDAD --</option>
-                {/* BLINDAJE APLICADO: ?.ciudades || {} */}
                 {regionSelec && Object.keys(estructuraGeografica[regionSelec]?.ciudades || {}).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
         </div>
@@ -287,7 +310,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
             </div>
 
             <div className="bg-[#0b132b]/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                {/* Deco Background */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
 
                 <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6 relative z-10">
@@ -333,7 +355,65 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                 </div>
             </div>
 
-            <div className="bg-[#0b132b]/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4">
+            <div className="bg-[#0b132b]/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-6 mt-6">
+              <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50 flex justify-between items-center">
+                <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
+                    <Thermometer className="w-4 h-4 text-orange-500" />
+                    Mapa de Calor Operativo (Por Chasis)
+                </h3>
+              </div>
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 bg-[#050814]/30">
+                  {datosChasis.length === 0 ? (
+                      <div className="col-span-full p-8 text-center text-slate-500 italic">No hay equipos físicos aprovisionados en esta ciudad.</div>
+                  ) : (
+                      datosChasis.map((c, i) => {
+                          const pct = parseFloat(c.pct_libres);
+                          const ocupacion = 100 - Math.round(pct);
+                          const isCrit = pct < 15;
+                          const isWarn = pct < 30;
+                          
+                          const colorClass = isCrit 
+                            ? 'bg-red-950/30 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' 
+                            : isWarn 
+                                ? 'bg-amber-950/30 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]' 
+                                : 'bg-emerald-950/10 border-emerald-500/30';
+                          const textClass = isCrit ? 'text-red-400' : isWarn ? 'text-amber-400' : 'text-emerald-400';
+                          const barClass = isCrit ? 'bg-red-500' : isWarn ? 'bg-amber-500' : 'bg-emerald-500';
+
+                          return (
+                              <div key={i} className={`p-4 rounded-xl border flex flex-col gap-3 transition-transform hover:scale-[1.02] ${colorClass}`}>
+                                  <div className="flex justify-between items-start">
+                                      <div className="overflow-hidden pr-2">
+                                          <p className="font-black text-white text-sm truncate" title={c.id}>{c.id}</p>
+                                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate" title={c.hub}><MapPin className="w-3 h-3 shrink-0"/> {limpiarNombreSitio(c.hub)}</p>
+                                      </div>
+                                      <div className={`px-2 py-1 rounded font-black text-[10px] shrink-0 ${isCrit ? 'bg-red-500/20 text-red-400' : isWarn ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                          {pct}% Libre
+                                      </div>
+                                  </div>
+                                  
+                                  <div className="mt-1">
+                                      <div className="flex justify-between text-[10px] font-bold mb-1">
+                                          <span className="text-slate-400">DISPONIBLES</span>
+                                          <span className={textClass}>{c.disp} / {c.total}</span>
+                                      </div>
+                                      <div className="h-1.5 w-full bg-slate-900/80 rounded-full overflow-hidden border border-slate-800/50">
+                                          <div className={`h-full ${barClass} transition-all duration-1000`} style={{ width: `${ocupacion}%` }}></div>
+                                      </div>
+                                  </div>
+                                  
+                                  <div className="flex justify-between items-center mt-1 border-t border-slate-800/50 pt-2">
+                                      <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Ocupación Fís.</span>
+                                      <span className={`text-[10px] font-mono font-bold ${isCrit ? 'text-red-300' : 'text-slate-300'}`}>{ocupacion}% Ocupado</span>
+                                  </div>
+                              </div>
+                          )
+                      })
+                  )}
+              </div>
+            </div>
+
+            <div className="bg-[#0b132b]/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 mt-6">
               <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50">
                 <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
                     <Server className="w-4 h-4 text-indigo-500" />
@@ -372,7 +452,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                     ) : (
                       datosHubs.map((h, i) => {
                         const porcentajeLibre = parseFloat(h.pct_libres);
-                        const porcentajeOcupado = 100 - porcentajeLibre;
+                        const porcentajeOcupado = 100 - Math.round(porcentajeLibre);
                         const esCritico = porcentajeLibre < 15;
                         const esPeligro = porcentajeLibre < 30;
 
@@ -406,7 +486,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                           </td>
                           <td className="p-4 w-48">
                             <div className="flex items-center gap-3">
-                                <div className="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden shadow-inner border border-slate-800/50">
+                                <div className="flex-1 h-1.5 bg-slate-900/80 rounded-full overflow-hidden shadow-inner border border-slate-800/50">
                                     <div 
                                         className={`h-full rounded-full transition-all duration-1000 ${esCritico ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : esPeligro ? 'bg-amber-500' : 'bg-emerald-500'}`}
                                         style={{ width: `${porcentajeOcupado}%` }}

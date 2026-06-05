@@ -15,7 +15,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [hayErrores, setHayErrores] = useState(false);
 
   const [equiposExistentes, setEquiposExistentes] = useState([]);
-  // NUEVO ESTADO: Diccionario para recordar las IPs de los equipos existentes
   const [mapaIpsEquipos, setMapaIpsEquipos] = useState({});
   const [tipoAccionChasis, setTipoAccionChasis] = useState('nuevo'); 
 
@@ -41,7 +40,15 @@ export default function CargaExcel({ token, estructuraGeografica }) {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // LÓGICA MÁGICA: Extraer nombres e IPs del Hub seleccionado
+  const limpiarNombreSitio = (nombreRaw) => {
+    if (!nombreRaw) return '';
+    return String(nombreRaw)
+      .replace(/^[0-9]+_/, '')           
+      .replace(/_[0-9]+(:[0-9]+)?$/, '') 
+      .replace(/_/g, ' ')                
+      .trim();
+  };
+
   useEffect(() => {
     if (!hubSelec) {
       setEquiposExistentes([]);
@@ -59,7 +66,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
         const json = await res.json();
         
         if (res.ok && json.puertos) {
-           // Mapear qué IP tiene cada Chasis existente
            const mapIps = {};
            json.puertos.forEach(p => {
                if (p.EQUIPO_HOTEL_ID && p.IP_HUB && !mapIps[p.EQUIPO_HOTEL_ID]) {
@@ -73,7 +79,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
            
            if(unicos.length > 0){
                setTipoAccionChasis('existente');
-               // Autocompletar el nombre del equipo y su IP automáticamente
                setNuevoEquipo(prev => ({
                    ...prev, 
                    chasis: unicos[0], 
@@ -302,15 +307,20 @@ export default function CargaExcel({ token, estructuraGeografica }) {
               <div className="space-y-4">
                 <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); setHubSelec(''); }} className="w-full bg-[#0b132b] border border-slate-700 text-white p-3 rounded-lg outline-none focus:border-emerald-500">
                   <option value="">-- SELECCIONA REGIÓN --</option>
-                  {Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
+                  {Object.keys(estructuraGeografica || {}).map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
                 <select value={ciudadSelec} onChange={(e) => { setCiudadSelec(e.target.value); setHubSelec(''); }} disabled={!regionSelec} className="w-full bg-[#0b132b] border border-slate-700 text-white p-3 rounded-lg outline-none focus:border-emerald-500 disabled:opacity-50">
                   <option value="">-- SELECCIONA CIUDAD --</option>
                   {regionSelec && obtenerCiudadesOrdenadas(regionSelec).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                
                 <select value={hubSelec} onChange={(e) => setHubSelec(e.target.value)} disabled={!ciudadSelec} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 font-bold p-3 rounded-lg outline-none focus:border-emerald-500 disabled:opacity-50">
                   <option value="">-- SELECCIONA HUB / NODO --</option>
-                  {regionSelec && ciudadSelec && (estructuraGeografica[regionSelec]?.ciudades[ciudadSelec]?.hubs || []).map(h => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+                  {regionSelec && ciudadSelec && (estructuraGeografica[regionSelec]?.ciudades[ciudadSelec]?.hubs || []).map(h => (
+                    <option key={h.id} value={h.id}>
+                        {limpiarNombreSitio(h.nombre)}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -336,7 +346,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                             onClick={() => {
                                 if(equiposExistentes.length > 0){
                                     setTipoAccionChasis('existente');
-                                    // Al cambiar a "Expandir", rellenar automáticamente la IP del primer equipo
                                     setNuevoEquipo({
                                         ...nuevoEquipo, 
                                         chasis: equiposExistentes[0],
@@ -363,7 +372,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                             value={nuevoEquipo.chasis} 
                             onChange={e => {
                                 const chasisSeleccionado = e.target.value;
-                                // Al cambiar de chasis en el dropdown, rellenar su IP correspondiente
                                 setNuevoEquipo({
                                     ...nuevoEquipo, 
                                     chasis: chasisSeleccionado,
