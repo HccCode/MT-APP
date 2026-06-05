@@ -33,22 +33,28 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
   const [mostrarModalAuditoria, setMostrarModalAuditoria] = useState(false);
-
-  // NUEVO ESTADO: Controla si el mapa de calor está visible
   const [mostrarMapaCalor, setMostrarMapaCalor] = useState(false);
+
+  // =========================================================================
+  // LÓGICA DE SEGURIDAD PARA ESTRUCTURA GEOGRÁFICA (EVITA ERRORES UNDEFINED)
+  // =========================================================================
+  const safeEstructura = estructuraGeografica || {};
+  const regionActivaDatos = safeEstructura[inventarioReg] || {};
+  const ciudadesDeRegion = regionActivaDatos.ciudades || {};
+  const ciudadActivaDatos = ciudadesDeRegion[inventarioCd] || {};
+  const hubsDeCiudad = ciudadActivaDatos.hubs || [];
 
   const cargarDatosSistemas = async () => {
     if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
     setCargando(true); setErrorApp(null);
     try {
       if (inventarioHub === 'TODOS') {
-        const hubs = estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || [];
-        if (hubs.length === 0) {
+        if (hubsDeCiudad.length === 0) {
           setDatosHub({ resumen: { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 }, puertos: [] });
           return;
         }
         
-        const promesas = hubs.map(h => fetch(`${API_URL}/api/hubs?id_hub=${h.id}`).then(res => res.json()));
+        const promesas = hubsDeCiudad.map(h => fetch(`${API_URL}/api/hubs?id_hub=${h.id}`).then(res => res.json()));
         const resultados = await Promise.all(promesas);
         
         let todosPuertos = [];
@@ -162,16 +168,16 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   };
 
   const obtenerCiudadesOrdenadas = (region) => {
-    if (!region || !estructuraGeografica[region]?.ciudades) return [];
-    return Object.keys(estructuraGeografica[region].ciudades).map(nombre => ({
-        id: estructuraGeografica[region].ciudades[nombre].id,
+    const cObj = safeEstructura[region]?.ciudades || {};
+    return Object.keys(cObj).map(nombre => ({
+        id: cObj[nombre].id,
         nombre: nombre
     })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   };
 
   const seleccionarPuerto = (p) => { setPuertoDetalle(p); setEditCampos(p); };
 
-  const hubActivoDatos = inventarioHub === 'TODOS' ? null : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || []).find(h => h.id === inventarioHub);
+  const hubActivoDatos = inventarioHub === 'TODOS' ? null : hubsDeCiudad.find(h => h.id === inventarioHub);
   const equiposDisponibles = Array.from(new Set(datosHub?.puertos?.map(p => String(p.EQUIPO_HOTEL_ID || '').trim()).filter(Boolean) || [])).sort();
 
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
@@ -238,7 +244,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           
           <select value={inventarioReg} onChange={(e) => { setInventarioReg(e.target.value); setInventarioCd(''); setInventarioHub('TODOS'); }} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
             <option value="">-- REGIÓN --</option>
-            {Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
+            {Object.keys(safeEstructura).map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           <span className="text-blue-600/80 text-[10px]">➔</span>
           <select value={inventarioCd} onChange={(e) => { setInventarioCd(e.target.value); setInventarioHub('TODOS'); }} disabled={!inventarioReg} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
@@ -248,7 +254,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           <span className="text-blue-600/80 text-[10px]">➔</span>
           <select value={inventarioHub} onChange={(e) => setInventarioHub(e.target.value)} disabled={!inventarioCd} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-blue-400 font-bold w-48 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
             <option value="TODOS">-- TODOS LOS HUBs --</option>
-            {inventarioReg && inventarioCd && (estructuraGeografica[inventarioReg]?.ciudades[inventarioCd]?.hubs || []).map(h => 
+            {inventarioReg && inventarioCd && hubsDeCiudad.map(h => 
               <option key={h.id} value={h.id}>{h.nombre}</option>
             )}
           </select>
@@ -273,9 +279,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* SECCIÓN DESPLEGABLE: MAPA DE CALOR DE SATURACIÓN                          */}
-      {/* ========================================================================= */}
       {datosHub?.puertos?.length > 0 && (
         <div className="px-6 mt-6 shrink-0">
           <button 
@@ -299,7 +302,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               {Object.entries(nodosAgrupados).map(([nombreHub, datosHubLocal]) => (
                 <div key={nombreHub} className="bg-[#0b132b] border border-slate-700/50 rounded-xl overflow-hidden shadow-xl flex flex-col max-h-[400px]">
                   
-                  {/* CABECERA DEL NODO */}
                   <div className="p-5 border-b border-slate-800 bg-slate-900/40 relative overflow-hidden shrink-0">
                     <div className="flex justify-between items-start relative z-10">
                       <div>
@@ -312,14 +314,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                         </p>
                       </div>
                     </div>
-                    {/* Barra de progreso sutil en el fondo de la cabecera */}
                     <div 
                       className="absolute bottom-0 left-0 h-1 bg-indigo-500/30 transition-all duration-1000" 
                       style={{ width: `${((datosHubLocal.total - datosHubLocal.disponibles) / datosHubLocal.total) * 100}%` }}
                     />
                   </div>
 
-                  {/* DESGLOSE POR CHASIS */}
                   <div className="p-5 space-y-4 flex-1 overflow-y-auto custom-scrollbar bg-[#050814]/50">
                     <h4 className="text-[10px] uppercase font-black tracking-widest text-slate-500 flex items-center gap-1.5 mb-1">
                       <Server className="w-3 h-3" /> Chasis Físicos en Sitio
@@ -331,7 +331,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                       let colorTexto = "text-emerald-400";
                       let bgColor = "bg-emerald-500/10";
                       
-                      // Reglas de Saturación (Semáforo Térmico)
                       if (porcentajeSaturacion >= 90) {
                         colorBarra = "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]";
                         colorTexto = "text-red-400";
@@ -352,7 +351,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                             </span>
                           </div>
                           
-                          {/* Termómetro de Capacidad */}
                           <div className="h-1.5 w-full bg-slate-800/80 rounded-full overflow-hidden mb-2">
                             <div 
                               className={`h-full ${colorBarra} transition-all duration-700 ease-out`}
@@ -375,9 +373,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* VISTA PRINCIPAL: TABLA DE PUERTOS Y FICHA TÉCNICA                         */}
-      {/* ========================================================================= */}
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden">
         
         <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden">
