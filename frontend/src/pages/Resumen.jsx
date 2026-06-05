@@ -221,12 +221,14 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
             <ShieldCheck className="w-5 h-5 text-indigo-500 hidden md:block" />
             <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); }} className="bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none focus:border-indigo-500 transition-colors w-full md:w-auto">
                 <option value="" className="text-slate-500">-- REGIÓN --</option>
-                {Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
+                {/* BLINDAJE APLICADO: estructuraGeografica || {} */}
+                {Object.keys(estructuraGeografica || {}).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
             <span className="text-indigo-600/50">➔</span>
             <select value={ciudadSelec} onChange={(e) => setCiudadSelec(e.target.value)} disabled={!regionSelec} className="bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-md text-sm text-indigo-300 font-bold outline-none focus:border-indigo-500 disabled:opacity-50 transition-colors w-full md:w-auto">
                 <option value="" className="text-slate-500">-- CIUDAD --</option>
-                {regionSelec && Object.keys(estructuraGeografica[regionSelec].ciudades).map(c => <option key={c} value={c}>{c}</option>)}
+                {/* BLINDAJE APLICADO: ?.ciudades || {} */}
+                {regionSelec && Object.keys(estructuraGeografica[regionSelec]?.ciudades || {}).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
         </div>
         {datosHubs.length > 0 && (
