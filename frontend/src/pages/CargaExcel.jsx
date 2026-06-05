@@ -14,22 +14,22 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [previewData, setPreviewData] = useState([]);
   const [hayErrores, setHayErrores] = useState(false);
 
-  // ESTADOS NUEVOS: Lógica de Equipos Existentes
   const [equiposExistentes, setEquiposExistentes] = useState([]);
-  const [tipoAccionChasis, setTipoAccionChasis] = useState('nuevo'); // 'nuevo' | 'existente'
+  const [tipoAccionChasis, setTipoAccionChasis] = useState('nuevo'); 
 
-  // ESTADOS DEL FORMULARIO CON "INICIO DE PUERTO" PARA PERMITIR EXPANSIONES
+  // ESTADOS DEL FORMULARIO MODULARIZADO (SIN LÍMITES GPON)
   const [nuevoEquipo, setNuevoEquipo] = useState({
     chasis: '',
     ip_hub: '',
     
     // Bloque Principal
+    tipo_puerto: '1G',
     cantidad_puertos: 24,
     prefijo_puerto: 'Gi1/0/',
     inicio_puerto: 1, 
     estatus_inicial: 'DISPONIBLE GI',
     
-    // Bloque Uplink
+    // Bloque Secundario (Ej. Uplinks)
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
@@ -40,7 +40,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // EFECTO MAGICO: Buscar chasis existentes cuando se selecciona un Hub
   useEffect(() => {
     if (!hubSelec) {
       setEquiposExistentes([]);
@@ -57,13 +56,12 @@ export default function CargaExcel({ token, estructuraGeografica }) {
         const json = await res.json();
         
         if (res.ok && json.puertos) {
-           // Extraer todos los EQUIPO_HOTEL_ID únicos
            const unicos = Array.from(new Set(json.puertos.map(p => p.EQUIPO_HOTEL_ID).filter(Boolean))).sort();
            setEquiposExistentes(unicos);
            
            if(unicos.length > 0){
                setTipoAccionChasis('existente');
-               setNuevoEquipo(prev => ({...prev, chasis: unicos[0]})); // Seleccionar el primero por defecto
+               setNuevoEquipo(prev => ({...prev, chasis: unicos[0]})); 
            } else {
                setTipoAccionChasis('nuevo');
                setNuevoEquipo(prev => ({...prev, chasis: ''}));
@@ -117,12 +115,41 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     }
   };
 
+  // HANDLER: Cambio de velocidad bloque principal
+  const handleCambioPuertoPrincipal = (e) => {
+    const tipo = e.target.value;
+    let prefijo = 'Gi1/0/';
+    let estatus = 'DISPONIBLE GI';
+
+    if (tipo === '10G') {
+      prefijo = 'Te1/0/';
+      estatus = 'DISPONIBLE TE';
+    } else if (tipo === '25G') {
+      prefijo = 'Twe1/0/';
+      estatus = 'DISPONIBLE 25';
+    } else if (tipo === '100G') {
+      prefijo = 'Hu1/0/';
+      estatus = 'DISPONIBLE 100';
+    }
+
+    setNuevoEquipo({
+      ...nuevoEquipo,
+      tipo_puerto: tipo,
+      prefijo_puerto: prefijo,
+      estatus_inicial: estatus
+    });
+  };
+
+  // HANDLER: Cambio de velocidad bloque secundario
   const handleCambioUplink = (e) => {
     const tipo = e.target.value;
     let prefijo = 'Te1/0/';
     let estatus = 'DISPONIBLE TE';
 
-    if (tipo === '25G') {
+    if (tipo === '1G') {
+      prefijo = 'Gi1/0/';
+      estatus = 'DISPONIBLE GI';
+    } else if (tipo === '25G') {
       prefijo = 'Twe1/0/';
       estatus = 'DISPONIBLE 25';
     } else if (tipo === '100G') {
@@ -214,7 +241,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     <div className="flex-1 bg-[#070b19] overflow-y-auto p-4 md:p-8 custom-scrollbar">
       <div className="max-w-6xl mx-auto space-y-6">
         
-        {/* ENCABEZADO Y TABS */}
         <div className="bg-[#0b132b] p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <div>
@@ -249,11 +275,9 @@ export default function CargaExcel({ token, estructuraGeografica }) {
           </div>
         </div>
 
-        {/* PASO 1 */}
         {paso === 1 && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in zoom-in duration-300">
             
-            {/* PANEL IZQUIERDO: DESTINO LÓGICO */}
             <div className="xl:col-span-4 bg-[#090f24] p-6 rounded-2xl border border-slate-800 flex flex-col h-full shadow-lg">
               <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Server className="w-5 h-5 text-indigo-400"/> Destino Lógico (HUB)</h2>
               <div className="space-y-4">
@@ -272,14 +296,11 @@ export default function CargaExcel({ token, estructuraGeografica }) {
               </div>
             </div>
 
-            {/* PANEL DERECHO: OPCIÓN SELECCIONADA */}
             {modoCarga === 'manual' ? (
               <div className="xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border border-emerald-900/50 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Settings2 className="w-5 h-5 text-emerald-400"/> Generador y Expansor de Chasis</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-[#050814] p-4 rounded-xl border border-slate-800">
-                  
-                  {/* SELECTOR: NUEVO VS EXISTENTE */}
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Tipo de Operación</label>
                     <div className="flex bg-[#1c2541] border border-slate-700 rounded-lg p-1 gap-1">
@@ -307,13 +328,12 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     </div>
                   </div>
 
-                  {/* INPUT / SELECT DE CHASIS */}
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">
                         {tipoAccionChasis === 'nuevo' ? 'Nombre del Nuevo Equipo' : 'Equipo a Expandir'}
                     </label>
                     {tipoAccionChasis === 'nuevo' ? (
-                        <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. OLT-01" />
+                        <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. SW-CORE-01" />
                     ) : (
                         <select value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none">
                             {equiposExistentes.map(eq => <option key={eq} value={eq}>{eq}</option>)}
@@ -330,9 +350,18 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                 <div className="mt-6 border-t border-slate-800 pt-6">
                     <div className="flex items-center gap-2 mb-4">
                         <Network className="w-4 h-4 text-slate-400" />
-                        <h3 className="text-sm font-bold text-slate-200">Puertos Principales (Gigabit / GPON)</h3>
+                        <h3 className="text-sm font-bold text-slate-200">Bloque Principal de Puertos</h3>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad / Capacidad</label>
+                            <select value={nuevoEquipo.tipo_puerto} onChange={handleCambioPuertoPrincipal} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none transition-colors">
+                                <option value="1G">Gigabit (1G)</option>
+                                <option value="10G">TenGigabit (10G)</option>
+                                <option value="25G">25 Gigabit (25G)</option>
+                                <option value="100G">100 Gigabit (100G)</option>
+                            </select>
+                        </div>
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
                             Prefijo <span className="text-emerald-500 font-black">{nuevoEquipo.estatus_inicial}</span>
@@ -347,11 +376,13 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a sumar</label>
                             <select value={nuevoEquipo.cantidad_puertos} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_puertos: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
                                 <option value={1}>1 Puerto</option>
+                                <option value={2}>2 Puertos</option>
+                                <option value={4}>4 Puertos</option>
                                 <option value={8}>8 Puertos</option>
+                                <option value={12}>12 Puertos</option>
                                 <option value={16}>16 Puertos</option>
                                 <option value={24}>24 Puertos</option>
                                 <option value={48}>48 Puertos</option>
-                                <option value={128}>128 Puertos (GPON)</option>
                             </select>
                         </div>
                     </div>
@@ -361,7 +392,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                             <Zap className="w-4 h-4 text-blue-400" />
-                            <h3 className="text-sm font-bold text-blue-300">Incluir Puertos de Transporte (Uplinks)</h3>
+                            <h3 className="text-sm font-bold text-blue-300">Incluir Bloque Secundario (Ej. Uplinks)</h3>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" className="sr-only peer" checked={nuevoEquipo.incluir_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, incluir_uplinks: e.target.checked})} />
@@ -372,11 +403,12 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     {nuevoEquipo.incluir_uplinks && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2">
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad Uplink</label>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad / Capacidad</label>
                                 <select value={nuevoEquipo.tipo_uplink} onChange={handleCambioUplink} className="w-full bg-[#1c2541] border border-blue-900/50 text-blue-300 p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none transition-colors">
-                                    <option value="10G">10G</option>
-                                    <option value="25G">25G</option>
-                                    <option value="100G">100G</option>
+                                    <option value="1G">Gigabit (1G)</option>
+                                    <option value="10G">TenGigabit (10G)</option>
+                                    <option value="25G">25 Gigabit (25G)</option>
+                                    <option value="100G">100 Gigabit (100G)</option>
                                 </select>
                             </div>
                             <div>
@@ -394,6 +426,10 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                                     <option value={2}>2 Puertos</option>
                                     <option value={4}>4 Puertos</option>
                                     <option value={8}>8 Puertos</option>
+                                    <option value={12}>12 Puertos</option>
+                                    <option value={16}>16 Puertos</option>
+                                    <option value={24}>24 Puertos</option>
+                                    <option value={48}>48 Puertos</option>
                                 </select>
                             </div>
                         </div>
@@ -435,7 +471,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
           </div>
         )}
 
-        {/* PASO 2: STAGING AREA (PREVISUALIZACIÓN Y ERRORES) */}
         {paso === 2 && (
           <div className="bg-[#090f24] rounded-2xl border border-slate-800 overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[70vh] shadow-2xl">
             <div className={`p-4 flex items-center justify-between shrink-0 ${hayErrores ? 'bg-red-950/40 border-b border-red-900/50' : 'bg-emerald-950/40 border-b border-emerald-900/50'}`}>
@@ -506,7 +541,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
           </div>
         )}
 
-        {/* PASO 3: ÉXITO */}
         {paso === 3 && (
           <div className="bg-emerald-950/20 p-12 rounded-2xl border border-emerald-900/50 flex flex-col justify-center items-center text-center animate-in fade-in zoom-in duration-300">
             <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
