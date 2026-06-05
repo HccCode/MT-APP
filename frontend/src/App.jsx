@@ -9,6 +9,7 @@ import CargaExcel from './pages/CargaExcel';
 import Usuarios from './pages/Usuarios';
 import Cabezales from './pages/Cabezales';
 import Cuadrilla from './pages/Cuadrilla';
+import Auditoria from './pages/Auditoria'; // <-- 1. Importar la nueva página
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
@@ -45,6 +46,7 @@ function App() {
   const mostrarGeografia = puedeVerTab('geografia', esAdmin);
   const mostrarCarga = puedeVerTab('carga_excel', puedeCargar);
   const mostrarUsuarios = puedeVerTab('usuarios', esAdmin);
+  const mostrarAuditoria = puedeVerTab('auditoria', esAdmin); // <-- 2. Permiso para Auditoría
 
   const handleLogout = () => {
     localStorage.clear(); 
@@ -78,13 +80,12 @@ function App() {
     if (token) cargarGeographyDB(); 
   }, [token]);
 
-  // Si se inicia sesión desde un móvil, forzar la vista de cuadrilla
   useEffect(() => {
     if (token) {
       if (window.innerWidth < 768) {
         setTabActiva('cuadrilla');
       } else if (tabActiva === 'cuadrilla') {
-        setTabActiva('inventario'); // Si es PC, asegurarse de no estar en cuadrilla
+        setTabActiva('inventario'); 
       }
     }
   }, [token]);
@@ -96,11 +97,9 @@ function App() {
   return (
     <div className="h-screen w-screen bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
-      {/* NAVBAR GLOBAL REDISEÑADO */}
       <header className="bg-[#0b132b] border-b border-slate-800 shrink-0">
         <div className="px-4 py-3 sm:px-6 sm:py-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">
           
-          {/* FILA SUPERIOR: LOGO + LOGOUT */}
           <div className="flex justify-between items-center w-full xl:w-auto">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg border border-blue-500/20">
@@ -112,22 +111,18 @@ function App() {
               </div>
             </div>
 
-            {/* BOTÓN CERRAR SESIÓN (MÓVIL) */}
             <button 
               onClick={handleLogout} 
               className="xl:hidden p-2 bg-red-950/30 border border-red-900/40 rounded-lg text-red-400 hover:bg-red-900/50 cursor-pointer transition-colors flex shrink-0"
-              title="Cerrar Sesión"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
 
-          {/* MENÚ DESLIZABLE */}
           <div className="w-full xl:w-auto overflow-hidden">
             <div className="flex bg-[#050814] p-1.5 rounded-xl border border-slate-800 overflow-x-auto gap-2 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               <style>{`.overflow-x-auto::-webkit-scrollbar { display: none; }`}</style>
               
-              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarInventario && (
                 <button 
                   onClick={() => setTabActiva('inventario')} 
@@ -137,7 +132,6 @@ function App() {
                 </button>
               )}
 
-              {/* SOLO VISIBLE EN CELULAR (flex md:hidden) */}
               {mostrarCuadrilla && (
                 <button 
                   onClick={() => setTabActiva('cuadrilla')} 
@@ -147,7 +141,6 @@ function App() {
                 </button>
               )}
               
-              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarResumen && (
                 <button 
                   onClick={() => setTabActiva('resumen')} 
@@ -157,7 +150,6 @@ function App() {
                 </button>
               )}
 
-              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarCabezales && (
                 <button 
                   onClick={() => setTabActiva('cabezales')} 
@@ -167,7 +159,6 @@ function App() {
                 </button>
               )}
               
-              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarGeografia && (
                 <button 
                   onClick={() => setTabActiva('geografia')} 
@@ -177,7 +168,6 @@ function App() {
                 </button>
               )}
               
-              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarCarga && (
                 <button 
                   onClick={() => setTabActiva('carga_excel')} 
@@ -187,7 +177,6 @@ function App() {
                 </button>
               )}
 
-              {/* SOLO VISIBLE EN COMPUTADORA (hidden md:flex) */}
               {mostrarUsuarios && (
                 <button 
                   onClick={() => setTabActiva('usuarios')} 
@@ -196,14 +185,22 @@ function App() {
                   <span className="text-[13px]">👥</span> Usuarios
                 </button>
               )}
+
+              {/* 3. NUEVO BOTÓN DE AUDITORÍA (LOGS) */}
+              {mostrarAuditoria && (
+                <button 
+                  onClick={() => setTabActiva('auditoria')} 
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'auditoria' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  <span className="text-[13px]">🛡️</span> Logs Forenses
+                </button>
+              )}
             </div>
           </div>
 
-          {/* BOTÓN CERRAR SESIÓN (PC) */}
           <button 
             onClick={handleLogout} 
             className="hidden xl:flex p-2 bg-red-950/30 border border-red-900/40 rounded-lg text-red-400 hover:bg-red-900/50 cursor-pointer transition-colors shrink-0"
-            title="Cerrar Sesión"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -232,6 +229,10 @@ function App() {
         )}
         {tabActiva === 'usuarios' && (
           <Usuarios token={token} usuario={usuario} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
+        )}
+        {/* 4. RENDERIZAR LA PESTAÑA AUDITORÍA */}
+        {tabActiva === 'auditoria' && (
+          <Auditoria token={token} />
         )}
       </div>
     </div>
