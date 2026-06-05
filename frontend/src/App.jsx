@@ -193,7 +193,7 @@ function App() {
                   onClick={() => setTabActiva('auditoria')} 
                   className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'auditoria' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  <span className="text-[13px]">🛡️</span> Logs Forenses
+                  <span className="text-[13px]">🛡️</span> Logs
                 </button>
               )}
             </div>
