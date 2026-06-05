@@ -19,13 +19,13 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     chasis: '',
     ip_hub: '',
     cantidad_puertos: 24,
-    prefijo_puerto: 'Gi1/0/',
+    prefijo_puerto: 'Gi1/0/1',
     estatus_inicial: 'DISPONIBLE GI',
     
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
-    prefijo_uplink: 'Te1/0/',
+    prefijo_uplink: 'Te1/0/1',
     estatus_uplink: 'DISPONIBLE TE'
   });
 
