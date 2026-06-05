@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity } from 'lucide-react';
+import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck } from 'lucide-react';
 
 export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
@@ -19,6 +19,18 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
 
   useEffect(() => { localStorage.setItem('mcm_res_reg', regionSelec); }, [regionSelec]);
   useEffect(() => { localStorage.setItem('mcm_res_cd', ciudadSelec); }, [ciudadSelec]);
+
+  // ==========================================
+  // FUNCIÓN LIMPIADORA DE IDs GENERADOS
+  // ==========================================
+  const limpiarNombreSitio = (nombreRaw) => {
+    if (!nombreRaw) return '';
+    return String(nombreRaw)
+      .replace(/^[0-9]+_/, '')           
+      .replace(/_[0-9]+(:[0-9]+)?$/, '') 
+      .replace(/_/g, ' ')                
+      .trim();
+  };
 
   const cargarConfigCiudad = async (ciudad) => {
     try {
@@ -129,10 +141,9 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const mostrar25G = datosHubs.some(h => h.total_25 > 0);
   const mostrar100G = datosHubs.some(h => h.total_100 > 0);
 
-  // ================= SISTEMA DE ALERTAS (UMBRALES) =================
+  // ================= SISTEMA DE ALERTAS =================
   const alertas = [];
   if (ciudadSelec && !cargando) {
-    // 1. Alerta de Backbone: Si la disponibilidad es menor al 15% (Es decir, uso superior al 85%)
     if (parseFloat(disponibilidadAnchoBanda) < 15 && capacidadNum > 0) {
       alertas.push({
         id: 'bw-critico',
@@ -141,13 +152,12 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
       });
     }
 
-    // 2. Alerta de Nodos: Si algún HUB baja del 15% de puertos disponibles
     datosHubs.forEach(h => {
       if (parseFloat(h.pct_libres) < 15 && h.total > 0) {
         alertas.push({
           id: `hub-${h.id}`,
           tipo: 'ADVERTENCIA',
-          msg: `Nivel bajo de puertos en NODO ${h.nombre}. Solo ${h.total_disp} puerto(s) libre(s) (${h.pct_libres}%). Requiere ampliación óptica.`
+          msg: `Nivel crítico en nodo ${limpiarNombreSitio(h.nombre)}. Solo ${h.total_disp} libre(s) (${h.pct_libres}%).`
         });
       }
     });
@@ -167,7 +177,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
         stats_troncales: stats.troncales,
         stats_total_disp: stats.total_disp,
         hubs: datosHubs.map(h => ({
-            nombre: h.nombre, id: h.id, 
+            nombre: limpiarNombreSitio(h.nombre), id: h.id, 
             disp_gi: h.disp_gi, total_gi: h.total_gi, 
             disp_te: h.disp_te, total_te: h.total_te, 
             disp_25: h.disp_25, total_25: h.total_25, 
@@ -207,91 +217,98 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#070b19]">
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
-        <div className="flex items-center gap-3">
-            <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); }} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none">
-                <option value="" className="bg-[#1c2541] text-white">-- REGIÓN --</option>
-                {Object.keys(estructuraGeografica).map(r => <option key={r} value={r} className="bg-[#1c2541] text-white">{r}</option>)}
+        <div className="flex items-center gap-3 w-full md:w-auto">
+            <ShieldCheck className="w-5 h-5 text-indigo-500 hidden md:block" />
+            <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); }} className="bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none focus:border-indigo-500 transition-colors w-full md:w-auto">
+                <option value="" className="text-slate-500">-- REGIÓN --</option>
+                {Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
             </select>
-            <select value={ciudadSelec} onChange={(e) => setCiudadSelec(e.target.value)} disabled={!regionSelec} className="bg-transparent border border-slate-600 px-3 py-1.5 rounded-md text-sm text-slate-200 outline-none">
-                <option value="" className="bg-[#1c2541] text-white">-- CIUDAD --</option>
-                {regionSelec && Object.keys(estructuraGeografica[regionSelec].ciudades).map(c => <option key={c} value={c} className="bg-[#1c2541] text-white">{c}</option>)}
+            <span className="text-indigo-600/50">➔</span>
+            <select value={ciudadSelec} onChange={(e) => setCiudadSelec(e.target.value)} disabled={!regionSelec} className="bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-md text-sm text-indigo-300 font-bold outline-none focus:border-indigo-500 disabled:opacity-50 transition-colors w-full md:w-auto">
+                <option value="" className="text-slate-500">-- CIUDAD --</option>
+                {regionSelec && Object.keys(estructuraGeografica[regionSelec].ciudades).map(c => <option key={c} value={c}>{c}</option>)}
             </select>
         </div>
         {datosHubs.length > 0 && (
-          <button onClick={exportarResumenExcel} disabled={cargando} className="bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex items-center gap-2 shadow-lg cursor-pointer disabled:opacity-50">
-            <Download className="w-4 h-4" /> Exportar Reporte
+          <button onClick={exportarResumenExcel} disabled={cargando} className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-500 border border-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors flex justify-center items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.2)] disabled:opacity-50">
+            <Download className="w-4 h-4" /> Reporte Gerencial
           </button>
         )}
       </div>
 
-      <div className="flex-1 overflow-auto p-6 space-y-6 custom-scrollbar">
+      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 custom-scrollbar">
         {cargando ? (
-          <div className="flex justify-center items-center h-40 text-slate-500 font-mono text-sm">Calculando disponibilidad global...</div>
+          <div className="flex justify-center items-center h-40 text-indigo-500 font-mono text-sm animate-pulse">Escaneando red y calculando telemetría...</div>
         ) : !ciudadSelec ? (
-          <div className="flex justify-center items-center h-40 text-slate-500 italic text-sm">Seleccione Región y Ciudad para generar el resumen.</div>
+          <div className="flex flex-col justify-center items-center h-40 text-slate-600 italic text-sm">
+            <Server className="w-8 h-8 mb-2 stroke-1" />
+            Seleccione Región y Ciudad para generar la radiografía.
+          </div>
         ) : (
           <>
-            {/* ================= PANEL DE ALERTAS VISUALES ================= */}
             {alertas.length > 0 && (
-              <div className="bg-red-950/20 border border-red-900/50 rounded-2xl p-4 flex flex-col gap-3 shadow-lg mb-2">
+              <div className="bg-red-950/20 border border-red-900/50 rounded-2xl p-4 flex flex-col gap-3 shadow-lg mb-2 animate-in fade-in slide-in-from-top-4">
                 <div className="flex items-center gap-2 mb-1">
                     <AlertTriangle className="w-5 h-5 text-red-500 animate-pulse" />
-                    <h3 className="text-sm font-black text-red-400 uppercase tracking-widest">Sistema de Alertas Activas</h3>
+                    <h3 className="text-sm font-black text-red-400 uppercase tracking-widest">Alertas Físicas Detectadas</h3>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {alertas.map((al) => (
                         <div key={al.id} className={`p-3 rounded-lg border flex items-start gap-3 shadow-md ${al.tipo === 'CRÍTICA' ? 'bg-red-900/20 border-red-800/50 text-red-200' : 'bg-amber-900/20 border-amber-800/50 text-amber-200'}`}>
                            {al.tipo === 'CRÍTICA' ? <Activity className="w-4 h-4 mt-0.5 text-red-500 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />}
-                           <p className="text-xs font-medium leading-relaxed">{al.msg}</p>
+                           <p className="text-[11px] font-medium leading-relaxed">{al.msg}</p>
                         </div>
                     ))}
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-[#0b132b] border border-slate-800 p-6 rounded-2xl relative overflow-hidden">
-                    <Zap className="absolute -right-4 -bottom-4 w-24 h-24 text-emerald-500/5" />
-                    <p className="text-xs font-bold text-slate-500 mb-2">TRÁFICO TOTAL AGREGADO</p>
-                    <p className="text-4xl font-black text-emerald-400">{traficoGbps} <span className="text-lg text-slate-500 font-normal">Gbps</span></p>
-                    <p className="text-[10px] text-slate-500 mt-2">Suma de MBPS de puertos activos</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 animate-in fade-in zoom-in duration-300">
+                <div className="bg-[#0b132b] border border-slate-700/50 p-6 rounded-2xl relative overflow-hidden shadow-lg col-span-2 md:col-span-1">
+                    <Zap className="absolute -right-4 -bottom-4 w-24 h-24 text-emerald-500/10" />
+                    <p className="text-[10px] md:text-xs font-black text-slate-500 mb-2 uppercase tracking-widest">Tráfico Agregado</p>
+                    <p className="text-3xl md:text-4xl font-black text-emerald-400">{traficoGbps} <span className="text-base text-slate-500 font-normal">Gbps</span></p>
+                    <p className="text-[9px] text-slate-500 mt-2 font-mono">Consumo Real Time</p>
                 </div>
-                <div className="bg-[#0b132b] border border-slate-800 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
-                    <p className="text-xs font-bold text-slate-500 mb-2">PUERTOS DISPONIBLES</p>
-                    <p className="text-4xl font-black text-blue-400">{stats.total_disp}</p>
+                <div className="bg-[#0b132b] border border-slate-700/50 p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-lg">
+                    <p className="text-[10px] md:text-xs font-black text-slate-500 mb-2 uppercase tracking-widest">Disponibles</p>
+                    <p className="text-3xl md:text-4xl font-black text-blue-400 drop-shadow-[0_0_10px_rgba(96,165,250,0.3)]">{stats.total_disp}</p>
                 </div>
-                <div className="bg-[#0b132b] border border-slate-800 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
-                    <p className="text-xs font-bold text-slate-500 mb-2">CLIENTES ACTIVOS</p>
-                    <p className="text-4xl font-black text-white">{stats.activos}</p>
+                <div className="bg-[#0b132b] border border-slate-700/50 p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-lg">
+                    <p className="text-[10px] md:text-xs font-black text-slate-500 mb-2 uppercase tracking-widest">Activos</p>
+                    <p className="text-3xl md:text-4xl font-black text-white">{stats.activos}</p>
                 </div>
-                <div className="bg-[#0b132b] border border-slate-800 p-6 rounded-2xl flex flex-col justify-center items-center text-center">
-                    <p className="text-xs font-bold text-slate-500 mb-2">EN SUSPENSIÓN</p>
-                    <p className="text-4xl font-black text-purple-500">{stats.suspendidos}</p>
+                <div className="bg-[#0b132b] border border-slate-700/50 p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-lg">
+                    <p className="text-[10px] md:text-xs font-black text-slate-500 mb-2 uppercase tracking-widest">En Suspensión</p>
+                    <p className="text-3xl md:text-4xl font-black text-purple-400">{stats.suspendidos}</p>
                 </div>
             </div>
 
-            <div className="bg-[#0b132b]/50 border border-slate-800 rounded-2xl p-6">
-                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6">
+            <div className="bg-[#0b132b]/50 border border-slate-700/50 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                {/* Deco Background */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+
+                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 mb-6 relative z-10">
                     <div>
-                        <h3 className="text-sm font-bold text-white">Capacidad de Carga Estimada</h3>
-                        <p className="text-xs text-slate-500">Configuración de Backbone por ciudad para cálculo de saturación.</p>
+                        <h3 className="text-sm font-black text-white tracking-wide uppercase">Capacidad Backbone</h3>
+                        <p className="text-[10px] text-slate-500 font-bold mt-1">Configuración del anillo para el cálculo de saturación.</p>
                     </div>
 
-                    <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex items-center gap-4 min-w-[250px]">
+                    <div className="bg-[#050814]/80 p-3 md:p-4 rounded-xl border border-slate-700/50 flex items-center gap-4 w-full md:min-w-[250px] shadow-inner">
                         <div className="flex-1 text-right">
-                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Ancho de Banda Total</p>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mb-1">Capacidad Declarada</p>
                             {modoEdicion ? (
                                 <div className="flex items-center gap-2 justify-end">
-                                    <input type="text" value={editCapacidad} onChange={e=>setEditCapacidad(e.target.value)} className="bg-[#1c2541] border border-blue-500 text-white font-mono text-xl font-black rounded px-2 w-24 text-right outline-none" autoFocus />
-                                    <button onClick={guardarCapacidad} disabled={guardando} className="bg-emerald-600 p-1.5 rounded cursor-pointer"><Check className="w-4 h-4" /></button>
-                                    <button onClick={()=>setModoEdicion(false)} className="bg-slate-700 p-1.5 rounded cursor-pointer"><X className="w-4 h-4" /></button>
+                                    <input type="text" value={editCapacidad} onChange={e=>setEditCapacidad(e.target.value)} className="bg-[#1c2541] border border-indigo-500 text-white font-mono text-xl font-black rounded px-2 w-24 text-right outline-none shadow-[0_0_10px_rgba(99,102,241,0.2)]" autoFocus />
+                                    <button onClick={guardarCapacidad} disabled={guardando} className="bg-emerald-600 hover:bg-emerald-500 text-white p-1.5 rounded transition-colors"><Check className="w-4 h-4" /></button>
+                                    <button onClick={()=>setModoEdicion(false)} className="bg-slate-700 hover:bg-slate-600 text-white p-1.5 rounded transition-colors"><X className="w-4 h-4" /></button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-3 justify-end group">
-                                    <p className="text-2xl font-black text-blue-400 font-mono">{capacidadTotal}</p>
+                                    <p className="text-2xl font-black text-indigo-400 font-mono">{capacidadTotal}</p>
                                     {puedeEditar && (
-                                        <button onClick={()=>{setEditCapacidad(capacidadTotal); setModoEdicion(true);}} className="text-slate-600 hover:text-blue-400 cursor-pointer">
-                                            <Edit2 className="w-4 h-4" />
+                                        <button onClick={()=>{setEditCapacidad(capacidadTotal); setModoEdicion(true);}} className="text-slate-600 hover:text-indigo-400 transition-colors p-1 bg-slate-800 rounded">
+                                            <Edit2 className="w-3.5 h-3.5" />
                                         </button>
                                     )}
                                 </div>
@@ -300,84 +317,106 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                     </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 relative z-10">
                     <div className="flex justify-between items-end">
-                        <p className="text-xs font-bold text-slate-400">DISPONIBILIDAD DE ANCHO DE BANDA</p>
-                        <p className="text-2xl font-black text-white">{disponibilidadAnchoBanda}%</p>
+                        <p className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Ancho de Banda Libre</p>
+                        <p className="text-xl font-black text-white">{disponibilidadAnchoBanda}%</p>
                     </div>
-                    <div className="h-4 bg-slate-900 rounded-full border border-slate-800 overflow-hidden p-0.5">
-                        <div className={`h-full rounded-full transition-all duration-1000 ${parseFloat(disponibilidadAnchoBanda) < 15 ? 'bg-red-500' : 'bg-blue-500'}`} style={{width: `${disponibilidadAnchoBanda}%`}}></div>
+                    <div className="h-3 bg-slate-900 rounded-full overflow-hidden shadow-inner">
+                        <div 
+                            className={`h-full rounded-full transition-all duration-1000 ${parseFloat(disponibilidadAnchoBanda) < 15 ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' : 'bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]'}`} 
+                            style={{width: `${disponibilidadAnchoBanda}%`}}
+                        ></div>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-              <div className="p-4 border-b border-slate-800 bg-[#0b132b]">
-                <h3 className="text-sm font-bold text-slate-200">Desglose de Disponibilidad por Nodo (HUB)</h3>
+            <div className="bg-[#0b132b]/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4">
+              <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50">
+                <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
+                    <Server className="w-4 h-4 text-indigo-500" />
+                    Radiografía por HUB / NODO
+                </h3>
               </div>
               <div className="overflow-x-auto custom-scrollbar">
                 <table className="min-w-max w-full text-left text-xs text-slate-300 whitespace-nowrap">
-                  <thead className="bg-[#050814] text-slate-400 border-b border-slate-800">
+                  <thead className="bg-[#050814] text-slate-400 border-b border-slate-800/80">
                     <tr>
-                      <th className="p-4 font-bold tracking-wider">NODO / HUB</th>
+                      <th className="p-4 font-black tracking-widest">SITE (NODO)</th>
                       
-                      <th className="p-4 font-bold text-center bg-slate-900/40">DISP. (GI)</th>
-                      <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/40">TOTAL (GI)</th>
+                      <th className="p-4 font-bold text-center bg-slate-900/30 text-[10px] tracking-wider">DISP (1G)</th>
+                      <th className="p-4 font-bold text-center border-r border-slate-800/30 bg-slate-900/30 text-[10px] tracking-wider">TOT (1G)</th>
                       
-                      <th className="p-4 font-bold text-center bg-slate-900/20">DISP. (TE)</th>
-                      <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/20">TOTAL (TE)</th>
+                      <th className="p-4 font-bold text-center bg-slate-900/10 text-[10px] tracking-wider">DISP (10G)</th>
+                      <th className="p-4 font-bold text-center border-r border-slate-800/30 bg-slate-900/10 text-[10px] tracking-wider">TOT (10G)</th>
                       
-                      {mostrar25G && <th className="p-4 font-bold text-center bg-slate-900/40">DISP. (25G)</th>}
-                      {mostrar25G && <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/40">TOTAL (25G)</th>}
+                      {mostrar25G && <th className="p-4 font-bold text-center bg-slate-900/30 text-[10px] tracking-wider">DISP (25G)</th>}
+                      {mostrar25G && <th className="p-4 font-bold text-center border-r border-slate-800/30 bg-slate-900/30 text-[10px] tracking-wider">TOT (25G)</th>}
                       
-                      {mostrar100G && <th className="p-4 font-bold text-center bg-slate-900/20">DISP. (100G)</th>}
-                      {mostrar100G && <th className="p-4 font-bold text-center border-r border-slate-800/50 bg-slate-900/20">TOTAL (100G)</th>}
+                      {mostrar100G && <th className="p-4 font-bold text-center bg-slate-900/10 text-[10px] tracking-wider">DISP (100G)</th>}
+                      {mostrar100G && <th className="p-4 font-bold text-center border-r border-slate-800/30 bg-slate-900/10 text-[10px] tracking-wider">TOT (100G)</th>}
                       
-                      <th className="p-4 font-bold text-center text-emerald-500">ACTIVOS</th>
-                      <th className="p-4 font-bold text-center text-purple-400">SUSPEND.</th>
-                      <th className="p-4 font-bold text-center text-amber-400">TRONCALES</th>
+                      <th className="p-4 font-bold text-center text-emerald-500 text-[10px] tracking-wider">ACT</th>
+                      <th className="p-4 font-bold text-center text-purple-400 text-[10px] tracking-wider">SUSP</th>
+                      <th className="p-4 font-bold text-center text-amber-400 text-[10px] tracking-wider">TRNK</th>
 
-                      <th className="p-4 font-bold text-center border-l border-slate-800/50 text-blue-400">TOTAL DISP.</th>
-                      <th className="p-4 font-bold text-center text-emerald-400">LIBRES %</th>
+                      <th className="p-4 font-black text-center border-l border-slate-800/50 text-blue-400 tracking-wider">LIBRES</th>
+                      <th className="p-4 font-black text-left text-indigo-400 tracking-wider w-48">OCUPACIÓN FÍSICA</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/40">
                     {datosHubs.length === 0 ? (
-                      <tr><td colSpan="13" className="p-8 text-center text-slate-500 italic">No hay nodos registrados en esta ciudad.</td></tr>
+                      <tr><td colSpan="14" className="p-12 text-center text-slate-500 italic font-medium">No hay hardware aprovisionado en esta ciudad.</td></tr>
                     ) : (
-                      datosHubs.map((h, i) => (
-                        <tr key={i} className={`hover:bg-slate-800/30 transition-colors ${parseFloat(h.pct_libres) < 15 ? 'bg-amber-900/10' : ''}`}>
+                      datosHubs.map((h, i) => {
+                        const porcentajeLibre = parseFloat(h.pct_libres);
+                        const porcentajeOcupado = 100 - porcentajeLibre;
+                        const esCritico = porcentajeLibre < 15;
+                        const esPeligro = porcentajeLibre < 30;
+
+                        return (
+                        <tr key={i} className={`hover:bg-slate-800/30 transition-colors ${esCritico ? 'bg-red-950/10' : ''}`}>
                           <td className="p-4">
-                            <p className="font-bold text-slate-200">{h.nombre}</p>
-                            <p className="text-[10px] text-slate-500 font-mono mt-0.5">{h.id}</p>
+                            <p className="font-bold text-slate-200">{limpiarNombreSitio(h.nombre)}</p>
+                            <p className="text-[9px] text-slate-600 font-mono mt-0.5 tracking-widest hidden lg:block" title="ID Base de Datos">{h.id}</p>
                           </td>
 
-                          <td className="p-4 text-center bg-slate-900/40">{h.disp_gi}</td>
-                          <td className="p-4 text-center border-r border-slate-800/50 bg-slate-900/40 text-slate-400 font-bold">{h.total_gi}</td>
+                          <td className="p-4 text-center bg-slate-900/30 text-slate-300 font-medium">{h.disp_gi}</td>
+                          <td className="p-4 text-center border-r border-slate-800/30 bg-slate-900/30 text-slate-500 font-bold">{h.total_gi}</td>
 
-                          <td className="p-4 text-center bg-slate-900/20">{h.disp_te}</td>
-                          <td className="p-4 text-center border-r border-slate-800/50 bg-slate-900/20 text-slate-400 font-bold">{h.total_te}</td>
+                          <td className="p-4 text-center bg-slate-900/10 text-slate-300 font-medium">{h.disp_te}</td>
+                          <td className="p-4 text-center border-r border-slate-800/30 bg-slate-900/10 text-slate-500 font-bold">{h.total_te}</td>
 
-                          {mostrar25G && <td className="p-4 text-center bg-slate-900/40">{h.disp_25}</td>}
-                          {mostrar25G && <td className="p-4 text-center border-r border-slate-800/50 bg-slate-900/40 text-slate-400 font-bold">{h.total_25}</td>}
+                          {mostrar25G && <td className="p-4 text-center bg-slate-900/30 text-slate-300 font-medium">{h.disp_25}</td>}
+                          {mostrar25G && <td className="p-4 text-center border-r border-slate-800/30 bg-slate-900/30 text-slate-500 font-bold">{h.total_25}</td>}
 
-                          {mostrar100G && <td className="p-4 text-center bg-slate-900/20">{h.disp_100}</td>}
-                          {mostrar100G && <td className="p-4 text-center border-r border-slate-800/50 bg-slate-900/20 text-slate-400 font-bold">{h.total_100}</td>}
+                          {mostrar100G && <td className="p-4 text-center bg-slate-900/10 text-slate-300 font-medium">{h.disp_100}</td>}
+                          {mostrar100G && <td className="p-4 text-center border-r border-slate-800/30 bg-slate-900/10 text-slate-500 font-bold">{h.total_100}</td>}
 
-                          <td className="p-4 text-center text-emerald-400 font-medium">{h.activos}</td>
-                          <td className="p-4 text-center text-purple-400 font-medium">{h.suspendidos}</td>
-                          <td className="p-4 text-center text-amber-400 font-medium">{h.troncales}</td>
+                          <td className="p-4 text-center text-emerald-400/80 font-medium">{h.activos}</td>
+                          <td className="p-4 text-center text-purple-400/80 font-medium">{h.suspendidos}</td>
+                          <td className="p-4 text-center text-amber-400/80 font-medium">{h.troncales}</td>
 
                           <td className="p-4 text-center border-l border-slate-800/50">
-                            <span className={`px-2.5 py-1 rounded-full font-black ${h.total_disp > 0 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-slate-800/50 text-slate-500'}`}>
+                            <span className={`px-2.5 py-1 rounded-full font-black text-[11px] ${h.total_disp > 0 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-sm' : 'bg-slate-800/50 text-slate-500'}`}>
                               {h.total_disp}
                             </span>
                           </td>
-                          <td className={`p-4 text-center font-black ${parseFloat(h.pct_libres) < 15 ? 'text-amber-500' : 'text-emerald-400'}`}>
-                            {h.pct_libres}%
+                          <td className="p-4 w-48">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden shadow-inner border border-slate-800/50">
+                                    <div 
+                                        className={`h-full rounded-full transition-all duration-1000 ${esCritico ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]' : esPeligro ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                        style={{ width: `${porcentajeOcupado}%` }}
+                                    ></div>
+                                </div>
+                                <span className={`font-black text-[10px] w-10 text-right tracking-widest ${esCritico ? 'text-red-400' : esPeligro ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                    {porcentajeLibre}%
+                                </span>
+                            </div>
                           </td>
                         </tr>
-                      ))
+                      )})
                     )}
                   </tbody>
                 </table>
