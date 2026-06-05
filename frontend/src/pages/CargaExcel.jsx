@@ -17,7 +17,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [equiposExistentes, setEquiposExistentes] = useState([]);
   const [tipoAccionChasis, setTipoAccionChasis] = useState('nuevo'); 
 
-  // ESTADOS DEL FORMULARIO MODULARIZADO (SIN LÍMITES GPON)
   const [nuevoEquipo, setNuevoEquipo] = useState({
     chasis: '',
     ip_hub: '',
@@ -25,7 +24,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     // Bloque Principal
     tipo_puerto: '1G',
     cantidad_puertos: 24,
-    prefijo_puerto: 'Gi1/2/',
+    prefijo_puerto: 'Gi1/0/',
     inicio_puerto: 1, 
     estatus_inicial: 'DISPONIBLE GI',
     
@@ -33,7 +32,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
-    prefijo_uplink: 'Te1/1/',
+    prefijo_uplink: 'Te1/0/',
     inicio_uplink: 1, 
     estatus_uplink: 'DISPONIBLE TE'
   });
@@ -115,20 +114,19 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     }
   };
 
-  // HANDLER: Cambio de velocidad bloque principal
   const handleCambioPuertoPrincipal = (e) => {
     const tipo = e.target.value;
     let prefijo = 'Gi1/0/';
     let estatus = 'DISPONIBLE GI';
 
     if (tipo === '10G') {
-      prefijo = 'Te1/1/';
+      prefijo = 'Te1/0/';
       estatus = 'DISPONIBLE TE';
     } else if (tipo === '25G') {
-      prefijo = 'Twe0/0/0/';
+      prefijo = 'Twe1/0/';
       estatus = 'DISPONIBLE 25';
     } else if (tipo === '100G') {
-      prefijo = 'Hu1/0/0/';
+      prefijo = 'Hu1/0/';
       estatus = 'DISPONIBLE 100';
     }
 
@@ -140,20 +138,19 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     });
   };
 
-  // HANDLER: Cambio de velocidad bloque secundario
   const handleCambioUplink = (e) => {
     const tipo = e.target.value;
     let prefijo = 'Te1/0/';
     let estatus = 'DISPONIBLE TE';
 
     if (tipo === '1G') {
-      prefijo = 'Gi1/2/';
+      prefijo = 'Gi1/0/';
       estatus = 'DISPONIBLE GI';
     } else if (tipo === '25G') {
-      prefijo = 'Twe0/0/0/';
+      prefijo = 'Twe1/0/';
       estatus = 'DISPONIBLE 25';
     } else if (tipo === '100G') {
-      prefijo = 'Hu1/0/0/';
+      prefijo = 'Hu1/0/';
       estatus = 'DISPONIBLE 100';
     }
 
@@ -167,6 +164,11 @@ export default function CargaExcel({ token, estructuraGeografica }) {
 
   const generarPreviewManual = () => {
     if (!hubSelec || !nuevoEquipo.chasis) return alert("Selecciona un HUB y escribe/selecciona el nombre del Chasis.");
+    
+    // REGLA DE NEGOCIO: Validar IP Obligatoria si el equipo es nuevo
+    if (tipoAccionChasis === 'nuevo' && (!nuevoEquipo.ip_hub || nuevoEquipo.ip_hub.trim() === '')) {
+      return alert("Falta información crítica: Al dar de alta un EQUIPO NUEVO, es obligatorio ingresar su IP de Gestión.");
+    }
     
     const dataGenerada = [];
     
@@ -341,9 +343,25 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     )}
                   </div>
 
+                  {/* CAMBIO: LABEL Y BORDE DINÁMICOS BASADOS EN EL TIPO DE ACCIÓN */}
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">IP Gestión del Hub (Opcional)</label>
-                    <input type="text" value={nuevoEquipo.ip_hub} onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="10.50.0.1" />
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
+                        IP Gestión del Hub
+                        {tipoAccionChasis === 'nuevo' ? (
+                            <span className="text-red-400">* OBLIGATORIA</span>
+                        ) : (
+                            <span className="text-slate-500">(Opcional)</span>
+                        )}
+                    </label>
+                    <input 
+                        type="text" 
+                        value={nuevoEquipo.ip_hub} 
+                        onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} 
+                        className={`w-full bg-[#0b132b] border text-white p-2 rounded-lg font-mono outline-none transition-colors
+                            ${tipoAccionChasis === 'nuevo' && !nuevoEquipo.ip_hub ? 'border-red-900/50 focus:border-red-500' : 'border-slate-700 focus:border-emerald-500'}
+                        `} 
+                        placeholder="10.50.0.1" 
+                    />
                   </div>
                 </div>
 
