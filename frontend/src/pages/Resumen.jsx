@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck, Thermometer, MapPin } from 'lucide-react';
+import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck, Thermometer, MapPin, SlidersHorizontal } from 'lucide-react';
 
 export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
   const [ciudadSelec, setCiudadSelec] = useState(localStorage.getItem('mcm_res_cd') || '');
   
+  // NUEVO ESTADO: Filtro para aislar la vista del Mapa de Calor por Sitio específico
+  const [sitioCalorFiltro, setSitioCalorFiltro] = useState('TODOS');
+
   const [stats, setStats] = useState({ activos: 0, suspendidos: 0, troncales: 0, total_disp: 0, disp_gi: 0, disp_te: 0, trafico_mbps: 0 });
   const [datosHubs, setDatosHubs] = useState([]);
-  
-  // ESTADO: Datos granulares para el Mapa de Calor de Chasis
   const [datosChasis, setDatosChasis] = useState([]);
-  
   const [cargando, setCargando] = useState(false);
 
   // Estados para la capacidad de carga (Backbone)
@@ -23,6 +23,9 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
 
   useEffect(() => { localStorage.setItem('mcm_res_reg', regionSelec); }, [regionSelec]);
   useEffect(() => { localStorage.setItem('mcm_res_cd', ciudadSelec); }, [ciudadSelec]);
+  
+  // Resetear el filtro de sitio del mapa de calor si cambia la ciudad
+  useEffect(() => { setSitioCalorFiltro('TODOS'); }, [ciudadSelec]);
 
   const limpiarNombreSitio = (nombreRaw) => {
     if (!nombreRaw) return '';
@@ -106,6 +109,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                     mapChasis[chasisID] = {
                         id: chasisID,
                         hub: nombreHub,
+                        hub_id: data.hub, // Guardamos ID crudo para el filtro lógico
                         total: 0,
                         disp: 0,
                         activos: 0
@@ -187,6 +191,12 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
       }
     });
   }
+
+  // APLICACIÓN DEL FILTRO DE SITIO EN EL MAPA DE CALOR
+  const chasisFiltradosParaCalor = datosChasis.filter(c => {
+      if (sitioCalorFiltro === 'TODOS') return true;
+      return c.hub_id === sitioCalorFiltro;
+  });
 
   const exportarResumenExcel = async () => {
     if (datosHubs.length === 0) return;
@@ -355,18 +365,37 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                 </div>
             </div>
 
+            {/* MAPA DE CALOR POR CHASIS OPTIMIZADO CON FILTRO SEPARADO */}
             <div className="bg-[#0b132b]/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-6 mt-6">
-              <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50 flex justify-between items-center">
+              <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
                     <Thermometer className="w-4 h-4 text-orange-500" />
                     Mapa de Calor Operativo (Por Chasis)
                 </h3>
+                
+                {/* 🎯 NUEVO FILTRO DINÁMICO DE SITIO */}
+                <div className="flex items-center gap-2 bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-lg w-full sm:w-auto">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+                    <select 
+                        value={sitioCalorFiltro} 
+                        onChange={(e) => setSitioCalorFiltro(e.target.value)} 
+                        className="bg-transparent text-xs text-indigo-300 font-bold outline-none cursor-pointer w-full sm:w-auto"
+                    >
+                        <option value="TODOS" className="bg-[#0b132b] text-white">-- TODOS LOS SITIOS --</option>
+                        {datosHubs.map(h => (
+                            <option key={h.id} value={h.id} className="bg-[#0b132b] text-white">
+                                {limpiarNombreSitio(h.nombre)}
+                            </option>
+                        ))}
+                    </select>
+                </div>
               </div>
+              
               <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 bg-[#050814]/30">
-                  {datosChasis.length === 0 ? (
-                      <div className="col-span-full p-8 text-center text-slate-500 italic">No hay equipos físicos aprovisionados en esta ciudad.</div>
+                  {chasisFiltradosParaCalor.length === 0 ? (
+                      <div className="col-span-full p-8 text-center text-slate-500 italic">No hay chasis aprovisionados que coincidan con la selección geográfica.</div>
                   ) : (
-                      datosChasis.map((c, i) => {
+                      chasisFiltradosParaCalor.map((c, i) => {
                           const pct = parseFloat(c.pct_libres);
                           const ocupacion = 100 - Math.round(pct);
                           const isCrit = pct < 15;
