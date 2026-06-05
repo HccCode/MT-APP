@@ -9,7 +9,7 @@ import CargaExcel from './pages/CargaExcel';
 import Usuarios from './pages/Usuarios';
 import Cabezales from './pages/Cabezales';
 import Cuadrilla from './pages/Cuadrilla';
-import Auditoria from './pages/Auditoria'; // <-- 1. Importar la nueva página
+import Auditoria from './pages/Auditoria'; 
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
@@ -46,7 +46,9 @@ function App() {
   const mostrarGeografia = puedeVerTab('geografia', esAdmin);
   const mostrarCarga = puedeVerTab('carga_excel', puedeCargar);
   const mostrarUsuarios = puedeVerTab('usuarios', esAdmin);
-  const mostrarAuditoria = puedeVerTab('auditoria', esAdmin); // <-- 2. Permiso para Auditoría
+  
+  // 1. RESTRICCIÓN ESTRICTA: Solo será true si la variable esAdmin es verdadera
+  const mostrarAuditoria = esAdmin; 
 
   const handleLogout = () => {
     localStorage.clear(); 
@@ -186,13 +188,12 @@ function App() {
                 </button>
               )}
 
-              {/* 3. NUEVO BOTÓN DE AUDITORÍA (LOGS) */}
               {mostrarAuditoria && (
                 <button 
                   onClick={() => setTabActiva('auditoria')} 
                   className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'auditoria' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  <span className="text-[13px]">🛡️</span> Registros
+                  <span className="text-[13px]">🛡️</span> Logs Forenses
                 </button>
               )}
             </div>
@@ -230,8 +231,9 @@ function App() {
         {tabActiva === 'usuarios' && (
           <Usuarios token={token} usuario={usuario} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
-        {/* 4. RENDERIZAR LA PESTAÑA AUDITORÍA */}
-        {tabActiva === 'auditoria' && (
+        
+        {/* 2. RESTRICCIÓN ESTRICTA DE RENDERIZADO */}
+        {tabActiva === 'auditoria' && esAdmin && (
           <Auditoria token={token} />
         )}
       </div>
