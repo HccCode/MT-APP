@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, ChevronDown, ChevronUp, BarChart2 } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
@@ -33,6 +33,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
   const [mostrarModalAuditoria, setMostrarModalAuditoria] = useState(false);
+
+  // NUEVO ESTADO: Controla si el mapa de calor está visible
+  const [mostrarMapaCalor, setMostrarMapaCalor] = useState(false);
 
   const cargarDatosSistemas = async () => {
     if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
@@ -193,6 +196,40 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     );
   }) || [];
 
+  // =========================================================================
+  // LÓGICA DEL MAPA DE CALOR (AGRUPACIÓN POR HUB Y CHASIS)
+  // =========================================================================
+  const getHubName = (p) => {
+    if (inventarioHub === 'TODOS') return p.HUB_PERTENENCIA || 'Nodo Desconocido';
+    return hubActivoDatos?.nombre || 'Nodo Principal';
+  };
+
+  const nodosAgrupados = (datosHub?.puertos || []).reduce((acc, puerto) => {
+    const hub = getHubName(puerto);
+    const chasis = puerto.EQUIPO_HOTEL_ID || 'Chasis Desconocido';
+    const esDisponible = String(puerto.ESTATUS).toUpperCase().includes('DISPONIBLE');
+
+    if (!acc[hub]) {
+      acc[hub] = { total: 0, disponibles: 0, equipos: {} };
+    }
+
+    if (!acc[hub].equipos[chasis]) {
+      acc[hub].equipos[chasis] = { total: 0, ocupados: 0, disponibles: 0 };
+    }
+
+    acc[hub].total += 1;
+    if (esDisponible) acc[hub].disponibles += 1;
+
+    acc[hub].equipos[chasis].total += 1;
+    if (esDisponible) {
+      acc[hub].equipos[chasis].disponibles += 1;
+    } else {
+      acc[hub].equipos[chasis].ocupados += 1;
+    }
+
+    return acc;
+  }, {});
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-3 shrink-0">
@@ -236,6 +273,111 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
+      {/* ========================================================================= */}
+      {/* SECCIÓN DESPLEGABLE: MAPA DE CALOR DE SATURACIÓN                          */}
+      {/* ========================================================================= */}
+      {datosHub?.puertos?.length > 0 && (
+        <div className="px-6 mt-6 shrink-0">
+          <button 
+            onClick={() => setMostrarMapaCalor(!mostrarMapaCalor)}
+            className="w-full flex items-center justify-between bg-[#0b132b] border border-slate-700/50 p-4 rounded-xl shadow-sm hover:bg-slate-800/50 transition-colors focus:outline-none"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-500/20 rounded-lg">
+                <BarChart2 className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-white font-black text-sm tracking-widest uppercase">Mapa de Calor de Saturación por Chasis</h3>
+                <p className="text-slate-400 text-[10px] uppercase font-bold mt-0.5">Radiografía y Planeación de Capacidad Física</p>
+              </div>
+            </div>
+            {mostrarMapaCalor ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+          </button>
+
+          {mostrarMapaCalor && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-4 animate-in fade-in slide-in-from-top-4 duration-300">
+              {Object.entries(nodosAgrupados).map(([nombreHub, datosHubLocal]) => (
+                <div key={nombreHub} className="bg-[#0b132b] border border-slate-700/50 rounded-xl overflow-hidden shadow-xl flex flex-col max-h-[400px]">
+                  
+                  {/* CABECERA DEL NODO */}
+                  <div className="p-5 border-b border-slate-800 bg-slate-900/40 relative overflow-hidden shrink-0">
+                    <div className="flex justify-between items-start relative z-10">
+                      <div>
+                        <h3 className="text-sm font-black text-white flex items-center gap-2 tracking-wide uppercase">
+                          <MapPin className="w-4 h-4 text-indigo-500" />
+                          {nombreHub}
+                        </h3>
+                        <p className="text-slate-400 text-xs mt-1 font-medium">
+                          Capacidad Global: <span className="text-emerald-400 font-bold">{datosHubLocal.disponibles}</span> libres de {datosHubLocal.total}
+                        </p>
+                      </div>
+                    </div>
+                    {/* Barra de progreso sutil en el fondo de la cabecera */}
+                    <div 
+                      className="absolute bottom-0 left-0 h-1 bg-indigo-500/30 transition-all duration-1000" 
+                      style={{ width: `${((datosHubLocal.total - datosHubLocal.disponibles) / datosHubLocal.total) * 100}%` }}
+                    />
+                  </div>
+
+                  {/* DESGLOSE POR CHASIS */}
+                  <div className="p-5 space-y-4 flex-1 overflow-y-auto custom-scrollbar bg-[#050814]/50">
+                    <h4 className="text-[10px] uppercase font-black tracking-widest text-slate-500 flex items-center gap-1.5 mb-1">
+                      <Server className="w-3 h-3" /> Chasis Físicos en Sitio
+                    </h4>
+                    
+                    {Object.entries(datosHubLocal.equipos).map(([nombreChasis, metricas]) => {
+                      const porcentajeSaturacion = metricas.total > 0 ? (metricas.ocupados / metricas.total) * 100 : 0;
+                      let colorBarra = "bg-emerald-500";
+                      let colorTexto = "text-emerald-400";
+                      let bgColor = "bg-emerald-500/10";
+                      
+                      // Reglas de Saturación (Semáforo Térmico)
+                      if (porcentajeSaturacion >= 90) {
+                        colorBarra = "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]";
+                        colorTexto = "text-red-400";
+                        bgColor = "bg-red-500/10";
+                      } else if (porcentajeSaturacion >= 75) {
+                        colorBarra = "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]";
+                        colorTexto = "text-amber-400";
+                        bgColor = "bg-amber-500/10";
+                      }
+
+                      return (
+                        <div key={nombreChasis} className={`p-3 rounded-lg border border-slate-800/50 ${bgColor} transition-colors`}>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-mono text-[11px] font-bold text-slate-200 truncate pr-2">{nombreChasis}</span>
+                            <span className={`text-[10px] font-black ${colorTexto} flex items-center gap-1 shrink-0`}>
+                              {porcentajeSaturacion >= 90 && <AlertTriangle className="w-3 h-3" />}
+                              {porcentajeSaturacion.toFixed(1)}% SATURADO
+                            </span>
+                          </div>
+                          
+                          {/* Termómetro de Capacidad */}
+                          <div className="h-1.5 w-full bg-slate-800/80 rounded-full overflow-hidden mb-2">
+                            <div 
+                              className={`h-full ${colorBarra} transition-all duration-700 ease-out`}
+                              style={{ width: `${porcentajeSaturacion}%` }}
+                            />
+                          </div>
+                          
+                          <div className="flex justify-between text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                            <span>{metricas.ocupados} EN USO</span>
+                            <span className="text-slate-300">{metricas.disponibles} DISPONIBLES</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* VISTA PRINCIPAL: TABLA DE PUERTOS Y FICHA TÉCNICA                         */}
+      {/* ========================================================================= */}
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden">
         
         <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden">
