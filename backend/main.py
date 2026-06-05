@@ -1191,7 +1191,7 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
     return {"status": "success"}
 
 @app.post("/api/cabezales/upload-excel")
-async def upload_cabezales_excel(file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+async def upload_cabezales_excel(mode: str = Query("preview"), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     filename = file.filename or ""
     if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
@@ -1208,7 +1208,7 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
 
         idx_ciudad = get_idx(["CIUDAD"])
         idx_id = get_idx(["ID", "ID EQUIPO", "ID_EQUIPO"])
-        idx_servicio = get_idx(["SERVICIO"])
+        idx_servicio = get_idx(["SERVICIO", "CLIENTE", "CLIENTE / SERVICIO"])
         idx_gestion = get_idx(["GESTION QAM", "GESTIÓN QAM"])
         idx_marca = get_idx(["MARCA"])
         idx_modelo = get_idx(["MODELO"])
@@ -1222,8 +1222,47 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
         idx_udp = get_idx(["UDP"])
         idx_sid = get_idx(["SID"])
 
-        if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes."})
+        if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1: 
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes. Se requieren CIUDAD, ID EQUIPO y SERVICIO."})
 
+        # ================= STAGING AREA (PREVIEW) =================
+        preview_data = []
+        has_errors = False
+        
+        for _, row in df.iterrows():
+            vals = list(row.values)
+            def read_val(idx): return str(vals[idx]).strip() if idx != -1 and idx < len(vals) else ""
+            
+            val_id = read_val(idx_id)
+            val_servicio = read_val(idx_servicio)
+            val_ciudad = read_val(idx_ciudad)
+            
+            # Saltar filas completamente vacías
+            if not val_id and not val_servicio and not val_ciudad and not read_val(idx_canal) and not read_val(idx_nombre):
+                continue
+                
+            errores_fila = []
+            if not val_id: errores_fila.append("Falta ID de Equipo.")
+            if not val_servicio: errores_fila.append("Falta Servicio.")
+            if not val_ciudad: errores_fila.append("Falta Ciudad.")
+
+            valido = len(errores_fila) == 0
+            if not valido: has_errors = True
+
+            preview_data.append({
+                "ID_EQUIPO": val_id,
+                "CIUDAD": val_ciudad,
+                "SERVICIO": val_servicio,
+                "CANAL": read_val(idx_canal),
+                "NOMBRE_CANAL": read_val(idx_nombre),
+                "_errores": errores_fila,
+                "_valido": valido
+            })
+
+        if mode == "preview":
+            return {"status": "success", "data": preview_data, "has_errors": has_errors}
+
+        # ================= COMMIT (INYECCIÓN A BASE DE DATOS) =================
         cabezales_procesados = set()
         for _, row in df.iterrows():
             vals = list(row.values)
@@ -1243,6 +1282,7 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
                 db.commit()
                 db.refresh(cabezal)
 
+            # Para cada cabezal procesado, limpiamos su alineación previa SOLO la primera vez
             if cabezal_key not in cabezales_procesados:
                 cabezal.ciudad = val_ciudad
                 if idx_gestion != -1: cabezal.gestion_qam = read_val(idx_gestion)
@@ -1263,7 +1303,8 @@ async def upload_cabezales_excel(file: UploadFile = File(...), current_user: Use
                     source_ip=read_val(idx_source), udp=read_val(idx_udp), sid=read_val(idx_sid)
                 ))
         db.commit()
-        return {"status": "success", "detail": f"Proceso completado. {len(cabezales_procesados)} cabezales."}
+        registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", f"Se actualizaron {len(cabezales_procesados)} cabezales mediante Excel.")
+        return {"status": "success", "detail": f"Proceso completado. {len(cabezales_procesados)} cabezales actualizados exitosamente."}
     except Exception as e:
         try: db.rollback() 
         except: pass
