@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Download, CheckSquare, ShieldCheck } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
