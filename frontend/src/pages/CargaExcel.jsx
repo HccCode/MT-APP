@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { UploadCloud, CheckCircle, AlertOctagon, FileSpreadsheet, Server, XCircle, ArrowRight, PlusSquare, Settings2, Database, Zap, Network } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertOctagon, FileSpreadsheet, Server, XCircle, ArrowRight, PlusSquare, Settings2, Database, Zap, Network, Layers } from 'lucide-react';
 
 export default function CargaExcel({ token, estructuraGeografica }) {
-  // 1. CAMBIO: El estado inicial ahora es 'excel' en lugar de 'manual'
   const [modoCarga, setModoCarga] = useState('excel'); 
   
   const [regionSelec, setRegionSelec] = useState('');
@@ -15,17 +14,23 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [previewData, setPreviewData] = useState([]);
   const [hayErrores, setHayErrores] = useState(false);
 
+  // ESTADOS DEL FORMULARIO CON "INICIO DE PUERTO" PARA PERMITIR EXPANSIONES
   const [nuevoEquipo, setNuevoEquipo] = useState({
     chasis: '',
     ip_hub: '',
+    
+    // Bloque Principal
     cantidad_puertos: 24,
-    prefijo_puerto: 'Gi1/0/1',
+    prefijo_puerto: 'Gi1/0/',
+    inicio_puerto: 1, // <--- NUEVO: Control de inicio para expansión
     estatus_inicial: 'DISPONIBLE GI',
     
+    // Bloque Uplink
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
-    prefijo_uplink: 'Te1/0/1',
+    prefijo_uplink: 'Te1/0/',
+    inicio_uplink: 1, // <--- NUEVO: Control de inicio para expansión de Uplinks
     estatus_uplink: 'DISPONIBLE TE'
   });
 
@@ -97,7 +102,9 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     
     const dataGenerada = [];
     
-    for (let i = 1; i <= nuevoEquipo.cantidad_puertos; i++) {
+    // 1. LÓGICA DE BUCLE MEJORADA PARA PERMITIR EXPANSIONES
+    const limitePrincipal = nuevoEquipo.inicio_puerto + nuevoEquipo.cantidad_puertos;
+    for (let i = nuevoEquipo.inicio_puerto; i < limitePrincipal; i++) {
       dataGenerada.push({
         PUERTO: `${nuevoEquipo.prefijo_puerto}${i}`,
         ESTATUS: nuevoEquipo.estatus_inicial,
@@ -110,7 +117,8 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     }
 
     if (nuevoEquipo.incluir_uplinks) {
-        for (let i = 1; i <= nuevoEquipo.cantidad_uplinks; i++) {
+        const limiteUplink = nuevoEquipo.inicio_uplink + nuevoEquipo.cantidad_uplinks;
+        for (let i = nuevoEquipo.inicio_uplink; i < limiteUplink; i++) {
           dataGenerada.push({
             PUERTO: `${nuevoEquipo.prefijo_uplink}${i}`,
             ESTATUS: nuevoEquipo.estatus_uplink,
@@ -131,6 +139,8 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const guardarChasisManual = async () => {
     setCargando(true);
     try {
+      // Como este endpoint es POST puro y hace un DB.Add secuencial, 
+      // nunca va a sobreescribir ni borrar puertos antiguos. Es seguro para expansiones.
       const res = await fetch(`${API_URL}/api/hubs/upload-json?id_hub=${encodeURIComponent(hubSelec)}`, {
         method: 'POST',
         headers: { 
@@ -173,11 +183,10 @@ export default function CargaExcel({ token, estructuraGeografica }) {
               <h1 className="text-2xl font-black text-emerald-400 flex items-center gap-3">
                 <Database className="w-7 h-7" /> Aprovisionamiento de Red
               </h1>
-              <p className="text-slate-400 text-sm mt-1">Da de alta nuevo equipamiento o inyecta datos masivos al inventario.</p>
+              <p className="text-slate-400 text-sm mt-1">Da de alta nuevo equipamiento, expande tarjetas existentes o inyecta datos masivos.</p>
             </div>
             {paso === 1 && (
               <div className="flex bg-[#050814] border border-slate-700 p-1 rounded-xl">
-                {/* 2. CAMBIO: Botón de Excel ahora aparece primero */}
                 <button 
                   onClick={() => setModoCarga('excel')} 
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoCarga === 'excel' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
@@ -188,7 +197,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                   onClick={() => { setModoCarga('manual'); setArchivo(null); }} 
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoCarga === 'manual' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
                 >
-                  <PlusSquare className="w-4 h-4" /> Nuevo Chasis (Seguro)
+                  <Layers className="w-4 h-4" /> Alta / Expansión de Chasis
                 </button>
               </div>
             )}
@@ -207,7 +216,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in zoom-in duration-300">
             
             {/* PANEL IZQUIERDO: DESTINO LÓGICO */}
-            <div className="xl:col-span-4 bg-[#090f24] p-6 rounded-2xl border border-slate-800 flex flex-col h-full">
+            <div className="xl:col-span-4 bg-[#090f24] p-6 rounded-2xl border border-slate-800 flex flex-col h-full shadow-lg">
               <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Server className="w-5 h-5 text-indigo-400"/> Destino Lógico (HUB)</h2>
               <div className="space-y-4">
                 <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); setHubSelec(''); }} className="w-full bg-[#0b132b] border border-slate-700 text-white p-3 rounded-lg outline-none focus:border-emerald-500">
@@ -228,11 +237,11 @@ export default function CargaExcel({ token, estructuraGeografica }) {
             {/* PANEL DERECHO: OPCIÓN SELECCIONADA */}
             {modoCarga === 'manual' ? (
               <div className="xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border border-emerald-900/50 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Settings2 className="w-5 h-5 text-emerald-400"/> Generador de Chasis Mixto</h2>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Settings2 className="w-5 h-5 text-emerald-400"/> Generador y Expansor de Chasis</h2>
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 md:col-span-1">
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">ID de Equipo / Chasis</label>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">ID de Equipo a crear o expandir</label>
                     <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. OLT-01" />
                   </div>
                   <div className="col-span-2 md:col-span-1">
@@ -246,22 +255,27 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                         <Network className="w-4 h-4 text-slate-400" />
                         <h3 className="text-sm font-bold text-slate-200">Puertos Principales (Gigabit / GPON)</h3>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a Generar</label>
-                            <select value={nuevoEquipo.cantidad_puertos} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_puertos: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
-                            <option value={8}>8 Puertos</option>
-                            <option value={16}>16 Puertos</option>
-                            <option value={24}>24 Puertos</option>
-                            <option value={48}>48 Puertos</option>
-                            <option value={128}>128 Puertos (GPON)</option>
-                            </select>
-                        </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
-                            Prefijo <span className="text-emerald-500">{nuevoEquipo.estatus_inicial}</span>
+                            Prefijo <span className="text-emerald-500 font-black">{nuevoEquipo.estatus_inicial}</span>
                             </label>
                             <input type="text" value={nuevoEquipo.prefijo_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_puerto: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Gi1/0/" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en el #</label>
+                            <input type="number" min="1" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Ej. 1 o 25" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a sumar</label>
+                            <select value={nuevoEquipo.cantidad_puertos} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_puertos: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
+                                <option value={1}>1 Puerto</option>
+                                <option value={8}>8 Puertos</option>
+                                <option value={16}>16 Puertos</option>
+                                <option value={24}>24 Puertos</option>
+                                <option value={48}>48 Puertos</option>
+                                <option value={128}>128 Puertos (GPON)</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -279,29 +293,31 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                     </div>
 
                     {nuevoEquipo.incluir_uplinks && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2">
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad Uplink</label>
                                 <select value={nuevoEquipo.tipo_uplink} onChange={handleCambioUplink} className="w-full bg-[#1c2541] border border-blue-900/50 text-blue-300 p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none transition-colors">
-                                    <option value="10G">TenGigabit (10G)</option>
-                                    <option value="25G">25 Gigabit (25G)</option>
-                                    <option value="100G">100 Gigabit (100G)</option>
+                                    <option value="10G">10G</option>
+                                    <option value="25G">25G</option>
+                                    <option value="100G">100G</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo <span className="text-blue-400">{nuevoEquipo.estatus_uplink}</span></label>
+                                <input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en el #</label>
+                                <input type="number" min="1" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" />
                             </div>
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
                                 <select value={nuevoEquipo.cantidad_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_uplinks: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none">
+                                    <option value={1}>1 Puerto</option>
                                     <option value={2}>2 Puertos</option>
                                     <option value={4}>4 Puertos</option>
-                                    <option value={6}>6 Puertos</option>
                                     <option value={8}>8 Puertos</option>
                                 </select>
-                            </div>
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
-                                Prefijo <span className="text-blue-400">{nuevoEquipo.estatus_uplink}</span>
-                                </label>
-                                <input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" />
                             </div>
                         </div>
                     )}
