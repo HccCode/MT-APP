@@ -25,7 +25,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     // Bloque Principal
     tipo_puerto: '1G',
     cantidad_puertos: 24,
-    prefijo_puerto: 'Gi1/0/',
+    prefijo_puerto: 'Gi1/2/',
     inicio_puerto: 1, 
     estatus_inicial: 'DISPONIBLE GI',
     
@@ -33,7 +33,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
-    prefijo_uplink: 'Te1/0/',
+    prefijo_uplink: 'Te1/1/',
     inicio_uplink: 1, 
     estatus_uplink: 'DISPONIBLE TE'
   });
@@ -122,13 +122,13 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     let estatus = 'DISPONIBLE GI';
 
     if (tipo === '10G') {
-      prefijo = 'Te1/0/';
+      prefijo = 'Te1/1/';
       estatus = 'DISPONIBLE TE';
     } else if (tipo === '25G') {
-      prefijo = 'Twe1/0/';
+      prefijo = 'Twe0/0/0/';
       estatus = 'DISPONIBLE 25';
     } else if (tipo === '100G') {
-      prefijo = 'Hu1/0/';
+      prefijo = 'Hu1/0/0/';
       estatus = 'DISPONIBLE 100';
     }
 
@@ -147,13 +147,13 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     let estatus = 'DISPONIBLE TE';
 
     if (tipo === '1G') {
-      prefijo = 'Gi1/0/';
+      prefijo = 'Gi1/2/';
       estatus = 'DISPONIBLE GI';
     } else if (tipo === '25G') {
-      prefijo = 'Twe1/0/';
+      prefijo = 'Twe0/0/0/';
       estatus = 'DISPONIBLE 25';
     } else if (tipo === '100G') {
-      prefijo = 'Hu1/0/';
+      prefijo = 'Hu1/0/0/';
       estatus = 'DISPONIBLE 100';
     }
 
