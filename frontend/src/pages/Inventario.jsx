@@ -491,12 +491,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         />
       )}
 
-      {mostrarModalAuditoria && (
-        <ModalAuditoria 
-          token={token}
-          cerrarModal={() => setMostrarModalAuditoria(false)}
-        />
-      )}
+      
     </div>
   );
 }
