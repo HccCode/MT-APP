@@ -32,7 +32,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
-  const [mostrarModalAuditoria, setMostrarModalAuditoria] = useState(false);
+  
 
   const cargarDatosSistemas = async () => {
     if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
@@ -338,10 +338,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   <button onClick={() => setMostrarModalVisualizar(true)} className="bg-blue-900/30 hover:bg-blue-600 border border-blue-800 text-blue-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer" title="Ver ficha">
                     <Eye className="w-3.5 h-3.5" /> Visualizar
                   </button>
-
                   {(esRnoc || esAdmin) && (
                     <button onClick={() => setMostrarModalFalla(true)} className="bg-red-900/30 hover:bg-red-600 border border-red-800 text-red-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer">
-                      <AlertTriangle className="w-3.5 h-3.5" /> Desplegar Falla
+                      <AlertTriangle className="w-3.5 h-3.5" /> Falla
                     </button>
                   )}
                 </div>
