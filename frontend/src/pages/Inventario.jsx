@@ -45,6 +45,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
   const [mostrarModalAuditoria, setMostrarModalAuditoria] = useState(false);
 
+  // =========================================================================
+  // CARGA DE DATOS DE LA BASE PRINCIPAL DE INVENTARIO
+  // =========================================================================
   const cargarDatosSistemas = async () => {
     if (!inventarioCd) {
       setDatosHub(null);
@@ -264,6 +267,22 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       <div className="flex-1 flex overflow-hidden">
         {/* PANEL IZQUIERDO: TABLA DE PUERTOS */}
         <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${puertoDetalle ? 'hidden lg:flex lg:w-1/2 xl:w-7/12 border-r border-slate-800' : 'w-full'}`}>
+          <div className="bg-[#0b132b] p-3 border-b border-slate-800/80 shrink-0 flex justify-between items-center">
+            <div>
+              <h2 className="text-sm font-black text-white flex items-center gap-2">
+                <Server className="w-4 h-4 text-blue-500" />
+                {inventarioHub === 'TODOS' ? 'INVENTARIO GLOBAL DE CIUDAD' : 'PUERTOS EN NODO'}
+              </h2>
+              {datosHub?.resumen && (
+                <p className="text-[10px] text-slate-400 mt-1 space-x-3">
+                  <span className="text-blue-400 font-bold">Total: {datosHub.resumen.total}</span>
+                  <span className="text-emerald-400">Activos: {datosHub.resumen.activos}</span>
+                  <span className="text-purple-400">Susp: {datosHub.resumen.suspendidos}</span>
+                </p>
+              )}
+            </div>
+          </div>
+          
           <div className="flex-1 overflow-auto bg-[#050814] custom-scrollbar relative">
             <table className="min-w-max w-full text-left text-xs text-slate-300 whitespace-nowrap">
               <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow-sm border-b border-slate-800 uppercase font-black text-[10px] tracking-widest">
