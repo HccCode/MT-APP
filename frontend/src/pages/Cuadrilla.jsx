@@ -131,12 +131,14 @@ export default function Cuadrilla({ token, handleLogout }) {
           📞 {value}
         </a>
       ) : (
-        <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">{value || '-'}</span>
+        <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">
+          {/* El tag <a> vacío bloquea el Data Detector de iOS/Android para que no convierta números en links */}
+          <a style={{color: 'inherit', textDecoration: 'none', cursor: 'text'}}>{value || '-'}</a>
+        </span>
       )}
     </div>
   );
 
-  // NUEVO COMPONENTE: Fila de IP Inteligente con Calculadora
   const InfoRowIP = ({ label, value }) => {
     const [abierto, setAbierto] = useState(false);
     const detallesSubred = calcularSubred(value);
@@ -154,7 +156,7 @@ export default function Cuadrilla({ token, handleLogout }) {
             {label} <Calculator className="w-3 h-3 text-indigo-400" />
           </span>
           <span className="text-[11px] text-blue-400 font-mono font-black text-right border-b border-dashed border-blue-400/50 pb-0.5">
-            {value}
+            <a style={{color: 'inherit', textDecoration: 'none', cursor: 'pointer'}}>{value}</a>
           </span>
         </div>
         {abierto && (
@@ -314,7 +316,8 @@ export default function Cuadrilla({ token, handleLogout }) {
               </div>
               <p className="text-[13px] text-indigo-300 font-bold mb-2 truncate">{p.SERVICIO || 'Sin cliente asignado'}</p>
               <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                <span className="flex items-center gap-1"><Server className="w-3 h-3 text-slate-500" /> {p.EQUIPO_HOTEL_ID || 'N/A'}</span>
+                {/* ID DE EQUIPO ELIMINADO POR REGLA DE SEGURIDAD */}
+                <span className="flex items-center gap-1"><Server className="w-3 h-3 text-slate-500" /> Equipo Óptico</span>
                 {p.IP_GESTION && <span className="text-emerald-400 bg-emerald-900/20 px-1.5 rounded">{p.IP_GESTION}</span>}
               </div>
             </div>
@@ -342,7 +345,8 @@ export default function Cuadrilla({ token, handleLogout }) {
               
               <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
                 <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
-                <p className="text-indigo-400 font-mono text-xs font-bold">Chasis: {puertoActivo.EQUIPO_HOTEL_ID || '-'} <span className="text-slate-500 mx-1">|</span> Puerto: {puertoActivo.PUERTO || '-'}</p>
+                {/* ID DE EQUIPO ELIMINADO POR REGLA DE SEGURIDAD */}
+                <p className="text-indigo-400 font-mono text-xs font-bold">Puerto Físico: {puertoActivo.PUERTO || '-'}</p>
               </div>
 
               <SeccionDesplegable 
@@ -363,7 +367,6 @@ export default function Cuadrilla({ token, handleLogout }) {
                 icono={<Server className="w-4 h-4"/>} 
                 colorTexto="text-blue-400"
               >
-                {/* Aquí implementamos la nueva fila interactiva para las IPs */}
                 <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
                 <InfoRowIP label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
                 <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
@@ -393,7 +396,7 @@ export default function Cuadrilla({ token, handleLogout }) {
                   <div className="mt-3 pt-3 border-t border-slate-800/50">
                     <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
                     <a 
-                      href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} 
+                      href={`https://maps.google.com/?q=$${encodeURIComponent(puertoActivo.COORDENADAS)}`} 
                       target="_blank" 
                       rel="noreferrer" 
                       className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-sm"
