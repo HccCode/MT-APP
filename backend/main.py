@@ -326,7 +326,6 @@ class ConfigCiudadUpdate(BaseModel):
 
 class HubStatItem(BaseModel):
     nombre: str
-    id: str
     disp_gi: int
     total_gi: int
     disp_te: int
@@ -1387,12 +1386,13 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         ws['B2'].font = Font(size=20, bold=True, color="FFFFFF")
         ws['B2'].fill = PatternFill("solid", fgColor="0F172A") 
         ws['B2'].alignment = Alignment(horizontal="center", vertical="center")
-        ws.merge_cells('B2:P3')
+        # Ajustado a O3 en lugar de P3 al tener una columna menos
+        ws.merge_cells('B2:O3')
 
         ws['B4'] = f"Generado el: {fecha_generacion}   |   Tráfico Total: {req.trafico_gbps} Gbps   |   Capacidad Backbone: {req.capacidad_total}"
         ws['B4'].font = Font(size=10, italic=True, color="475569")
         ws['B4'].alignment = Alignment(horizontal="right", vertical="center")
-        ws.merge_cells('B4:P4')
+        ws.merge_cells('B4:O4')
 
         def draw_kpi_3col(start_col_let, start_row, title, val, color_bg):
             title_cell = f"{start_col_let}{start_row}"
@@ -1419,15 +1419,16 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
                 ws[f"{chr(ord(start_col_let)+2)}{r}"].border = thin_border
 
         draw_kpi_3col('B', 6, "CAPACIDAD (PUERTOS)", sum([h.total for h in req.hubs]), "1E293B")
-        draw_kpi_3col('F', 6, "CLIENTES ACTIVOS", req.stats_activos, "0284C7")
-        draw_kpi_3col('J', 6, "TOTAL DISPONIBLES", req.stats_total_disp, "16A34A")
-        draw_kpi_3col('N', 6, "DISPONIBILIDAD B.W.", f"{req.disponibilidad_pct}%", "8B5CF6")
+        draw_kpi_3col('E', 6, "CLIENTES ACTIVOS", req.stats_activos, "0284C7")
+        draw_kpi('H', 6, "TOTAL DISPONIBLES", req.stats_total_disp, "16A34A")
+        draw_kpi_3col('K', 6, "DISPONIBILIDAD B.W.", f"{req.disponibilidad_pct}%", "8B5CF6")
 
         ws['B10'] = "MATRIZ ESTADÍSTICA DE DISPONIBILIDAD POR NODO"
         ws['B10'].font = Font(bold=True, size=12, color="0F172A")
         
+        # ELIMINADO EL "ID NODO" DE LAS CABECERAS
         headers = [
-            "NODO / HUB", "ID NODO", "DISP. GI", "TOTAL GI", "DISP. TE", "TOTAL TE", 
+            "NODO / HUB", "DISP. GI", "TOTAL GI", "DISP. TE", "TOTAL TE", 
             "DISP. 25G", "TOTAL 25G", "DISP. 100G", "TOTAL 100G",
             "ACTIVOS", "SUSPENDIDOS", "TRONCALES", "TOTAL DISP.", "LIBRES %"
         ]
@@ -1442,8 +1443,9 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
             
         r_idx = start_row + 1
         for h in req.hubs:
+            # ELIMINADO EL h.id DEL ARREGLO DE DATOS
             row_data = [
-                h.nombre, h.id, h.disp_gi, h.total_gi, h.disp_te, h.total_te,
+                h.nombre, h.disp_gi, h.total_gi, h.disp_te, h.total_te,
                 h.disp_25, h.total_25, h.disp_100, h.total_100,
                 h.activos, h.suspendidos, h.troncales, h.total_disp, f"{h.pct_libres}%"
             ]
@@ -1451,7 +1453,8 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
                 c = ws.cell(row=r_idx, column=c_idx, value=val)
                 c.alignment = Alignment(horizontal="center", vertical="center")
                 
-                if c_idx == 16:
+                # Ajustado a la columna 15 (antes era 16)
+                if c_idx == 15:
                     val_num = float(str(val).replace('%',''))
                     if val_num < 20: c.font = Font(bold=True, color="DC2626") 
                     elif val_num > 50: c.font = Font(bold=True, color="16A34A") 
@@ -1459,13 +1462,14 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
             r_idx += 1
 
         if len(req.hubs) > 0:
-            tab = Table(displayName="TablaNodos", ref=f"B{start_row}:P{r_idx-1}")
+            # Ajustado el límite derecho de la tabla a la columna O
+            tab = Table(displayName="TablaNodos", ref=f"B{start_row}:O{r_idx-1}")
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
             ws.add_table(tab)
             
-        for col in range(2, 17): ws.column_dimensions[chr(64+col)].width = 13
+        # Ajuste de anchos de columna sin el ID
+        for col in range(2, 16): ws.column_dimensions[chr(64+col)].width = 13
         ws.column_dimensions['B'].width = 25 
-        ws.column_dimensions['C'].width = 12
 
         output = io.BytesIO()
         wb.save(output)
@@ -1480,7 +1484,8 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
                 "Access-Control-Expose-Headers": "Content-Disposition"
             }
         )
-    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+    except Exception as e: 
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 # ================= ENDPOINT DE LECTURA DE AUDITORIA =================
 @app.get("/api/auditoria")
