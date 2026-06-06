@@ -5,7 +5,6 @@ import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
 
-
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
   const [inventarioReg, setInventarioReg] = useState(localStorage.getItem('mcm_inv_reg') || '');
   const [inventarioCd, setInventarioCd] = useState(localStorage.getItem('mcm_inv_cd') || '');
@@ -23,7 +22,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [errorApp, setErrorApp] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroEstatus, setFiltroEstatus] = useState('TODOS');
-  const [filtroEquipo, setFiltroEquipo] = useState('TODOS');
   
   const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});
@@ -33,7 +31,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
   
-
   const cargarDatosSistemas = async () => {
     if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
     setCargando(true); setErrorApp(null);
@@ -86,7 +83,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
   useEffect(() => { 
     cargarDatosSistemas(); 
-    setFiltroEquipo('TODOS'); 
   }, [inventarioHub, estructuraGeografica, inventarioReg, inventarioCd]);
 
   const handleExportarExcel = async () => {
@@ -168,12 +164,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
   const seleccionarPuerto = (p) => { setPuertoDetalle(p); setEditCampos(p); };
 
-  const hubActivoDatos = inventarioHub === 'TODOS' ? null : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || []).find(h => h.id === inventarioHub);
-  const equiposDisponibles = Array.from(new Set(datosHub?.puertos?.map(p => String(p.EQUIPO_HOTEL_ID || '').trim()).filter(Boolean) || [])).sort();
-
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
     const est = String(p.ESTATUS || '').toUpperCase().trim();
-    const eqId = String(p.EQUIPO_HOTEL_ID || '').trim();
     
     if (filtroEstatus !== 'TODOS') {
       if (filtroEstatus === 'DISPONIBLE' && !est.includes('DISPONIBLE')) return false;
@@ -181,13 +173,11 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       if (filtroEstatus === 'SUSPENDIDO' && est !== 'SUSPENDIDO') return false;
       if (filtroEstatus === 'TRONCAL' && !est.includes('TRONCAL')) return false;
     }
-    if (filtroEquipo !== 'TODOS' && eqId !== filtroEquipo) return false;
     
     return (
       String(p.PUERTO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.SERVICIO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.ESTATUS || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
-      String(p.EQUIPO_HOTEL_ID || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
       String(p.IP_GESTION || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
       String(p.BDI || '').toLowerCase().includes(filtroTexto.toLowerCase())
     );
@@ -252,13 +242,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   <CheckSquare className="w-4 h-4" /> Editar {puertosSeleccionados.length} Puertos
                 </button>
               )}
-              <div className="flex items-center gap-2 border-l border-slate-700 pl-4">
-                <span className="text-[10px] uppercase font-bold text-slate-500 whitespace-nowrap">Equipo ID:</span>
-                <select value={filtroEquipo} onChange={(e) => setFiltroEquipo(e.target.value)} className="bg-[#1c2541] border border-slate-700 text-xs p-1.5 rounded text-white min-w-[120px] max-w-[180px] truncate outline-none focus:border-blue-500">
-                  <option value="TODOS">-- TODOS --</option>
-                  {equiposDisponibles.map(eq => <option key={eq} value={eq}>{eq}</option>)}
-                </select>
-              </div>
             </div>
           </div>
 
@@ -279,7 +262,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   </th>
                   <th className="p-3 w-32">ESTATUS</th>
                   <th className="p-3 w-40">INTERFAZ</th>
-                  <th className="p-3 w-56">EQUIPO ID</th>
+                  <th className="p-3 w-56">NODO</th>
                   <th className="p-3 w-40 text-emerald-400">IP GESTIÓN</th>
                   <th className="p-3">SERVICIO</th>
                 </tr>
@@ -314,10 +297,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                       </td>
                       <td className="p-3 font-mono text-white truncate">{p.PUERTO}</td>
                       <td className="p-3 text-slate-400 font-mono truncate">
-                        {p.EQUIPO_HOTEL_ID || '-'}
-                        {inventarioHub === 'TODOS' && p.HUB_PERTENENCIA && (
-                          <div className="text-[9px] text-blue-400 mt-0.5 font-bold">NODO: {p.HUB_PERTENENCIA}</div>
-                        )}
+                        {inventarioHub === 'TODOS' ? (p.HUB_PERTENENCIA || '-') : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs?.find(h => h.id === inventarioHub)?.nombre || '-')}
                       </td>
                       <td className="p-3 font-mono text-emerald-400 truncate">{p.IP_GESTION || '-'}</td>
                       <td className="p-3 text-slate-200 truncate font-medium">{p.SERVICIO || '-'}</td>
@@ -367,9 +347,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     </div>
                     <div><label className="text-[10px] text-slate-500 block font-bold mb-1">PUERTO</label><input type="text" disabled={!puedeEditar} value={editCampos.PUERTO || ''} onChange={e=>setEditCampos({...editCampos, PUERTO: e.target.value})} className="w-full bg-slate-950 font-mono p-2 rounded border border-slate-800 text-white" /></div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div><label className="text-[10px] text-slate-500 block font-bold mb-1">EQUIPO ID (CHASIS)</label><input type="text" disabled={!puedeEditar} value={editCampos.EQUIPO_HOTEL_ID || ''} onChange={e=>setEditCampos({...editCampos, EQUIPO_HOTEL_ID: e.target.value})} className="w-full bg-slate-950 font-mono p-2 rounded border border-slate-800 text-white" /></div>
-                    <div><label className="text-[10px] text-slate-500 block font-bold mb-1">IP HUB</label><input type="text" disabled={!puedeEditar} value={editCampos.IP_HUB || ''} onChange={e=>setEditCampos({...editCampos, IP_HUB: e.target.value})} className="w-full bg-slate-950 font-mono p-2 rounded border border-slate-800 text-white" /></div>
+                  <div>
+                    <label className="text-[10px] text-slate-500 block font-bold mb-1">IP HUB</label>
+                    <input type="text" disabled={!puedeEditar} value={editCampos.IP_HUB || ''} onChange={e=>setEditCampos({...editCampos, IP_HUB: e.target.value})} className="w-full bg-slate-950 font-mono p-2 rounded border border-slate-800 text-white" />
                   </div>
                 </div>
 
@@ -483,8 +463,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           recargarDatos={cargarDatosSistemas}
         />
       )}
-
-      
     </div>
   );
 }
