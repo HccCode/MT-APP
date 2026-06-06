@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, AlertOctagon, ArrowRight, Edit, Trash2, Check, X, FileSpreadsheet, XCircle } from 'lucide-react';
 
 export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica }) {
@@ -14,7 +14,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   
   const [filtroCanal, setFiltroCanal] = useState('');
 
-  // ESTADOS MODIFICADOS: Área de Staging
+  // Área de Staging
   const [modalCarga, setModalCarga] = useState(false);
   const [archivo, setArchivo] = useState(null);
   const [statusCarga, setStatusCarga] = useState({ loading: false, msg: '', type: '' });
@@ -29,49 +29,66 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const [editCanalForm, setEditCanalForm] = useState({});
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+  const abortControllerRef = useRef(null);
 
   useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
   useEffect(() => { localStorage.setItem('mcm_cab_cd', filtroCd); }, [filtroCd]);
 
-  const obtenerCiudadesOrdenadas = (region) => {
-    if (!region || !estructuraGeografica || !estructuraGeografica[region]?.ciudades) return [];
-    return Object.keys(estructuraGeografica[region].ciudades).map(nombre => ({
-        id: estructuraGeografica[region].ciudades[nombre].id,
+  // Memoización para evitar recalcular la lista de ciudades en cada render
+  const ciudadesOrdenadas = useMemo(() => {
+    if (!filtroReg || !estructuraGeografica || !estructuraGeografica[filtroReg]?.ciudades) return [];
+    return Object.keys(estructuraGeografica[filtroReg].ciudades).map(nombre => ({
+        id: estructuraGeografica[filtroReg].ciudades[nombre].id,
         nombre: nombre
     })).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  };
+  }, [filtroReg, estructuraGeografica]);
 
-  const buscarCabezales = async () => {
+  // Uso de useCallback y AbortController para evitar race conditions en búsquedas rápidas
+  const buscarCabezales = useCallback(async () => {
     if (!filtroCd) {
       setCabezales([]);
       return;
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
       let url = new URL(`${API_URL}/api/cabezales`);
       url.searchParams.append('ciudad', filtroCd); 
 
-      const res = await fetch(url.toString(), { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(url.toString(), { 
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: abortControllerRef.current.signal
+      });
       if (res.status === 401) return handleLogout();
       const data = await res.json();
       if (data.status === 'success') setCabezales(data.data);
     } catch (e) {
-      console.error("Error cargando la lista de cabezales:", e);
+      if (e.name !== 'AbortError') {
+        console.error("Error cargando la lista de cabezales:", e);
+      }
     }
-  };
+  }, [filtroCd, token, handleLogout, API_URL]);
 
   useEffect(() => {
     buscarCabezales();
-  }, [filtroCd]);
+    return () => {
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
+  }, [buscarCabezales]);
 
-  const cabezalesFiltrados = cabezales.filter(cab => {
-    if (!filtroTexto) return true;
+  // Memoización de filtrado local para evitar iteraciones costosas
+  const cabezalesFiltrados = useMemo(() => {
+    if (!filtroTexto) return cabezales;
     const text = filtroTexto.toLowerCase();
-    return (
+    return cabezales.filter(cab => 
         String(cab.id_equipo || '').toLowerCase().includes(text) ||
         String(cab.servicio || '').toLowerCase().includes(text)
     );
-  });
+  }, [cabezales, filtroTexto]);
 
   const verAlineacion = async (cabezal) => {
     setCabezalSeleccionado(cabezal);
@@ -103,12 +120,15 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  const canalesFiltrados = alineacionActual.filter(al => {
-    if (!filtroCanal) return true;
-    return String(al.nombre_canal || '').toLowerCase().includes(filtroCanal.toLowerCase());
-  });
+  // Memoización de filtrado local de canales
+  const canalesFiltrados = useMemo(() => {
+    if (!filtroCanal) return alineacionActual;
+    const text = filtroCanal.toLowerCase();
+    return alineacionActual.filter(al => 
+      String(al.nombre_canal || '').toLowerCase().includes(text)
+    );
+  }, [alineacionActual, filtroCanal]);
 
-  // LÓGICA REESCRITA: Motor de Carga Masiva (Preview & Commit)
   const procesarExcelCabezales = async (modo) => {
     if (!archivo) {
       setStatusCarga({ loading: false, msg: 'Debe seleccionar un archivo Excel para continuar.', type: 'error' });
@@ -284,7 +304,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         {puedeCargar && (
           <button 
             onClick={() => { setArchivo(null); setModalCarga(true); setPasoCarga(1); setStatusCarga({ loading: false, msg: '', type: '' }); }}
-            className=" hidden md:flex bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-white font-bold flex items-center gap-2 transition shadow-lg"
+            className="hidden md:flex bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-white font-bold flex items-center gap-2 transition shadow-lg"
           >
             <UploadCloud className="w-5 h-5" /> Importación Única Excel
           </button>
@@ -304,7 +324,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
           
           <select value={filtroCd} onChange={(e) => setFiltroCd(e.target.value)} disabled={!filtroReg} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer min-w-[180px]">
             <option value="">-- SELECCIONAR CIUDAD --</option>
-            {filtroReg && obtenerCiudadesOrdenadas(filtroReg).map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
+            {filtroReg && ciudadesOrdenadas.map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
           </select>
         </div>
 
