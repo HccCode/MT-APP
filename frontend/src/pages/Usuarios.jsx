@@ -238,12 +238,19 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1.5 flex items-center gap-1"><Briefcase className="w-3 h-3 text-blue-400"/> Pestañas Visibles *</label>
               <div className="bg-[#050814] border border-slate-700/80 rounded-lg p-3 grid grid-cols-2 gap-3 shadow-inner">
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-amber-400 col-span-2 border-b border-slate-800/80 pb-2 mb-1 transition-colors"><input type="checkbox" checked={newPestanas.includes('*')} onChange={(e) => manejarTogglePestana('*', e.target.checked)} className="accent-amber-500 w-3.5 h-3.5" /> <span className="font-black text-amber-500 tracking-widest">PERMITIR TODAS (*)</span></label>
+                
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('inventario')} onChange={(e) => manejarTogglePestana('inventario', e.target.checked)} className="accent-slate-400" /> S. Dedicados</label>
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('resumen')} onChange={(e) => manejarTogglePestana('resumen', e.target.checked)} className="accent-slate-400" /> Disp. Puertos</label>
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cabezales')} onChange={(e) => manejarTogglePestana('cabezales', e.target.checked)} className="accent-slate-400" /> Cabezales</label>
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('geografia')} onChange={(e) => manejarTogglePestana('geografia', e.target.checked)} className="accent-slate-400" /> Config. Red</label>
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('carga_excel')} onChange={(e) => manejarTogglePestana('carga_excel', e.target.checked)} className="accent-slate-400" /> Carga Masiva</label>
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('usuarios')} onChange={(e) => manejarTogglePestana('usuarios', e.target.checked)} className="accent-slate-400" /> Usuarios</label>
+                
+                {/* 🎯 NUEVA OPCIÓN: MODO CUADRILLA */}
+                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-indigo-400 transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
+                  <input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cuadrilla')} onChange={(e) => manejarTogglePestana('cuadrilla', e.target.checked)} className="accent-indigo-500" /> 
+                  Modo Cuadrilla
+                </label>
               </div>
             </div>
 
@@ -304,7 +311,8 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
                           return (
                             <label key={cityId} className={`flex items-center gap-2 text-[11px] font-medium cursor-pointer hover:bg-slate-800/80 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
                               <input type="checkbox" checked={newPlazas.includes(cityId) && !newPlazas.includes('*')} disabled={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) { setNewPlazas(prev => [...prev.filter(p => p !== '*'), cityId]); } else { setNewPlazas(prev => prev.filter(p => p !== cityId)); } }} className="accent-blue-500" />
-                              {c.nombre} <span className="text-[9px] text-slate-500 font-mono">({cityId})</span>
+                              {/* 🎯 SE ELIMINÓ EL ID PARA CUMPLIR LA REGLA DE SEGURIDAD */}
+                              {c.nombre}
                             </label>
                           ); 
                         })}
