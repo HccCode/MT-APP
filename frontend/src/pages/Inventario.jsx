@@ -4,7 +4,7 @@ import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
-import ModalAuditoria from '../components/modals/ModalAuditoria';
+
 
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
   const [inventarioReg, setInventarioReg] = useState(localStorage.getItem('mcm_inv_reg') || '');
