@@ -198,7 +198,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
       return c.hub_id === sitioCalorFiltro;
   });
 
-  const exportarResumenExcel = async () => {
+const exportarResumenExcel = async () => {
     if (datosHubs.length === 0) return;
     setCargando(true);
     
@@ -213,6 +213,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
         stats_total_disp: stats.total_disp,
         hubs: datosHubs.map(h => ({
             nombre: limpiarNombreSitio(h.nombre),
+            id: h.id, // <-- RESTAURADO SOLO PARA USO INTERNO DEL BACKEND
             disp_gi: h.disp_gi, total_gi: h.total_gi, 
             disp_te: h.disp_te, total_te: h.total_te, 
             disp_25: h.disp_25, total_25: h.total_25, 
