@@ -212,7 +212,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
         stats_troncales: stats.troncales,
         stats_total_disp: stats.total_disp,
         hubs: datosHubs.map(h => ({
-            nombre: limpiarNombreSitio(h.nombre), id: h.id, 
+            nombre: limpiarNombreSitio(h.nombre),
             disp_gi: h.disp_gi, total_gi: h.total_gi, 
             disp_te: h.disp_te, total_te: h.total_te, 
             disp_25: h.disp_25, total_25: h.total_25, 
@@ -370,7 +370,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
               <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
                     <Thermometer className="w-4 h-4 text-orange-500" />
-                    Mapa de Calor Operativo (Por Chasis)
+                    Mapa de Calor Operativo (Por Equipo)
                 </h3>
                 
                 {/* 🎯 NUEVO FILTRO DINÁMICO DE SITIO */}
@@ -413,8 +413,8 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                               <div key={i} className={`p-4 rounded-xl border flex flex-col gap-3 transition-transform hover:scale-[1.02] ${colorClass}`}>
                                   <div className="flex justify-between items-start">
                                       <div className="overflow-hidden pr-2">
-                                          <p className="font-black text-white text-sm truncate" title={c.id}>{c.id}</p>
-                                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate" title={c.hub}><MapPin className="w-3 h-3 shrink-0"/> {limpiarNombreSitio(c.hub)}</p>
+                                          <p className="font-black text-white text-sm truncate" title="Nodo / Equipo">{limpiarNombreSitio(c.hub)}</p>
+                                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate"><MapPin className="w-3 h-3 shrink-0"/> Equipo Físico</p>
                                       </div>
                                       <div className={`px-2 py-1 rounded font-black text-[10px] shrink-0 ${isCrit ? 'bg-red-500/20 text-red-400' : isWarn ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                                           {pct}% Libre
@@ -489,7 +489,6 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
                         <tr key={i} className={`hover:bg-slate-800/30 transition-colors ${esCritico ? 'bg-red-950/10' : ''}`}>
                           <td className="p-4">
                             <p className="font-bold text-slate-200">{limpiarNombreSitio(h.nombre)}</p>
-                            <p className="text-[9px] text-slate-600 font-mono mt-0.5 tracking-widest hidden lg:block" title="ID Base de Datos">{h.id}</p>
                           </td>
 
                           <td className="p-4 text-center bg-slate-900/30 text-slate-300 font-medium">{h.disp_gi}</td>
