@@ -97,6 +97,7 @@ class UserModel(Base):
     area_org = Column(String(100), nullable=True)
     region_asignacion = Column(String(100), nullable=True)
     puesto = Column(String(100), nullable=True)
+    must_change_password = Column(Integer, default=1)
 
 class PortModel(Base):
     __tablename__ = "inventario_puertos"
@@ -221,6 +222,9 @@ def registrar_auditoria(db: Session, usuario: str, accion: str, modulo: str, det
 class UserLogin(BaseModel):
     username: str
     password: str
+
+class ChangePasswordReq(BaseModel): # <-- NUEVO ESQUEMA
+    new_password: str    
 
 class UserRegister(BaseModel):
     username: str
@@ -392,7 +396,26 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
     if not user or not verify_password(data.password, user.password_hash):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "Credenciales inválidas"})
     access_token = jwt.encode({"sub": user.username, "role": user.role, "plazas": user.plazas, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
-    return {"status": "success", "token": access_token, "user": {"username": user.username, "role": user.role, "plazas": user.plazas, "pestanas": user.pestanas, "nombre_completo": user.nombre_completo}}
+    
+    return {
+        "status": "success", 
+        "token": access_token, 
+        "user": {
+            "username": user.username, 
+            "role": user.role, 
+            "plazas": user.plazas, 
+            "pestanas": user.pestanas, 
+            "nombre_completo": user.nombre_completo,
+            "must_change_password": bool(user.must_change_password) # <-- SE ENVÍA LA BANDERA AL FRONT
+        }
+    }
+
+@app.post("/api/auth/change-password")
+def change_first_password(data: ChangePasswordReq, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    current_user.password_hash = hash_password(data.new_password)
+    current_user.must_change_password = 0 # <-- SE APAGA LA BANDERA
+    db.commit()
+    return {"status": "success", "detail": "Contraseña actualizada exitosamente."}
 
 @app.post("/api/auth/register")
 def register(data: UserRegister, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -401,7 +424,8 @@ def register(data: UserRegister, current_user: UserModel = Depends(get_current_u
     db.add(UserModel(
         username=data.username.strip(), password_hash=hash_password(data.password), role=data.role, plazas=data.plazas, pestanas=data.pestanas,
         nombre_completo=data.nombre_completo.strip(),num_empleado=data.num_empleado, correo=data.correo, area_org=data.area_org,
-        region_asignacion=data.region_asignacion, puesto=data.puesto
+        region_asignacion=data.region_asignacion, puesto=data.puesto,
+        must_change_password=1 # <-- SE ACTIVA BANDERA AL CREAR
     ))
     db.commit()
     return {"status": "success"}
@@ -412,7 +436,8 @@ def list_all_users(current_user: UserModel = Depends(get_current_user), db: Sess
     return [{
         "id": u.id, "username": u.username, "role": u.role, "plazas": u.plazas, "pestanas": u.pestanas,
         "nombre_completo": u.nombre_completo,"num_empleado": u.num_empleado, "correo": u.correo, "area_org": u.area_org,
-        "region_asignacion": u.region_asignacion, "puesto": u.puesto
+        "region_asignacion": u.region_asignacion, "puesto": u.puesto,
+        "must_change_password": bool(u.must_change_password)
     } for u in db.query(UserModel).all()]
 
 @app.put("/api/users/{user_id}")
@@ -430,7 +455,12 @@ def update_user_profile(user_id: int, data: UserUpdate, current_user: UserModel 
     if data.area_org is not None: user.area_org = data.area_org
     if data.region_asignacion is not None: user.region_asignacion = data.region_asignacion
     if data.puesto is not None: user.puesto = data.puesto
-    if data.password and data.password.strip() != "": user.password_hash = hash_password(data.password)
+    
+    # <-- SE REACTIVA LA BANDERA SI EL ADMIN CAMBIA LA CONTRASEÑA
+    if data.password and data.password.strip() != "": 
+        user.password_hash = hash_password(data.password)
+        user.must_change_password = 1 
+        
     db.commit()
     return {"status": "success"}
 
