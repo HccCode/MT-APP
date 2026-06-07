@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck, Thermometer, MapPin, SlidersHorizontal } from 'lucide-react';
 
-export default function Resumen({ estructuraGeografica, puedeEditar }) {
+export default function Resumen({ token, estructuraGeografica, puedeEditar, esAdmin }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
   const [ciudadSelec, setCiudadSelec] = useState(localStorage.getItem('mcm_res_cd') || '');
   
@@ -154,7 +154,7 @@ export default function Resumen({ estructuraGeografica, puedeEditar }) {
   const guardarCapacidad = async () => {
     setGuardando(true);
     try {
-      const token = localStorage.getItem('mcm_token');
+      // Usa el token directamente de las props. (Se eliminó localStorage)
       const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudadSelec)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -224,8 +224,8 @@ const exportarResumenExcel = async () => {
         }))
     };
 
-    try {
-        const token = localStorage.getItem('mcm_token');
+try {
+        // Usa el token directamente de las props. (Se eliminó localStorage)
         const res = await fetch(`${API_URL}/api/resumen/exportar-excel`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -233,7 +233,6 @@ const exportarResumenExcel = async () => {
         });
         
         if (!res.ok) throw new Error("Fallo en descarga");
-        
         const blob = await res.blob();
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');

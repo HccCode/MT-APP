@@ -217,7 +217,7 @@ function App() {
           <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} estructuraGeografica={estructuraGeografica}/>
         )}
         {tabActiva === 'resumen' && (
-          <Resumen estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>
+          <Resumen token={token} estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>
         )}
         {tabActiva === 'cuadrilla' && (
           <Cuadrilla token={token} />
