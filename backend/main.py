@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI, Query, Request, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -20,6 +21,10 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.chart import PieChart, Reference
 from openpyxl.chart.label import DataLabelList
+
+# ================= LOGGING (NUEVO) =================
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # ================= CONFIGURACIÓN DE ENTORNO =================
 class Settings(BaseSettings):
@@ -47,12 +52,20 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ================= SEGURIDAD Y JWT =================
+# ================= SEGURIDAD Y JWT (ACTUALIZADO) =================
 SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+# Modificación para leer el token desde la Cookie segura en lugar de localStorage
+class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
+    async def __call__(self, request: Request):
+        token = request.cookies.get("access_token")
+        if not token:
+            return await super().__call__(request)
+        return token
+
+oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="api/auth/login")
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -216,7 +229,23 @@ def registrar_auditoria(db: Session, usuario: str, accion: str, modulo: str, det
         db.add(log)
         db.commit()
     except Exception as e:
-        pass
+        # Se elimina el "pass" silencioso
+        logger.error(f"Fallo crítico al registrar auditoría: {str(e)}")
+
+# ================= INICIALIZACIÓN API Y RATE LIMITING =================
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI(title="MT_DB Enterprise API")
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"]
+)
 
 # ================= ESQUEMAS PYDANTIC =================
 class UserLogin(BaseModel):
@@ -391,24 +420,36 @@ app.add_middleware(
 
 # ================= RUTAS DE AUTENTICACIÓN Y USUARIOS =================
 @app.post("/api/auth/login")
-def login(data: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit("5/minute") # Bloquea ataques de fuerza bruta (Max 5 intentos x min)
+def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.username == data.username).first()
+    
     if not user or not verify_password(data.password, user.password_hash):
+        logger.warning(f"Intento de intrusión bloqueado para el usuario: {data.username} desde IP: {request.client.host}")
         return JSONResponse(status_code=400, content={"status": "error", "detail": "Credenciales inválidas"})
+        
     access_token = jwt.encode({"sub": user.username, "role": user.role, "plazas": user.plazas, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
     
-    return {
-        "status": "success", 
-        "token": access_token, 
-        "user": {
-            "username": user.username, 
-            "role": user.role, 
-            "plazas": user.plazas, 
-            "pestanas": user.pestanas, 
-            "nombre_completo": user.nombre_completo,
-            "must_change_password": bool(user.must_change_password) # <-- SE ENVÍA LA BANDERA AL FRONT
-        }
-    }
+    logger.info(f"Sesión iniciada exitosamente: {user.username}")
+    
+    response = JSONResponse(content={"status": "success", "user": {"username": user.username, "role": user.role, "plazas": user.plazas, "pestanas": user.pestanas, "nombre_completo": user.nombre_completo}})
+    
+    # Inyección de Cookie HttpOnly (Protección XSS)
+    response.set_cookie(
+        key="access_token", 
+        value=access_token, 
+        httponly=True, 
+        secure=True, 
+        samesite="none", 
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    )
+    return response
+
+@app.post("/api/auth/logout")
+def logout():
+    response = JSONResponse(content={"status": "success", "detail": "Sesión cerrada"})
+    response.delete_cookie(key="access_token", httponly=True, secure=True, samesite="none")
+    return response
 
 @app.post("/api/auth/change-password")
 def change_first_password(data: ChangePasswordReq, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
