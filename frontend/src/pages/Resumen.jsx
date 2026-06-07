@@ -104,27 +104,29 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                 else { global.disp_gi++; subDispGi++; }
             }
 
-            // CORRECCIÓN MAPA DE CALOR: Recuperamos el EQUIPO_HOTEL_ID para el gráfico
-            const chasisID = String(p.EQUIPO_HOTEL_ID || '').trim();
+// CORRECCIÓN MAPA DE CALOR: Recuperamos el EQUIPO_HOTEL_ID para el gráfico
+            const chasisRaw = String(p.EQUIPO_HOTEL_ID || '').trim();
+            
+            // Si el puerto no tiene Chasis asignado, lo agrupamos como "CHASIS PRINCIPAL"
+            const idAgrupacion = (chasisRaw && chasisRaw !== '-' && chasisRaw.toLowerCase() !== 'null') 
+                ? chasisRaw 
+                : "CHASIS PRINCIPAL";
 
-            if (chasisID && chasisID !== '-' && chasisID.toLowerCase() !== 'null') {
-                if (!mapChasis[chasisID]) {
-                    mapChasis[chasisID] = {
-                        id: chasisID,
-                        equipo: chasisID, // Nombre del chasis/equipo físico
-                        hub: nombreHub,   // Nombre limpio del nodo
-                        hub_id: data.hub, // ID oculto usado internamente para filtros
-                        total: 0,
-                        disp: 0,
-                        activos: 0
-                    };
-                }
-                
-                mapChasis[chasisID].total++;
-                if (isDisp) mapChasis[chasisID].disp++;
-                if (est === 'ACTIVO') mapChasis[chasisID].activos++;
+            if (!mapChasis[idAgrupacion]) {
+                mapChasis[idAgrupacion] = {
+                    id: idAgrupacion,
+                    equipo: idAgrupacion, // Nombre del chasis/equipo físico que se muestra en pantalla
+                    hub: nombreHub,   // Nombre limpio del nodo
+                    hub_id: data.hub, // ID oculto usado internamente para filtros
+                    total: 0,
+                    disp: 0,
+                    activos: 0
+                };
             }
-        });
+            
+            mapChasis[idAgrupacion].total++;
+            if (isDisp) mapChasis[idAgrupacion].disp++;
+            if (est === 'ACTIVO') mapChasis[idAgrupacion].activos++;
 
         const totalPuertos = data.puertos.length;
         const pctLibres = totalPuertos > 0 ? ((subDisp / totalPuertos) * 100).toFixed(1) : 0;

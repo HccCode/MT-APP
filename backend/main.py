@@ -767,6 +767,10 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
 
         idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
         idx_puerto = get_index(["PUERTO"], column_headers)
+        
+        # 🚀 RESTAURADO: Búsqueda de la columna de Chasis en el Excel
+        idx_chasis = get_index(["EQUIPO ID", "CHASIS", "EQUIPO", "EQUIPO_HOTEL_ID"], column_headers)
+        
         idx_iphub = get_index(["IP HUB", "IP_HUB"], column_headers)
         idx_serv = get_index(["CLIENTE / SERVICIO", "SERVICIO", "CLIENTE"], column_headers)
         idx_mbps = get_index(["ANCHO BANDA (MBPS)", "MBPS", "ANCHO BANDA"], column_headers)
@@ -835,6 +839,10 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             db.add(PortModel(
                 region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
                 estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, ip_hub=read_val(idx_iphub), 
+                
+                # 🚀 RESTAURADO: Guardamos el chasis en la Base de Datos
+                equipo_hotel_id=read_val(idx_chasis), 
+                
                 servicio=read_val(idx_serv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), 
                 ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), potencia_hub=read_val(idx_pothub), 
                 potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), contacto_nombre=read_val(idx_contacto_nombre), 
