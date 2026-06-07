@@ -1,48 +1,50 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
-const Login = () => {
-  const navigate = useNavigate();
-  
-  // Estados para manejar los inputs, la carga y los errores
+// Recibimos las props que nos manda App.jsx
+const Login = ({ setToken, setUsuario, setTabActiva }) => {
   const [credenciales, setCredenciales] = useState({ usuario: '', password: '' });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
 
-  // Manejador para actualizar el estado cuando el usuario escribe
   const handleChange = (e) => {
     setCredenciales({ ...credenciales, [e.target.name]: e.target.value });
   };
 
-  // Manejador del envío del formulario
   const handleSubmit = async (e) => {
     e.preventDefault();
     setCargando(true);
     setError('');
 
     try {
-      // Reemplaza esta URL por el endpoint real de tu backend
-      const response = await fetch('http://localhost:5000/api/login', {
+      // Usar la variable de entorno o localhost (igual que en tu App.jsx)
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+      
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(credenciales),
+        // Tu backend FastAPI espera username y password
+        body: JSON.stringify({
+            username: credenciales.usuario,
+            password: credenciales.password
+        }),
       });
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Error al iniciar sesión');
+      if (!response.ok || data.status === "error") {
+        throw new Error(data.detail || 'Error al iniciar sesión');
       }
 
-      // Si tu API devuelve un token, guárdalo (ej. en localStorage o sessionStorage)
-      if (data.token) {
-        localStorage.setItem('token', data.token);
-      }
+      // 1. Guardar en localStorage (como lo espera App.jsx)
+      localStorage.setItem('mcm_token', data.token);
+      localStorage.setItem('mcm_user', JSON.stringify(data.user));
 
-      // Redirigir al usuario tras un login exitoso
-      navigate('/dashboard'); // Cambia '/dashboard' por tu ruta principal
+      // 2. Actualizar los estados de App.jsx para que quite el Login y muestre el panel
+      setUsuario(data.user);
+      setToken(data.token);
+      setTabActiva('inventario');
 
     } catch (err) {
       setError(err.message || 'Credenciales incorrectas o error en el servidor.');
