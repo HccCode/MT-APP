@@ -12,7 +12,8 @@ export default function Auditoria({ token }) {
     const fetchLogs = async () => {
       try {
         const res = await fetch(`${API_URL}/api/auditoria?limit=200`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' },
+          credentials: 'include'
         });
         const data = await res.json();
         if (data.status === 'success') setLogs(data.data);

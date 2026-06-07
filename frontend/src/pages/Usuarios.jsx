@@ -29,7 +29,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
   const cargarUsuariosDB = async () => {
     if (!token || !esAdmin) return;
     try {
-      const res = await fetch(`${API_URL}/api/users`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/users`, { headers: { 'Authorization': `Bearer ${token}` },credentials: 'include' });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) { setListaUsuarios(await res.json()); }
     } catch (e) { console.error(e); }
@@ -54,7 +54,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
     try {
       const res = await fetch(url, { 
         method: idUserEditando ? 'PUT' : 'POST', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' }, 
         body: JSON.stringify({ 
           username: newUsername, password: newPassword, role: roleString, plazas: plazasString, pestanas: pestanasString,
           nombre_completo: newNombreCompleto, num_empleado: newNumEmpleado, correo: newCorreo, 
@@ -77,7 +77,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
   const handleEliminarUsuario = async (id, name) => {
     if (!window.confirm(`¿Estás seguro de revocar permanentemente los accesos a '${name}'?`)) return;
     try {
-        const res = await fetch(`${API_URL}/api/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch(`${API_URL}/api/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` },credentials: 'include' });
         if (res.status === 401) { handleLogout(); return; }
         if (res.ok) await cargarUsuariosDB();
     } catch (e) { console.error(e); }

@@ -38,7 +38,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
 
   const cargarConfigCiudad = async (ciudad) => {
     try {
-      const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`);
+      const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`,credentials: 'include');
       if (res.ok) {
         const json = await res.json();
         setCapacidadTotal(json.data?.ancho_banda_total || '40G');
@@ -157,7 +157,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
       // Usa el token directamente de las props. (Se eliminó localStorage)
       const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudadSelec)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' },
         body: JSON.stringify({ ancho_banda_total: editCapacidad })
       });
       if (res.ok) { setCapacidadTotal(editCapacidad); setModoEdicion(false); }
@@ -228,7 +228,7 @@ try {
         // Usa el token directamente de las props. (Se eliminó localStorage)
         const res = await fetch(`${API_URL}/api/resumen/exportar-excel`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' },
             body: JSON.stringify(payload)
         });
         

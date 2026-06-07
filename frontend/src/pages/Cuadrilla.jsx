@@ -88,7 +88,7 @@ export default function Cuadrilla({ token, handleLogout }) {
     
     try {
       const res = await fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },credentials: 'include'
       });
       const json = await res.json();
       

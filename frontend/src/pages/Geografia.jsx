@@ -43,7 +43,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
     try {
       const res = await fetch(url, { 
         method, 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, credentials: 'include',
         body: JSON.stringify({ nombre: regName.trim() }) 
       });
       const data = await res.json().catch(() => ({}));
@@ -69,7 +69,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
   const handleEliminarRegion = async (id, nombre) => {
     if (!window.confirm(`ATENCIÓN: ¿Borrar la región '${nombre}' y todo su contenido permanentemente?`)) return;
     const res = await fetch(`${API_URL}/api/geography/regions/${id}`, { 
-      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } 
+      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include',
     });
     if (res.status === 401) { handleLogout(); return; }
     if (res.ok) {
@@ -103,7 +103,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
         
       const res = await fetch(url, { 
         method, 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, credentials: 'include',
         body: JSON.stringify(payload) 
       });
       const data = await res.json().catch(() => ({}));
@@ -130,7 +130,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
   const handleEliminarCiudad = async (id, nombre) => {
     if (!window.confirm(`¿Borrar la ciudad '${nombre}'?`)) return;
     const res = await fetch(`${API_URL}/api/geography/cities/${id}`, { 
-      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } 
+      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include',
     });
     if (res.status === 401) { handleLogout(); return; }
     if (res.ok) {
@@ -159,7 +159,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
     try {
       const res = await fetch(`${API_URL}/api/geography/hubs`, { 
         method: 'POST', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, credentials: 'include',
         body: JSON.stringify({ 
           id: idParaGuardar, nombre: hubName.trim(), ciudad_id: hubCitId, 
           direccion: hubDireccion.trim(), coordenadas: hubCoordenadas.trim() 
@@ -193,7 +193,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
   const handleEliminarHub = async (id, nombre) => {
     if (!window.confirm(`¿Borrar el Hub '${nombre}'?`)) return;
     const res = await fetch(`${API_URL}/api/geography/hubs/${id}`, { 
-      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } 
+      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include'
     });
     if (res.status === 401) { handleLogout(); return; }
     if (res.ok) await cargarGeographyDB();

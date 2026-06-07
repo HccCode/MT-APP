@@ -60,7 +60,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
       url.searchParams.append('ciudad', filtroCd); 
 
       const res = await fetch(url.toString(), { 
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' },
         signal: abortControllerRef.current.signal
       });
       if (res.status === 401) return handleLogout();
@@ -96,7 +96,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     setFiltroCanal(''); 
     try {
       const res = await fetch(`${API_URL}/api/cabezales/${cabezal.id}/alineacion`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
       });
       const data = await res.json();
       if (data.status === 'success') {
@@ -111,7 +111,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const refrescarAlineacionActual = async (cabezalId) => {
     try {
       const res = await fetch(`${API_URL}/api/cabezales/${cabezalId}/alineacion`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
       });
       const data = await res.json();
       if (data.status === 'success') setAlineacionActual(data.data);
@@ -142,7 +142,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     try {
       const res = await fetch(`${API_URL}/api/cabezales/upload-excel?mode=${modo}`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' },
         body: formData
       });
       const data = await res.json();
@@ -180,7 +180,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
+          'Authorization': `Bearer ${token}`,credentials: 'include' 
         },
         body: JSON.stringify(editForm)
       });
@@ -200,7 +200,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     try {
       const res = await fetch(`${API_URL}/api/cabezales/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
       });
       if (res.ok) buscarCabezales();
     } catch (e) {
@@ -211,7 +211,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const exportarAlineacionExcel = async (cabezal) => {
     try {
       const res = await fetch(`${API_URL}/api/cabezales/${cabezal.id}/exportar-excel`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
       });
       if (!res.ok) throw new Error("Error en la descarga");
       
@@ -245,7 +245,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
+          'Authorization': `Bearer ${token}`,credentials: 'include' 
         },
         body: JSON.stringify({
           portadora: editCanalForm.portadora,
@@ -274,7 +274,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     try {
       const res = await fetch(`${API_URL}/api/alineaciones/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
       });
       if (res.ok) refrescarAlineacionActual(cabezalSeleccionado.id);
     } catch (e) {

@@ -61,7 +61,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     const fetchEquiposDelHub = async () => {
       try {
         const res = await fetch(`${API_URL}/api/hubs?id_hub=${hubSelec}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
         });
         const json = await res.json();
         
@@ -117,7 +117,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     try {
       const res = await fetch(`${API_URL}/api/hubs/upload-excel?id_hub=${encodeURIComponent(hubSelec)}&mode=${modo}`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' },
         body: formData
       });
       const json = await res.json();
@@ -233,7 +233,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
       const res = await fetch(`${API_URL}/api/hubs/upload-json?id_hub=${encodeURIComponent(hubSelec)}`, {
         method: 'POST',
         headers: { 
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`,credentials: 'include',
           'Content-Type': 'application/json' 
         },
         body: JSON.stringify({ puertos: previewData })

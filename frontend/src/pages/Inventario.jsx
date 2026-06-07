@@ -93,7 +93,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       if (inventarioCd) url += `ciudad=${encodeURIComponent(inventarioCd)}&`;
       if (inventarioHub && inventarioHub !== 'TODOS') url += `id_hub=${encodeURIComponent(inventarioHub)}`;
       
-      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` },credentials: 'include' });
       if (!res.ok) throw new Error("Error en la descarga");
       
       const blob = await res.blob();
@@ -138,7 +138,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     try {
       const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
         method: 'PUT', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' }, 
         body: JSON.stringify(payloadSanitizado) 
       });
       if (res.status === 401) { handleLogout(); return; }
