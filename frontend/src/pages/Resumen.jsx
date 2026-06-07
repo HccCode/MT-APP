@@ -127,7 +127,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
             mapChasis[idAgrupacion].total++;
             if (isDisp) mapChasis[idAgrupacion].disp++;
             if (est === 'ACTIVO') mapChasis[idAgrupacion].activos++;
-
+        });
         const totalPuertos = data.puertos.length;
         const pctLibres = totalPuertos > 0 ? ((subDisp / totalPuertos) * 100).toFixed(1) : 0;
 
