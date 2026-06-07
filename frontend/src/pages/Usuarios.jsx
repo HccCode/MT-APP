@@ -229,7 +229,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
                 <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer hover:text-purple-400 font-bold transition-colors"><input type="checkbox" checked={newPermisos.includes('ADMIN')} onChange={(e) => manejarTogglePermiso('ADMIN', e.target.checked)} className="accent-purple-500" /> ADMIN TOTAL</label>
                 <label className="flex items-center gap-2 text-[11px] cursor-pointer hover:text-amber-400 col-span-2 pt-2 mt-1 border-t border-slate-800/80 transition-colors">
                   <input type="checkbox" checked={newPermisos.includes('RNOC')} onChange={(e) => manejarTogglePermiso('RNOC', e.target.checked)} className="accent-amber-500" /> 
-                  <span className="font-black tracking-widest text-amber-500 uppercase">Perfil RNOC (Solo Falla)</span>
+                  <span className="font-black tracking-widest text-amber-500 uppercase">Perfil RNOC (Solo Fallas)</span>
                 </label>
               </div>
             </div>
@@ -238,15 +238,12 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
               <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1.5 flex items-center gap-1"><Briefcase className="w-3 h-3 text-blue-400"/> Pestañas Visibles *</label>
               <div className="bg-[#050814] border border-slate-700/80 rounded-lg p-3 grid grid-cols-2 gap-3 shadow-inner">
                 <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-amber-400 col-span-2 border-b border-slate-800/80 pb-2 mb-1 transition-colors"><input type="checkbox" checked={newPestanas.includes('*')} onChange={(e) => manejarTogglePestana('*', e.target.checked)} className="accent-amber-500 w-3.5 h-3.5" /> <span className="font-black text-amber-500 tracking-widest">PERMITIR TODAS (*)</span></label>
-                
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('inventario')} onChange={(e) => manejarTogglePestana('inventario', e.target.checked)} className="accent-slate-400" /> S. Dedicados</label>
-                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('resumen')} onChange={(e) => manejarTogglePestana('resumen', e.target.checked)} className="accent-slate-400" /> Disp. Puertos</label>
+                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('resumen')} onChange={(e) => manejarTogglePestana('resumen', e.target.checked)} className="accent-slate-400" /> Disponibilidad</label>
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cabezales')} onChange={(e) => manejarTogglePestana('cabezales', e.target.checked)} className="accent-slate-400" /> Cabezales</label>
-                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('geografia')} onChange={(e) => manejarTogglePestana('geografia', e.target.checked)} className="accent-slate-400" /> Config. Red</label>
-                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('carga_excel')} onChange={(e) => manejarTogglePestana('carga_excel', e.target.checked)} className="accent-slate-400" /> Carga Masiva</label>
+                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('geografia')} onChange={(e) => manejarTogglePestana('geografia', e.target.checked)} className="accent-slate-400" /> Geografía</label>
+                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('carga_excel')} onChange={(e) => manejarTogglePestana('carga_excel', e.target.checked)} className="accent-slate-400" /> Aprovisionamiento</label>
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('usuarios')} onChange={(e) => manejarTogglePestana('usuarios', e.target.checked)} className="accent-slate-400" /> Usuarios</label>
-                
-                {/* 🎯 NUEVA OPCIÓN: MODO CUADRILLA */}
                 <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-indigo-400 transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
                   <input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cuadrilla')} onChange={(e) => manejarTogglePestana('cuadrilla', e.target.checked)} className="accent-indigo-500" /> 
                   Modo Cuadrilla
@@ -278,7 +275,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
                   <Search className="w-3 h-3 text-slate-500 absolute left-2 top-1.5" />
                   <input 
                     type="text" 
-                    placeholder="Buscar ciudad..." 
+                    placeholder="Buscar ciudad o región..." 
                     value={filtroPlazas} 
                     onChange={e => setFiltroPlazas(e.target.value)} 
                     className="w-full bg-[#050814] border border-slate-700/80 text-[10px] py-1.5 pl-6 pr-2 rounded text-slate-300 focus:outline-none focus:border-purple-500 transition-colors shadow-inner" 
@@ -297,21 +294,39 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
                   const query = filtroPlazas.toLowerCase();
                   const regionMatch = r.toLowerCase().includes(query);
                   const ciudadesTodas = obtenerCiudadesOrdenadas(r);
-                  const ciudadesFiltradas = ciudadesTodas.filter(c => c.nombre.toLowerCase().includes(query) || c.id.toLowerCase().includes(query));
+                  const ciudadesFiltradas = ciudadesTodas.filter(c => c.nombre.toLowerCase().includes(query) || String(c.id).toLowerCase().includes(query));
                   
                   if (query && !regionMatch && ciudadesFiltradas.length === 0) return null;
                   const ciudadesRender = (query && !regionMatch) ? ciudadesFiltradas : ciudadesTodas;
 
+                  // Lógica para saber si todas las ciudades de esta región están seleccionadas
+                  const idsRegion = ciudadesTodas.map(c => String(c.id));
+                  const todasSeleccionadas = idsRegion.length > 0 && idsRegion.every(id => newPlazas.includes(id));
+
                   return (
-                    <div key={r} className="ml-1 space-y-1">
-                      <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{r}</span>
-                      <div className="ml-2 flex flex-col gap-0.5">
+                    <div key={r} className="ml-1 space-y-1 mb-2">
+                      <label className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800/50 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-600 opacity-50' : 'text-purple-400'}`}>
+                        <input 
+                          type="checkbox" 
+                          checked={newPlazas.includes('*') || todasSeleccionadas} 
+                          disabled={newPlazas.includes('*')}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewPlazas(prev => Array.from(new Set([...prev.filter(p => p !== '*'), ...idsRegion])));
+                            } else {
+                              setNewPlazas(prev => prev.filter(p => !idsRegion.includes(p)));
+                            }
+                          }} 
+                          className="accent-purple-500 w-3.5 h-3.5" 
+                        />
+                        {r}
+                      </label>
+                      <div className="ml-2 flex flex-col gap-0.5 border-l border-slate-700/50 pl-2">
                         {ciudadesRender.map(c => { 
                           const cityId = String(c.id); 
                           return (
                             <label key={cityId} className={`flex items-center gap-2 text-[11px] font-medium cursor-pointer hover:bg-slate-800/80 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
                               <input type="checkbox" checked={newPlazas.includes(cityId) && !newPlazas.includes('*')} disabled={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) { setNewPlazas(prev => [...prev.filter(p => p !== '*'), cityId]); } else { setNewPlazas(prev => prev.filter(p => p !== cityId)); } }} className="accent-blue-500" />
-                              {/* 🎯 SE ELIMINÓ EL ID PARA CUMPLIR LA REGLA DE SEGURIDAD */}
                               {c.nombre}
                             </label>
                           ); 
