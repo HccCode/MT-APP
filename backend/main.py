@@ -1,7 +1,3 @@
-import logging
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from fastapi import FastAPI, Query, Request, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -17,6 +13,12 @@ import bcrypt
 import pandas as pd
 import io
 import os
+import logging
+
+# IMPORTS DE SEGURIDAD (RATE LIMITING)
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # IMPORTS PARA EXCEL AVANZADO (OPENPYXL)
 from openpyxl import Workbook
@@ -25,7 +27,7 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.chart import PieChart, Reference
 from openpyxl.chart.label import DataLabelList
 
-# ================= LOGGING (NUEVO) =================
+# ================= LOGGING =================
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -55,20 +57,12 @@ engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# ================= SEGURIDAD Y JWT (ACTUALIZADO) =================
+# ================= SEGURIDAD Y JWT =================
 SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
-# Modificación para leer el token desde la Cookie segura en lugar de localStorage
-class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
-    async def __call__(self, request: Request):
-        token = request.cookies.get("access_token")
-        if not token:
-            return await super().__call__(request)
-        return token
-
-oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -113,7 +107,6 @@ class UserModel(Base):
     area_org = Column(String(100), nullable=True)
     region_asignacion = Column(String(100), nullable=True)
     puesto = Column(String(100), nullable=True)
-    must_change_password = Column(Integer, default=1)
 
 class PortModel(Base):
     __tablename__ = "inventario_puertos"
@@ -232,31 +225,12 @@ def registrar_auditoria(db: Session, usuario: str, accion: str, modulo: str, det
         db.add(log)
         db.commit()
     except Exception as e:
-        # Se elimina el "pass" silencioso
         logger.error(f"Fallo crítico al registrar auditoría: {str(e)}")
-
-# ================= INICIALIZACIÓN API Y RATE LIMITING =================
-limiter = Limiter(key_func=get_remote_address)
-app = FastAPI(title="MT_DB Enterprise API")
-
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-app.add_middleware(
-    CORSMiddleware, 
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True, 
-    allow_methods=["*"], 
-    allow_headers=["*"]
-)
 
 # ================= ESQUEMAS PYDANTIC =================
 class UserLogin(BaseModel):
     username: str
     password: str
-
-class ChangePasswordReq(BaseModel): # <-- NUEVO ESQUEMA
-    new_password: str    
 
 class UserRegister(BaseModel):
     username: str
@@ -410,8 +384,12 @@ try:
 except Exception as e:
     print("Nota: Semilla de administrador omitida:", e)
 
-# ================= INICIALIZACIÓN API =================
+# ================= INICIALIZACIÓN API Y ESCUDO ANTIBOTS =================
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="MT_DB Enterprise API")
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware, 
@@ -423,43 +401,16 @@ app.add_middleware(
 
 # ================= RUTAS DE AUTENTICACIÓN Y USUARIOS =================
 @app.post("/api/auth/login")
-@limiter.limit("5/minute") # Bloquea ataques de fuerza bruta (Max 5 intentos x min)
+@limiter.limit("5/minute")
 def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.username == data.username).first()
-    
     if not user or not verify_password(data.password, user.password_hash):
         logger.warning(f"Intento de intrusión bloqueado para el usuario: {data.username} desde IP: {request.client.host}")
         return JSONResponse(status_code=400, content={"status": "error", "detail": "Credenciales inválidas"})
-        
+    
     access_token = jwt.encode({"sub": user.username, "role": user.role, "plazas": user.plazas, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
-    
     logger.info(f"Sesión iniciada exitosamente: {user.username}")
-    
-    response = JSONResponse(content={"status": "success", "user": {"username": user.username, "role": user.role, "plazas": user.plazas, "pestanas": user.pestanas, "nombre_completo": user.nombre_completo}})
-    
-    # Inyección de Cookie HttpOnly (Protección XSS)
-    response.set_cookie(
-        key="access_token", 
-        value=access_token, 
-        httponly=True, 
-        secure=True, 
-        samesite="none", 
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-    return response
-
-@app.post("/api/auth/logout")
-def logout():
-    response = JSONResponse(content={"status": "success", "detail": "Sesión cerrada"})
-    response.delete_cookie(key="access_token", httponly=True, secure=True, samesite="none")
-    return response
-
-@app.post("/api/auth/change-password")
-def change_first_password(data: ChangePasswordReq, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    current_user.password_hash = hash_password(data.new_password)
-    current_user.must_change_password = 0 # <-- SE APAGA LA BANDERA
-    db.commit()
-    return {"status": "success", "detail": "Contraseña actualizada exitosamente."}
+    return {"status": "success", "token": access_token, "user": {"username": user.username, "role": user.role, "plazas": user.plazas, "pestanas": user.pestanas, "nombre_completo": user.nombre_completo}}
 
 @app.post("/api/auth/register")
 def register(data: UserRegister, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -468,8 +419,7 @@ def register(data: UserRegister, current_user: UserModel = Depends(get_current_u
     db.add(UserModel(
         username=data.username.strip(), password_hash=hash_password(data.password), role=data.role, plazas=data.plazas, pestanas=data.pestanas,
         nombre_completo=data.nombre_completo.strip(),num_empleado=data.num_empleado, correo=data.correo, area_org=data.area_org,
-        region_asignacion=data.region_asignacion, puesto=data.puesto,
-        must_change_password=1 # <-- SE ACTIVA BANDERA AL CREAR
+        region_asignacion=data.region_asignacion, puesto=data.puesto
     ))
     db.commit()
     return {"status": "success"}
@@ -480,8 +430,7 @@ def list_all_users(current_user: UserModel = Depends(get_current_user), db: Sess
     return [{
         "id": u.id, "username": u.username, "role": u.role, "plazas": u.plazas, "pestanas": u.pestanas,
         "nombre_completo": u.nombre_completo,"num_empleado": u.num_empleado, "correo": u.correo, "area_org": u.area_org,
-        "region_asignacion": u.region_asignacion, "puesto": u.puesto,
-        "must_change_password": bool(u.must_change_password)
+        "region_asignacion": u.region_asignacion, "puesto": u.puesto
     } for u in db.query(UserModel).all()]
 
 @app.put("/api/users/{user_id}")
@@ -499,12 +448,7 @@ def update_user_profile(user_id: int, data: UserUpdate, current_user: UserModel 
     if data.area_org is not None: user.area_org = data.area_org
     if data.region_asignacion is not None: user.region_asignacion = data.region_asignacion
     if data.puesto is not None: user.puesto = data.puesto
-    
-    # <-- SE REACTIVA LA BANDERA SI EL ADMIN CAMBIA LA CONTRASEÑA
-    if data.password and data.password.strip() != "": 
-        user.password_hash = hash_password(data.password)
-        user.must_change_password = 1 
-        
+    if data.password and data.password.strip() != "": user.password_hash = hash_password(data.password)
     db.commit()
     return {"status": "success"}
 
@@ -634,20 +578,17 @@ def delete_city(city_id: str, current_user: UserModel = Depends(get_current_user
 
 @app.post("/api/geography/hubs")
 def assign_or_create_hub(data: GeographyHubCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 1. Verificar si tiene acceso a la pestaña Geografía o es Admin
     pestanas = [p.strip().lower() for p in str(current_user.pestanas).split(",")]
     tiene_acceso_geografia = "*" in pestanas or "geografia" in pestanas
     
     if not is_admin(current_user) and not tiene_acceso_geografia:
-        raise HTTPException(status_code=403, detail="Permisos insuficientes para acceder a configuración.")
+        raise HTTPException(status_code=403, detail="Permisos insuficientes.")
         
-    # 2. Si NO es admin, validar estrictamente que la ciudad objetivo esté en sus plazas
     if not is_admin(current_user) and current_user.plazas != "*":
         plazas_permitidas = [p.strip().upper() for p in str(current_user.plazas).split(",")]
         if data.ciudad_id.upper().strip() not in plazas_permitidas:
-            raise HTTPException(status_code=403, detail=f"Operación denegada. Solo puedes agregar HUBs en tus ciudades asignadas.")
+            raise HTTPException(status_code=403, detail="Operación denegada. Solo puedes gestionar HUBs en tus ciudades asignadas.")
 
-    # 3. Lógica de creación / actualización
     id_nodo = data.id.upper().strip()
     hub = db.query(HubMappingModel).filter(HubMappingModel.id == id_nodo).first()
     if hub:
@@ -658,10 +599,10 @@ def assign_or_create_hub(data: GeographyHubCreate, current_user: UserModel = Dep
     else:
         db.add(HubMappingModel(id=id_nodo, nombre=data.nombre, ciudad_id=data.ciudad_id.upper().strip(), direccion=data.direccion, coordenadas=data.coordenadas))
     db.commit()
+    return {"status": "success"}
 
 @app.delete("/api/geography/hubs/{hub_id}")
 def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 1. Verificar acceso base
     pestanas = [p.strip().lower() for p in str(current_user.pestanas).split(",")]
     tiene_acceso_geografia = "*" in pestanas or "geografia" in pestanas
     
@@ -670,96 +611,66 @@ def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user),
         
     hub = db.query(HubMappingModel).filter(HubMappingModel.id == hub_id.upper().strip()).first()
     if hub:
-        # 2. Si NO es admin, validar que no intente borrar un HUB de una ciudad que no le corresponde
         if not is_admin(current_user) and current_user.plazas != "*":
             plazas_permitidas = [p.strip().upper() for p in str(current_user.plazas).split(",")]
             if hub.ciudad_id.upper().strip() not in plazas_permitidas:
-                raise HTTPException(status_code=403, detail="Operación denegada. No puedes eliminar HUBs fuera de tus ciudades asignadas.")
+                raise HTTPException(status_code=403, detail="Operación denegada. Fuera de tus plazas autorizadas.")
                 
         db.query(PortModel).filter(PortModel.hub_id == hub.id).delete()
         db.delete(hub)
         db.commit()
     return {"status": "success"}
 
-# ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
+# ================= ENDPOINT DE BÚSQUEDA GLOBAL =================
 @app.get("/api/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    from fastapi.responses import JSONResponse
     try:
         termino = q.strip().lower()
-        
-        # 1. CANDADO DE SEGURIDAD: Leer la base de datos completa vs. limitada
         query_puertos = db.query(PortModel)
         
-        # Si el usuario no es ADMIN y no tiene el asterisco (*) de acceso total:
         if not is_admin(current_user) and current_user.plazas != "*":
-            # Extraemos los IDs de las ciudades que sí tiene permitidas (Ej. ["MXL", "TIJ"])
             ids_permitidos = [x.strip().upper() for x in str(current_user.plazas).split(",") if x.strip()]
-            
-            # Buscamos los nombres reales de esas ciudades en la tabla CityModel
             ciudades_permitidas = db.query(CityModel).filter(CityModel.id.in_(ids_permitidos)).all()
             nombres_ciudades = [c.nombre for c in ciudades_permitidas]
-            
-            # Aplicamos el candado: La base de datos ahora solo devolverá puertos de esas ciudades
             query_puertos = query_puertos.filter(PortModel.ciudad.in_(nombres_ciudades))
             
         todos_los_puertos = query_puertos.all()
-        
-        # 2. PROCESO DE BÚSQUEDA ESTRICTA
         resultados = []
         for p in todos_los_puertos:
             servicio = str(p.servicio or '').lower()
             puerto = str(p.puerto or '').lower()
-            equipo = str(p.equipo_hotel_id or '').lower()
             ip_gestion = str(p.ip_gestion or '').lower()
             ip_cliente = str(p.ip_cliente or '').lower()
             contacto = str(p.contacto_nombre or '').lower()
             
-            if (termino in servicio) or (termino in puerto) or (termino in equipo) or (termino in ip_gestion) or (termino in ip_cliente) or (termino in contacto):
-                dic_para_react = {
-                    "ID": p.id,
-                    "ESTATUS": p.estatus,
-                    "PUERTO": p.puerto,
-                    "EQUIPO_HOTEL_ID": p.equipo_hotel_id,
-                    "SERVICIO": p.servicio,
-                    "IP_GESTION": p.ip_gestion,
-                    "IP_CLIENTE": p.ip_cliente,
-                    "BDI": p.bdi,
-                    "POTENCIA_HUB": p.potencia_hub,
-                    "POTENCIA_CPE": p.potencia_cpe,
-                    "RUTA": p.ruta,
-                    "DISTANCIA_CLIENTE": p.distancia_cliente,
-                    "LAMBDAS": p.lambdas,
-                    "BUFFER": p.buffer,
-                    "HILOS": p.hilos,
-                    "COORDENADAS": p.coordenadas,
-                    "CONTACTO_NOMBRE": p.contacto_nombre,
+            if (termino in servicio) or (termino in puerto) or (termino in ip_gestion) or (termino in ip_cliente) or (termino in contacto):
+                resultados.append({
+                    "ID": p.id, "ESTATUS": p.estatus, "PUERTO": p.puerto, "SERVICIO": p.servicio,
+                    "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi,
+                    "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "RUTA": p.ruta,
+                    "DISTANCIA_CLIENTE": p.distancia_cliente, "LAMBDAS": p.lambdas, "BUFFER": p.buffer,
+                    "HILOS": p.hilos, "COORDENADAS": p.coordenadas, "CONTACTO_NOMBRE": p.contacto_nombre,
                     "CONTACTO_TELEFONO": p.contacto_telefono
-                }
-                resultados.append(dic_para_react)
-                if len(resultados) >= 40:
-                    break
+                })
+                if len(resultados) >= 40: break
                     
         return {"status": "success", "data": resultados}
     except Exception as e:
-        print(f"Error en buscador: {e}")
+        logger.error(f"Error en buscador: {e}")
         return JSONResponse(status_code=500, content={"status": "error", "data": [], "detail": str(e)})
-# ================= FIN ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================        
 
 # ================= INTERFAZ DE PUERTOS =================
 @app.get("/api/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
-    from fastapi.responses import JSONResponse
     try:
         query_ports = db.query(PortModel).filter(PortModel.hub_id == str(id_hub).strip()).all()
         puertos_lista = []
         for p in query_ports:
             puertos_lista.append({
                 "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto, 
-                "EQUIPO_HOTEL_ID": p.equipo_hotel_id, "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, 
-                "ID_MCA": p.id_mca, "SERVICIO": p.servicio, "POTENCIA_HUB": p.potencia_hub, 
-                "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio, "MBPS": p.mbps, 
-                "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta, 
+                "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca, "SERVICIO": p.servicio, 
+                "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio, 
+                "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta, 
                 "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, 
                 "DISTANCIA_CLIENTE": p.distancia_cliente, "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, 
                 "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, "SERIE_SFP_HUB": p.serie_sfp_hub, 
@@ -767,11 +678,11 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
                 "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,
                 "CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono
             })
-        total_disp = sum(1 for x in puertos_lista if str(x["ESTATUS"]).strip().upper() in ["DISPONIBLE GI", "DISPONIBLE TE"])
         return {
             "status": "success", "hub": id_hub, 
             "resumen": {
-                "total": len(puertos_lista), "disponibles": total_disp, 
+                "total": len(puertos_lista), 
+                "disponibles": sum(1 for x in puertos_lista if "DISPONIBLE" in str(x["ESTATUS"]).upper()), 
                 "activos": sum(1 for x in puertos_lista if "ACTIVO" in str(x["ESTATUS"]).upper()), 
                 "suspendidos": sum(1 for x in puertos_lista if "SUSPENDIDO" in str(x["ESTATUS"]).upper()), 
                 "troncales": sum(1 for x in puertos_lista if "TRONCAL" in str(x["ESTATUS"]).upper())
@@ -783,36 +694,27 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
 
 @app.put("/api/ports/bulk-update")
 def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_edit_ports(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     update_data = data.updates.model_dump(exclude_unset=True)
-    if not update_data:
-        return {"status": "success", "detail": "Nada que actualizar"}
+    if not update_data: return {"status": "success", "detail": "Nada que actualizar"}
         
     mapped_updates = {}
     cambios_desc = []
-    
     for key, val in update_data.items():
         attr_name = key.lower()
         if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
         if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
         mapped_updates[attr_name] = val
-        
-        v_nuevo = str(val).strip() if val is not None else "(Vacío)"
-        cambios_desc.append(f"[{key.upper()} ➔ '{v_nuevo}']")
+        cambios_desc.append(f"[{key.upper()} ➔ '{str(val).strip() if val is not None else '(Vacío)'}']")
         
     db.query(PortModel).filter(PortModel.id.in_(data.port_ids)).update(mapped_updates, synchronize_session=False)
     db.commit()
-    
-    detalle_log = f"Edición Masiva a {len(data.port_ids)} puertos (IDs afectados: {', '.join(map(str, data.port_ids))}). Se forzaron los siguientes valores: " + " | ".join(cambios_desc)
-    registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", detalle_log)
+    registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", f"Edición Masiva a {len(data.port_ids)} puertos. " + " | ".join(cambios_desc))
     return {"status": "success", "detail": f"{len(data.port_ids)} puertos actualizados"}
 
 @app.put("/api/ports/{port_id}")
 def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    
     db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
     if not db_port: raise HTTPException(status_code=404)
     
@@ -821,36 +723,28 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
         attr_name = key.lower()
         if attr_name == "fecha_de_entrega": attr_name = "fecha_entrega"
         if attr_name == "serie_sfp_cliente": attr_name = "serie_sfp_client"
-        
-        valor_antiguo = getattr(db_port, attr_name)
-        v_antiguo = str(valor_antiguo).strip() if valor_antiguo is not None else ""
-        v_nuevo = str(val).strip() if val is not None else ""
-        
+        v_antiguo = str(getattr(db_port, attr_name) or "").strip()
+        v_nuevo = str(val or "").strip()
         if v_antiguo != v_nuevo: cambios_realizados.append(f"[{key.upper()}: '{v_antiguo}' ➔ '{v_nuevo}']")
         setattr(db_port, attr_name, val)
         
     db.commit()
-    if cambios_realizados:
-        detalle_log = f"Modificó el puerto {db_port.puerto} (ID {port_id}). Cambios exactos: " + " | ".join(cambios_realizados)
-    else:
-        detalle_log = f"Abrió y guardó el puerto {db_port.puerto} (ID {port_id}) sin alterar ningún valor."
-        
-    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", detalle_log)
+    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", f"Modificó el puerto {db_port.puerto}. Cambios: " + " | ".join(cambios_realizados))
     return {"status": "success"}
 
-# ================= MOTOR AVANZADO DE CARGA Y STAGING AREA =================
+# ================= MOTOR DE CARGA MASIVA (STAGING AREA) =================
 @app.post("/api/hubs/upload-excel")
 async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    filename = file.filename or ""
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
+    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido."})
+    
     try:
         contents = await file.read()
         if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera los 5MB."})
         df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
-        header_row_idx = 0
         
+        header_row_idx = 0
         for idx, row in df.iterrows():
             if "PUERTO" in [str(cell).upper().strip() for cell in row.values]:
                 header_row_idx = idx
@@ -872,7 +766,6 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
 
         idx_status = get_index(["STATUS", "ESTATUS", "ESTADO"], column_headers)
         idx_puerto = get_index(["PUERTO"], column_headers)
-        idx_equipo = get_index(["EQUIPO ID (CHASIS)", "EQUIPO/HOTEL ID", "EQUIPO", "HOTEL ID", "EQUIPO ID"], column_headers)
         idx_iphub = get_index(["IP HUB", "IP_HUB"], column_headers)
         idx_serv = get_index(["CLIENTE / SERVICIO", "SERVICIO", "CLIENTE"], column_headers)
         idx_mbps = get_index(["ANCHO BANDA (MBPS)", "MBPS", "ANCHO BANDA"], column_headers)
@@ -903,7 +796,6 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
 
         if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
         
-        # LÓGICA DE VALIDACIÓN (STAGING AREA)
         preview_data = []
         has_errors = False
         puertos_vistos = set()
@@ -912,65 +804,42 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             vals = list(row.values)
             if idx_puerto >= len(vals): continue
             p_val = str(vals[idx_puerto]).strip()
-            if not p_val or p_val.upper() == "NAN" or p_val == "": continue
+            if not p_val or p_val.upper() == "NAN": continue
             def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
             
             est = read_val(idx_status).upper() or "DISPONIBLE GI"
             serv = read_val(idx_serv)
             ip_gest = read_val(idx_ipgest)
-            eq_id = read_val(idx_equipo)
             
             errores_fila = []
+            if p_val in puertos_vistos: errores_fila.append(f"El puerto {p_val} está duplicado en el libro de Excel.")
+            puertos_vistos.add(p_val)
+            if "ACTIVO" in est and not serv: errores_fila.append("Un puerto ACTIVO debe tener un CLIENTE asignado.")
+            if ip_gest and ip_gest.count('.') != 3: errores_fila.append("Formato de IP de Gestión inválido.")
             
-            # REGLA 1: Duplicidad interna de interfaces en el Excel
-            clave_unica = f"{p_val}_{eq_id}"
-            if clave_unica in puertos_vistos:
-                errores_fila.append(f"El puerto {p_val} está duplicado en el equipo {eq_id or 'Sin ID'}.")
-            puertos_vistos.add(clave_unica)
-            
-            # REGLA 2: Cliente Omitido
-            if "ACTIVO" in est and not serv:
-                errores_fila.append("Un puerto ACTIVO debe tener un CLIENTE asignado.")
-                
-            # REGLA 3: Formato de IP Gestión
-            if ip_gest and ip_gest.count('.') != 3:
-                errores_fila.append("Formato de IP de Gestión inválido.")
-            
-            fila_obj = {
-                "PUERTO": p_val,
-                "ESTATUS": est,
-                "SERVICIO": serv,
-                "EQUIPO_ID": eq_id,
-                "IP_GESTION": ip_gest,
-                "_errores": errores_fila,
-                "_valido": len(errores_fila) == 0
-            }
+            fila_obj = {"PUERTO": p_val, "ESTATUS": est, "SERVICIO": serv, "IP_GESTION": ip_gest, "_errores": errores_fila, "_valido": len(errores_fila) == 0}
             if not fila_obj["_valido"]: has_errors = True
             preview_data.append(fila_obj)
 
-        if mode == "preview":
-            return {"status": "success", "data": preview_data, "has_errors": has_errors}
+        if mode == "preview": return {"status": "success", "data": preview_data, "has_errors": has_errors}
 
-        # LÓGICA DE ESCRITURA FINAL EN LA BASE DE DATOS
         db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
-        
         for _, row in df_data.iterrows():
             vals = list(row.values)
             if idx_puerto >= len(vals): continue
             p_val = str(vals[idx_puerto]).strip()
-            if not p_val or p_val.upper() == "NAN" or p_val == "": continue
+            if not p_val or p_val.upper() == "NAN": continue
             def read_val(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
             
             db.add(PortModel(
                 region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
-                estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, equipo_hotel_id=read_val(idx_equipo), 
-                ip_hub=read_val(idx_iphub), servicio=read_val(idx_serv), mbps=read_val(idx_mbps), 
-                ip_gestion=read_val(idx_ipgest), ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), 
-                potencia_hub=read_val(idx_pothub), potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), 
-                contacto_nombre=read_val(idx_contacto_nombre), contacto_telefono=read_val(idx_contacto_telefono),
-                serie_sfp_hub=read_val(idx_serie_sfp_hub), serie_sfp_client=read_val(idx_serie_sfp_cpe),
-                ruta=read_val(idx_ruta), distancia_cliente=read_val(idx_distancia), lambdas=read_val(idx_lambdas),
-                buffer=read_val(idx_buffer), hilos=read_val(idx_hilos), parcheo=read_val(idx_parcheo),
+                estatus=read_val(idx_status) or "DISPONIBLE GI", puerto=p_val, ip_hub=read_val(idx_iphub), 
+                servicio=read_val(idx_serv), mbps=read_val(idx_mbps), ip_gestion=read_val(idx_ipgest), 
+                ip_cliente=read_val(idx_ipcli), bdi=read_val(idx_bdi), potencia_hub=read_val(idx_pothub), 
+                potencia_cpe=read_val(idx_potcpe), id_mca=read_val(idx_id_mca), contacto_nombre=read_val(idx_contacto_nombre), 
+                contacto_telefono=read_val(idx_contacto_telefono), serie_sfp_hub=read_val(idx_serie_sfp_hub), 
+                serie_sfp_client=read_val(idx_serie_sfp_cpe), ruta=read_val(idx_ruta), distancia_cliente=read_val(idx_distancia), 
+                lambdas=read_val(idx_lambdas), buffer=read_val(idx_buffer), hilos=read_val(idx_hilos), parcheo=read_val(idx_parcheo),
                 marca_cpe=read_val(idx_marca), modelo_cpe=read_val(idx_modelo), serie_cpe=read_val(idx_serie_cpe),
                 tipo_servicio=read_val(idx_tipo_servicio), direccion=read_val(idx_direccion), coordenadas=read_val(idx_coordenadas),
                 fecha_entrega=read_val(idx_fecha_entrega), comentarios=read_val(idx_comentarios)
@@ -979,66 +848,37 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
         registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Se cargó exitosamente el archivo en el HUB {id_hub}")
         return {"status": "success", "detail": "Aprovisionamiento masivo completado."}
     except Exception as e:
-        try: db.rollback() 
+        try: db.rollback()
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo en importación: {str(e)}"})
 
-        # ================= CARGA DE NUEVO CHASIS (MODO MANUAL) =================
 @app.post("/api/hubs/upload-json")
-async def upload_json_chasis(
-    request: Request,
-    id_hub: str = Query(...), 
-    current_user: UserModel = Depends(get_current_user), 
-    db: Session = Depends(get_db)
-):
-    if not can_upload_excel(current_user): 
-        raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    
+async def upload_json_chasis(request: Request, id_hub: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     try:
         payload = await request.json()
         puertos = payload.get("puertos", [])
-        
-        # 1. Validar que el Hub y la geografía existan
         hub_cfg = db.query(HubMappingModel).filter(HubMappingModel.id == str(id_hub).upper().strip()).first()
-        if not hub_cfg:
-            return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
+        if not hub_cfg: return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
             
         ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
         region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
         
-        # 2. Inyectar cada puerto en la base de datos de forma quirúrgica
         for p in puertos:
             db.add(PortModel(
-                region=region_obj.nombre, 
-                ciudad=ciudad_obj.nombre, 
-                hub_id=str(id_hub).upper().strip(), 
-                estatus=p.get("ESTATUS", "DISPONIBLE GI"), 
-                puerto=p.get("PUERTO"), 
-                equipo_hotel_id=p.get("EQUIPO_HOTEL_ID", ""), 
-                ip_hub=p.get("IP_HUB", ""),
-                servicio=""
+                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
+                estatus=p.get("ESTATUS", "DISPONIBLE GI"), puerto=p.get("PUERTO"), 
+                equipo_hotel_id=p.get("EQUIPO_HOTEL_ID", ""), ip_hub=p.get("IP_HUB", ""), servicio=""
             ))
-            
         db.commit()
-        
-        # 3. Registrar el movimiento en la bitácora de auditoría forense
-        equipo = puertos[0].get("EQUIPO_HOTEL_ID", "Desconocido") if puertos else "Desconocido"
-        registrar_auditoria(
-            db, 
-            current_user.username, 
-            "ALTA DE CHASIS MANUAL", 
-            "INVENTARIO", 
-            f"Se aprovisionó el chasis {equipo} con {len(puertos)} puertos en el HUB {id_hub}"
-        )
-        
+        registrar_auditoria(db, current_user.username, "ALTA DE CHASIS MANUAL", "INVENTARIO", f"Se aprovisionó hardware con {len(puertos)} puertos en el HUB {id_hub}")
         return {"status": "success", "detail": f"{len(puertos)} puertos creados exitosamente."}
-        
     except Exception as e:
-        try: db.rollback() 
+        try: db.rollback()
         except: pass
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error al inyectar el chasis: {str(e)}"})
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
-# ================= EXPORTACIÓN EXCEL =================
+# ================= EXPORTACIÓN EXCEL INVENTARIO =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     try:
@@ -1050,7 +890,7 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
 
         wb = Workbook()
         ws_dash = wb.active
-        ws_dash.title = "Dashboard MT_DB"
+        ws_dash.title = "Dashboard"
         ws_dash.sheet_view.showGridLines = False
 
         for row in range(1, 40):
@@ -1086,28 +926,23 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         disp_25 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 25" in k)
         disp_100 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 100" in k)
 
-        def draw_kpi(cell_title, cell_val, title, val, color_bg, color_txt="FFFFFF", text_size=24):
-            col_title_let = cell_title[0]
-            row_title_num = cell_title[1:]
-            col_val_let = cell_val[0]
-            row_val_num = cell_val[1:]
+        def draw_kpi(cell_title, cell_val, title, val, color_bg):
+            col_title_let, row_title_num = cell_title[0], cell_title[1:]
+            col_val_let, row_val_num = cell_val[0], cell_val[1:]
 
             ws_dash[cell_title] = title.upper()
-            ws_dash[cell_title].font = Font(color=color_txt, bold=True, size=9)
+            ws_dash[cell_title].font = Font(color="FFFFFF", bold=True, size=9)
             ws_dash[cell_title].fill = PatternFill("solid", fgColor=color_bg)
             ws_dash[cell_title].alignment = Alignment(horizontal="center", vertical="center")
             ws_dash.merge_cells(f"{cell_title}:{chr(ord(col_title_let)+1)}{row_title_num}")
             
             ws_dash[cell_val] = val
-            ws_dash[cell_val].font = Font(size=text_size, bold=True, color=color_bg)
+            ws_dash[cell_val].font = Font(size=24, bold=True, color=color_bg)
             ws_dash[cell_val].fill = PatternFill("solid", fgColor="FFFFFF")
             ws_dash[cell_val].alignment = Alignment(horizontal="center", vertical="center")
             ws_dash.merge_cells(f"{cell_val}:{chr(ord(col_val_let)+1)}{row_val_num}")
             
-            thin_border = Border(
-                left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), 
-                bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1')
-            )
+            thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1'))
             ws_dash[cell_title].border = thin_border
             ws_dash[chr(ord(col_title_let)+1)+row_title_num].border = thin_border
             ws_dash[cell_val].border = thin_border
@@ -1141,8 +976,7 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             pie.set_categories(labels)
             pie.dataLabels = DataLabelList()
             pie.dataLabels.showPercent = True
-            pie.width = 15
-            pie.height = 10
+            pie.width, pie.height = 15, 10
             ws_dash.add_chart(pie, "C12")
 
         ws_dash.column_dimensions['Z'].hidden = True
@@ -1151,15 +985,13 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         ws_data = wb.create_sheet(title="Matriz de Inventario")
         ws_data.sheet_view.showGridLines = False 
 
+        # PLANTA EXTERNA EXCEL: SE REMUEVEN LOS ENLACES DE IDENTIFICADORES DE EQUIPO
         headers = [
-            "REGIÓN", "CIUDAD", "HUB / NODO", "ESTATUS", "PUERTO", "EQUIPO ID (CHASIS)", 
-            "IP HUB", "IP GESTIÓN", "IP CLIENTE", "BDI", 
-            "POTENCIA HUB", "POTENCIA CPE", "SERIE SFP HUB", "SERIE SFP CPE", 
-            "RUTA", "DIST. CLIENTE", "LAMBDAS", "BUFFER", "HILOS", "PARCHEO", 
-            "MARCA CPE", "MODELO CPE", "SERIE CPE", 
-            "CLIENTE / SERVICIO", "TIPO SERVICIO", "ANCHO BANDA (MBPS)", 
-            "DIRECCIÓN SERVICIO", "COORDENADAS", "NOMBRE CONTACTO", "TELÉFONO CONTACTO", 
-            "FECHA DE ENTREGA", "COMENTARIOS"
+            "REGIÓN", "CIUDAD", "HUB / NODO", "ESTATUS", "PUERTO", "IP HUB", "IP GESTIÓN", "IP CLIENTE", "BDI", 
+            "POTENCIA HUB", "POTENCIA CPE", "SERIE SFP HUB", "SERIE SFP CPE", "RUTA", "DIST. CLIENTE", "LAMBDAS", 
+            "BUFFER", "HILOS", "PARCHEO", "MARCA CPE", "MODELO CPE", "SERIE CPE", "CLIENTE / SERVICIO", 
+            "TIPO SERVICIO", "ANCHO BANDA (MBPS)", "DIRECCIÓN SERVICIO", "COORDENADAS", "NOMBRE CONTACTO", 
+            "TELÉFONO CONTACTO", "FECHA DE ENTREGA", "COMENTARIOS"
         ]
         ws_data.append(headers)
 
@@ -1170,72 +1002,40 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         ws_data.row_dimensions[1].height = 25 
 
-        center_align = Alignment(horizontal="center", vertical="center")
-        left_align = Alignment(horizontal="left", vertical="center")
-
         for r_idx, p in enumerate(puertos, 2):
             row_data = [
-                p.region, p.ciudad, p.hub_id, p.estatus, p.puerto, p.equipo_hotel_id,
-                p.ip_hub, p.ip_gestion, p.ip_cliente, p.bdi,
-                p.potencia_hub, p.potencia_cpe, p.serie_sfp_hub, p.serie_sfp_client,
-                p.ruta, p.distancia_cliente, p.lambdas, p.buffer, p.hilos, p.parcheo,
-                p.marca_cpe, p.modelo_cpe, p.serie_cpe,
-                p.servicio, p.tipo_servicio, p.mbps,
-                p.direccion, p.coordenadas, p.contacto_nombre, p.contacto_telefono,
+                p.region, p.ciudad, p.hub_id, p.estatus, p.puerto, p.ip_hub, p.ip_gestion, p.ip_cliente, p.bdi,
+                p.potencia_hub, p.potencia_cpe, p.serie_sfp_hub, p.serie_sfp_client, p.ruta, p.distancia_cliente, 
+                p.lambdas, p.buffer, p.hilos, p.parcheo, p.marca_cpe, p.modelo_cpe, p.serie_cpe, p.servicio, 
+                p.tipo_servicio, p.mbps, p.direccion, p.coordenadas, p.contacto_nombre, p.contacto_telefono,
                 p.fecha_entrega, p.comentarios
             ]
             ws_data.append(row_data)
-            
             for c_idx in range(1, len(row_data)+1):
-                c_cell = ws_data.cell(row=r_idx, column=c_idx)
-                if c_idx in [24, 27, 32]: c_cell.alignment = left_align
-                else: c_cell.alignment = center_align
+                ws_data.cell(row=r_idx, column=c_idx).alignment = Alignment(horizontal="left" if c_idx in [23, 26, 31] else "center", vertical="center")
 
             c_est = ws_data.cell(row=r_idx, column=4)
             val = str(p.estatus).upper()
-            if "ACTIVO" in val:
-                c_est.fill = PatternFill("solid", fgColor="DCFCE7") 
-                c_est.font = Font(color="166534", bold=True, size=10)
-            elif "DISPONIBLE" in val:
-                c_est.fill = PatternFill("solid", fgColor="F1F5F9") 
-                c_est.font = Font(color="475569", bold=True, size=10)
-            elif "SUSPENDIDO" in val:
-                c_est.fill = PatternFill("solid", fgColor="FEE2E2") 
-                c_est.font = Font(color="991B1B", bold=True, size=10)
-            elif "TRONCAL" in val:
-                c_est.fill = PatternFill("solid", fgColor="FEF3C7") 
-                c_est.font = Font(color="92400E", bold=True, size=10)
+            if "ACTIVO" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="DCFCE7"), Font(color="166534", bold=True, size=10)
+            elif "DISPONIBLE" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="F1F5F9"), Font(color="475569", bold=True, size=10)
+            elif "SUSPENDIDO" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="FEE2E2"), Font(color="991B1B", bold=True, size=10)
+            elif "TRONCAL" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="FEF3C7"), Font(color="92400E", bold=True, size=10)
 
         for col in ws_data.columns:
-            max_length = 0
-            column = col[0].column_letter
-            for cell in col:
-                try:
-                    if cell.value and len(str(cell.value)) > max_length: max_length = len(str(cell.value))
-                except: pass
-            ws_data.column_dimensions[column].width = max(12, min(max_length + 3, 45))
+            max_length = max(len(str(cell.value or '')) for cell in col)
+            ws_data.column_dimensions[col[0].column_letter].width = max(12, min(max_length + 3, 45))
 
         if len(puertos) > 0:
-            tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:AF{len(puertos)+1}")
+            tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:{chr(64+len(headers))}{len(puertos)+1}")
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
             ws_data.add_table(tab)
             
         ws_data.freeze_panes = "A2" 
-
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-        safe_scope = str(scope).replace("/", "-").replace(" ", "_")
-        
-        return StreamingResponse(
-            output, 
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-            headers={
-                "Content-Disposition": f"attachment; filename=MTDB_Ingenieria_{safe_scope}.xlsx",
-                "Access-Control-Expose-Headers": "Content-Disposition"
-            }
-        )
-    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error construyendo archivo Excel: {str(e)}"})
+        return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment; filename=MTDB_Ingenieria_{str(scope).replace(' ', '_')}.xlsx", "Access-Control-Expose-Headers": "Content-Disposition"})
+    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 # ================= ENDPOINTS CABEZALES =================
 @app.get("/api/cabezales")
@@ -1247,14 +1047,13 @@ def get_cabezales(ciudad: str = None, id_equipo: str = None, db: Session = Depen
 
 @app.get("/api/cabezales/{cabezal_id}/alineacion")
 def get_alineacion(cabezal_id: int, db: Session = Depends(get_db)):
-    alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
-    return {"status": "success", "data": alineaciones}
+    return {"status": "success", "data": db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()}
 
 @app.put("/api/cabezales/{cabezal_id}")
 def update_cabezal(cabezal_id: int, data: CabezalUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-    if not cabezal: raise HTTPException(status_code=404, detail="Cabezal no encontrado")
+    if not cabezal: raise HTTPException(status_code=404)
     for key, val in data.model_dump(exclude_unset=True).items(): setattr(cabezal, key, val)
     db.commit()
     return {"status": "success"}
@@ -1272,7 +1071,7 @@ def delete_cabezal(cabezal_id: int, current_user: UserModel = Depends(get_curren
 def update_alineacion(alineacion_id: int, data: AlineacionUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     alineacion = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.id == alineacion_id).first()
-    if not alineacion: raise HTTPException(status_code=404, detail="Renglón de canal no encontrado")
+    if not alineacion: raise HTTPException(status_code=404)
     for key, val in data.model_dump(exclude_unset=True).items(): setattr(alineacion, key, val)
     db.commit()
     return {"status": "success"}
@@ -1289,8 +1088,7 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
 @app.post("/api/cabezales/upload-excel")
 async def upload_cabezales_excel(mode: str = Query("preview"), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    filename = file.filename or ""
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))):
+    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo debe ser un Excel válido."})
     try:
         contents = await file.read()
@@ -1319,58 +1117,35 @@ async def upload_cabezales_excel(mode: str = Query("preview"), file: UploadFile 
         idx_sid = get_idx(["SID"])
 
         if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1: 
-            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes. Se requieren CIUDAD, ID EQUIPO y SERVICIO."})
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes esenciales (CIUDAD, ID EQUIPO, SERVICIO)."})
 
-        # ================= STAGING AREA (PREVIEW) =================
         preview_data = []
         has_errors = False
-        
         for _, row in df.iterrows():
             vals = list(row.values)
             def read_val(idx): return str(vals[idx]).strip() if idx != -1 and idx < len(vals) else ""
+            val_id, val_servicio, val_ciudad = read_val(idx_id), read_val(idx_servicio), read_val(idx_ciudad)
             
-            val_id = read_val(idx_id)
-            val_servicio = read_val(idx_servicio)
-            val_ciudad = read_val(idx_ciudad)
-            
-            # Saltar filas completamente vacías
-            if not val_id and not val_servicio and not val_ciudad and not read_val(idx_canal) and not read_val(idx_nombre):
-                continue
-                
+            if not val_id and not val_servicio and not val_ciudad and not read_val(idx_canal): continue
             errores_fila = []
             if not val_id: errores_fila.append("Falta ID de Equipo.")
             if not val_servicio: errores_fila.append("Falta Servicio.")
             if not val_ciudad: errores_fila.append("Falta Ciudad.")
-
+            
             valido = len(errores_fila) == 0
             if not valido: has_errors = True
+            preview_data.append({"ID_EQUIPO": val_id, "CIUDAD": val_ciudad, "SERVICIO": val_servicio, "CANAL": read_val(idx_canal), "NOMBRE_CANAL": read_val(idx_nombre), "_errores": errores_fila, "_valido": valido})
 
-            preview_data.append({
-                "ID_EQUIPO": val_id,
-                "CIUDAD": val_ciudad,
-                "SERVICIO": val_servicio,
-                "CANAL": read_val(idx_canal),
-                "NOMBRE_CANAL": read_val(idx_nombre),
-                "_errores": errores_fila,
-                "_valido": valido
-            })
+        if mode == "preview": return {"status": "success", "data": preview_data, "has_errors": has_errors}
 
-        if mode == "preview":
-            return {"status": "success", "data": preview_data, "has_errors": has_errors}
-
-        # ================= COMMIT (INYECCIÓN A BASE DE DATOS) =================
         cabezales_procesados = set()
         for _, row in df.iterrows():
             vals = list(row.values)
             def read_val(idx): return str(vals[idx]).strip() if idx != -1 and idx < len(vals) else ""
-            
-            val_id = read_val(idx_id)
-            val_servicio = read_val(idx_servicio)
-            val_ciudad = read_val(idx_ciudad)
-
+            val_id, val_servicio, val_ciudad = read_val(idx_id), read_val(idx_servicio), read_val(idx_ciudad)
             if not val_id or not val_servicio or not val_ciudad: continue
+            
             cabezal_key = f"{val_id.upper()}_{val_servicio.upper()}"
-
             cabezal = db.query(CabezalModel).filter(CabezalModel.id_equipo == val_id, CabezalModel.servicio == val_servicio).first()
             if not cabezal:
                 cabezal = CabezalModel(id_equipo=val_id, servicio=val_servicio, ciudad=val_ciudad)
@@ -1378,7 +1153,6 @@ async def upload_cabezales_excel(mode: str = Query("preview"), file: UploadFile 
                 db.commit()
                 db.refresh(cabezal)
 
-            # Para cada cabezal procesado, limpiamos su alineación previa SOLO la primera vez
             if cabezal_key not in cabezales_procesados:
                 cabezal.ciudad = val_ciudad
                 if idx_gestion != -1: cabezal.gestion_qam = read_val(idx_gestion)
@@ -1390,63 +1164,45 @@ async def upload_cabezales_excel(mode: str = Query("preview"), file: UploadFile 
                 db.commit()
                 cabezales_procesados.add(cabezal_key)
 
-            canal_val = read_val(idx_canal)
-            nombre_val = read_val(idx_nombre)
+            canal_val, nombre_val = read_val(idx_canal), read_val(idx_nombre)
             if canal_val or nombre_val:
-                db.add(AlineacionCabezalModel(
-                    cabezal_id=cabezal.id, portadora=read_val(idx_portadora), formato=read_val(idx_formato),
-                    canal_num=canal_val, nombre_canal=nombre_val, mcast_ip=read_val(idx_mcast),
-                    source_ip=read_val(idx_source), udp=read_val(idx_udp), sid=read_val(idx_sid)
-                ))
+                db.add(AlineacionCabezalModel(cabezal_id=cabezal.id, portadora=read_val(idx_portadora), formato=read_val(idx_formato), canal_num=canal_val, nombre_canal=nombre_val, mcast_ip=read_val(idx_mcast), source_ip=read_val(idx_source), udp=read_val(idx_udp), sid=read_val(idx_sid)))
         db.commit()
         registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", f"Se actualizaron {len(cabezales_procesados)} cabezales mediante Excel.")
-        return {"status": "success", "detail": f"Proceso completado. {len(cabezales_procesados)} cabezales actualizados exitosamente."}
+        return {"status": "success", "detail": f"Proceso completado. {len(cabezales_procesados)} cabezales actualizados."}
     except Exception as e:
-        try: db.rollback() 
+        try: db.rollback()
         except: pass
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}"})
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 @app.get("/api/cabezales/{cabezal_id}/exportar-excel")
 def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
         cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
-        if not cabezal: raise HTTPException(status_code=404, detail="Cabezal no encontrado")
-            
+        if not cabezal: raise HTTPException(status_code=404)
         alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
+        
         wb = Workbook()
         ws = wb.active
         ws.title = "Alineacion_Canales"
-        
         headers = ["PORTADORA", "FORMATO", "CANAL NUM", "NOMBRE DE CANAL", "MCAST IP", "SOURCE IP", "UDP", "SID"]
         ws.append(headers)
         
         for col_idx in range(1, len(headers)+1):
             cell = ws.cell(row=1, column=col_idx)
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = PatternFill("solid", fgColor="0B132B")
+            cell.font, cell.fill = Font(bold=True, color="FFFFFF"), PatternFill("solid", fgColor="0B132B")
             
-        for al in alineaciones:
-            ws.append([al.portadora, al.formato, al.canal_num, al.nombre_canal, al.mcast_ip, al.source_ip, al.udp, al.sid])
-            
+        for al in alineaciones: ws.append([al.portadora, al.formato, al.canal_num, al.nombre_canal, al.mcast_ip, al.source_ip, al.udp, al.sid])
         for col in ws.columns: ws.column_dimensions[col[0].column_letter].width = 18
-            
         if len(alineaciones) > 0:
-            tab = Table(displayName=f"TablaAlineacion", ref=f"A1:H{len(alineaciones)+1}")
+            tab = Table(displayName="TablaAlineacion", ref=f"A1:H{len(alineaciones)+1}")
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
             ws.add_table(tab)
             
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-        
-        return StreamingResponse(
-            output, 
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-            headers={
-                "Content-Disposition": f"attachment; filename=Alineacion_{cabezal.id_equipo}.xlsx",
-                "Access-Control-Expose-Headers": "Content-Disposition"
-            }
-        )
+        return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment; filename=Alineacion_{cabezal.servicio}.xlsx", "Access-Control-Expose-Headers": "Content-Disposition"})
     except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 # ================= ENDPOINTS ANCHO DE BANDA CIUDADES =================
@@ -1464,7 +1220,7 @@ def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_u
     db.commit()
     return {"status": "success"}
 
-# ================= EXPORTACIÓN EXCEL DE PESTAÑA RESUMEN (DASHBOARD) =================
+# ================= EXPORTACIÓN REPORTE GERENCIAL RESUMEN =================
 @app.post("/api/resumen/exportar-excel")
 def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depends(get_current_user)):
     try:
@@ -1478,12 +1234,10 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
                 ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F8F9FA")
 
         fecha_generacion = datetime.now().strftime('%Y-%m-%d %H:%M')
-        
         ws['B2'] = f"📊 DASHBOARD DE DISPONIBILIDAD - {req.ciudad.upper()}"
         ws['B2'].font = Font(size=20, bold=True, color="FFFFFF")
         ws['B2'].fill = PatternFill("solid", fgColor="0F172A") 
         ws['B2'].alignment = Alignment(horizontal="center", vertical="center")
-        # Ajustado a O3 en lugar de P3 al tener una columna menos
         ws.merge_cells('B2:O3')
 
         ws['B4'] = f"Generado el: {fecha_generacion}   |   Tráfico Total: {req.trafico_gbps} Gbps   |   Capacidad Backbone: {req.capacidad_total}"
@@ -1492,38 +1246,36 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         ws.merge_cells('B4:O4')
 
         def draw_kpi_3col(start_col_let, start_row, title, val, color_bg):
-            title_cell = f"{start_col_let}{start_row}"
-            val_cell = f"{start_col_let}{start_row + 1}"
-            
+            title_cell, val_cell = f"{start_col_let}{start_row}", f"{start_col_let}{start_row + 1}"
             ws[title_cell] = title.upper()
-            ws[title_cell].font = Font(color="FFFFFF", bold=True, size=9)
-            ws[title_cell].fill = PatternFill("solid", fgColor=color_bg)
-            ws[title_cell].alignment = Alignment(horizontal="center", vertical="center")
+            ws[title_cell].font, ws[title_cell].fill, ws[title_cell].alignment = Font(color="FFFFFF", bold=True, size=9), PatternFill("solid", fgColor=color_bg), Alignment(horizontal="center", vertical="center")
             ws.merge_cells(f"{title_cell}:{chr(ord(start_col_let)+2)}{start_row}")
-            
             ws[val_cell] = val
-            ws[val_cell].font = Font(size=22, bold=True, color=color_bg)
-            ws[val_cell].fill = PatternFill("solid", fgColor="FFFFFF")
-            ws[val_cell].alignment = Alignment(horizontal="center", vertical="center")
+            ws[val_cell].font, ws[val_cell].fill, ws[val_cell].alignment = Font(size=22, bold=True, color=color_bg), PatternFill("solid", fgColor="FFFFFF"), Alignment(horizontal="center", vertical="center")
             ws.merge_cells(f"{val_cell}:{chr(ord(start_col_let)+2)}{start_row + 1}")
             
-            thin_border = Border(
-                left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), 
-                bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1')
-            )
+            thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1'))
             for r in [start_row, start_row + 1]:
                 ws[f"{start_col_let}{r}"].border = thin_border
                 ws[f"{chr(ord(start_col_let)+2)}{r}"].border = thin_border
 
+        def draw_kpi_short(start_col_let, start_row, title, val, color_bg):
+            title_cell, val_cell = f"{start_col_let}{start_row}", f"{start_col_let}{start_row + 1}"
+            ws[title_cell] = title.upper()
+            ws[title_cell].font, ws[title_cell].fill, ws[title_cell].alignment = Font(color="FFFFFF", bold=True, size=9), PatternFill("solid", fgColor=color_bg), Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{title_cell}:{chr(ord(start_col_let)+1)}{start_row}")
+            ws[val_cell] = val
+            ws[val_cell].font, ws[val_cell].fill, ws[val_cell].alignment = Font(size=22, bold=True, color=color_bg), PatternFill("solid", fgColor="FFFFFF"), Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{val_cell}:{chr(ord(start_col_let)+1)}{start_row + 1}")
+
         draw_kpi_3col('B', 6, "CAPACIDAD (PUERTOS)", sum([h.total for h in req.hubs]), "1E293B")
         draw_kpi_3col('E', 6, "CLIENTES ACTIVOS", req.stats_activos, "0284C7")
-        draw_kpi('H', 6, "TOTAL DISPONIBLES", req.stats_total_disp, "16A34A")
+        draw_kpi_short('H', 6, "TOTAL DISPONIBLES", req.stats_total_disp, "16A34A")
         draw_kpi_3col('K', 6, "DISPONIBILIDAD B.W.", f"{req.disponibilidad_pct}%", "8B5CF6")
 
         ws['B10'] = "MATRIZ ESTADÍSTICA DE DISPONIBILIDAD POR NODO"
         ws['B10'].font = Font(bold=True, size=12, color="0F172A")
         
-        # ELIMINADO EL "ID NODO" DE LAS CABECERAS
         headers = [
             "NODO / HUB", "DISP. GI", "TOTAL GI", "DISP. TE", "TOTAL TE", 
             "DISP. 25G", "TOTAL 25G", "DISP. 100G", "TOTAL 100G",
@@ -1531,56 +1283,34 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
         ]
         
         start_row = 11
-        for col_idx, h in enumerate(headers, 2):
-            c = ws.cell(row=start_row, column=col_idx, value=h)
-            c.font = Font(bold=True, color="FFFFFF", size=9)
-            c.fill = PatternFill("solid", fgColor="0F172A")
-            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for col_idx, h_title in enumerate(headers, 2):
+            c = ws.cell(row=start_row, column=col_idx, value=h_title)
+            c.font, c.fill, c.alignment = Font(bold=True, color="FFFFFF", size=9), PatternFill("solid", fgColor="0F172A"), Alignment(horizontal="center", vertical="center", wrap_text=True)
         ws.row_dimensions[start_row].height = 25
             
         r_idx = start_row + 1
         for h in req.hubs:
-            # ELIMINADO EL h.id DEL ARREGLO DE DATOS
-            row_data = [
-                h.nombre, h.disp_gi, h.total_gi, h.disp_te, h.total_te,
-                h.disp_25, h.total_25, h.disp_100, h.total_100,
-                h.activos, h.suspendidos, h.troncales, h.total_disp, f"{h.pct_libres}%"
-            ]
+            row_data = [h.nombre, h.disp_gi, h.total_gi, h.disp_te, h.total_te, h.disp_25, h.total_25, h.disp_100, h.total_100, h.activos, h.suspendidos, h.troncales, h.total_disp, f"{h.pct_libres}%"]
             for c_idx, val in enumerate(row_data, 2):
                 c = ws.cell(row=r_idx, column=c_idx, value=val)
                 c.alignment = Alignment(horizontal="center", vertical="center")
-                
-                # Ajustado a la columna 15 (antes era 16)
                 if c_idx == 15:
                     val_num = float(str(val).replace('%',''))
-                    if val_num < 20: c.font = Font(bold=True, color="DC2626") 
-                    elif val_num > 50: c.font = Font(bold=True, color="16A34A") 
-                    else: c.font = Font(bold=True, color="D97706") 
+                    c.font = Font(bold=True, color="DC2626" if val_num < 20 else "16A34A" if val_num > 50 else "D97706")
             r_idx += 1
 
         if len(req.hubs) > 0:
-            # Ajustado el límite derecho de la tabla a la columna O
             tab = Table(displayName="TablaNodos", ref=f"B{start_row}:O{r_idx-1}")
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
             ws.add_table(tab)
             
-        # Ajuste de anchos de columna sin el ID
         for col in range(2, 16): ws.column_dimensions[chr(64+col)].width = 13
         ws.column_dimensions['B'].width = 25 
 
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
-        
-        safe_scope = str(req.ciudad).replace("/", "-").replace(" ", "_")
-        return StreamingResponse(
-            output, 
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-            headers={
-                "Content-Disposition": f"attachment; filename=Resumen_Nodos_{safe_scope}.xlsx",
-                "Access-Control-Expose-Headers": "Content-Disposition"
-            }
-        )
+        return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers={"Content-Disposition": f"attachment; filename=Resumen_Nodos_{str(req.ciudad).replace(' ', '_')}.xlsx", "Access-Control-Expose-Headers": "Content-Disposition"})
     except Exception as e: 
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
@@ -1588,10 +1318,8 @@ def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depe
 @app.get("/api/auditoria")
 def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
-    logs = db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()
-    return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in logs]}
+    return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()]}
 
-# ================= ARRANQUE DEL SERVIDOR =================
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -8,21 +8,22 @@ export default function Login({ setToken, setUsuario, setTabActiva }) {
 
   const API_URL = import.meta.env.VITE_API_URL|| 'http://127.0.0.1:8000';
 
-  const handleLoginSubmit = async (e) => {
+const handleLoginSubmit = async (e) => {
     e.preventDefault(); 
     setLoginError(null);
     try {
       const res = await fetch(`${API_URL}/api/auth/login`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // REQUISITO EMPRESARIAL: Permite recibir cookies HttpOnly
+        // ELIMINADA la línea de credentials: 'include'
         body: JSON.stringify({ username: usernameInput, password: passwordInput }) 
       });
       
       const data = await res.json(); 
       if (!res.ok) throw new Error(data.detail);
       
-      // ELIMINADO: localStorage.setItem('mcm_token', data.token); (Protección XSS)
+      // RESTAURADO: Guardamos el token real en localStorage
+      localStorage.setItem('mcm_token', data.token); 
       localStorage.setItem('mcm_user', JSON.stringify(data.user));
       
       localStorage.removeItem('mcm_inv_reg');
@@ -32,8 +33,8 @@ export default function Login({ setToken, setUsuario, setTabActiva }) {
       localStorage.removeItem('mcm_res_cd');
       localStorage.removeItem('mcm_res_hub');
       
-      // Enviamos un flag de "conectado" a App.jsx en lugar del token expuesto
-      setToken("secure_cookie_active"); 
+      // Enviamos el token real
+      setToken(data.token); 
       setUsuario(data.user);
       setTabActiva('inventario');
     } catch (err) { 
