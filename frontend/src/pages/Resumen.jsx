@@ -5,7 +5,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
   const [ciudadSelec, setCiudadSelec] = useState(localStorage.getItem('mcm_res_cd') || '');
   
-  // NUEVO ESTADO: Filtro para aislar la vista del Mapa de Calor por Sitio específico
   const [sitioCalorFiltro, setSitioCalorFiltro] = useState('TODOS');
 
   const [stats, setStats] = useState({ activos: 0, suspendidos: 0, troncales: 0, total_disp: 0, disp_gi: 0, disp_te: 0, trafico_mbps: 0 });
@@ -13,7 +12,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   const [datosChasis, setDatosChasis] = useState([]);
   const [cargando, setCargando] = useState(false);
 
-  // Estados para la capacidad de carga (Backbone)
   const [capacidadTotal, setCapacidadTotal] = useState('40G'); 
   const [editCapacidad, setEditCapacidad] = useState('');
   const [modoEdicion, setModoEdicion] = useState(false);
@@ -24,7 +22,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   useEffect(() => { localStorage.setItem('mcm_res_reg', regionSelec); }, [regionSelec]);
   useEffect(() => { localStorage.setItem('mcm_res_cd', ciudadSelec); }, [ciudadSelec]);
   
-  // Resetear el filtro de sitio del mapa de calor si cambia la ciudad
   useEffect(() => { setSitioCalorFiltro('TODOS'); }, [ciudadSelec]);
 
   const limpiarNombreSitio = (nombreRaw) => {
@@ -38,7 +35,10 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
 
   const cargarConfigCiudad = async (ciudad) => {
     try {
-      const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`);
+      const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include'
+      });
       if (res.ok) {
         const json = await res.json();
         setCapacidadTotal(json.data?.ancho_banda_total || '40G');
@@ -53,7 +53,10 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
 
     try {
       const hubs = estructuraGeografica[regionSelec]?.ciudades?.[ciudadSelec]?.hubs || [];
-      const promesas = hubs.map(h => fetch(`${API_URL}/api/hubs?id_hub=${h.id}`).then(res => res.json()));
+      const promesas = hubs.map(h => fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include'
+      }).then(res => res.json()));
       const resultados = await Promise.all(promesas);
 
       let global = { activos: 0, suspendidos: 0, troncales: 0, total_disp: 0, disp_gi: 0, disp_te: 0, trafico_mbps: 0 };
@@ -103,22 +106,28 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                 else { global.disp_gi++; subDispGi++; }
             }
 
+            // CORRECCIÓN MAPA DE CALOR: Agrupación segura
             const chasisID = String(p.EQUIPO_HOTEL_ID || '').trim();
-            if (chasisID && chasisID !== '-' && chasisID.toLowerCase() !== 'null') {
-                if (!mapChasis[chasisID]) {
-                    mapChasis[chasisID] = {
-                        id: chasisID,
-                        hub: nombreHub,
-                        hub_id: data.hub, // Guardamos ID crudo para el filtro lógico
-                        total: 0,
-                        disp: 0,
-                        activos: 0
-                    };
-                }
-                mapChasis[chasisID].total++;
-                if (isDisp) mapChasis[chasisID].disp++;
-                if (est === 'ACTIVO') mapChasis[chasisID].activos++;
+            
+            // Si el puerto no tiene Chasis, lo agrupamos usando el ID del HUB como paraguas general
+            const idAgrupacion = (chasisID && chasisID !== '-' && chasisID.toLowerCase() !== 'null') 
+                ? chasisID 
+                : `HUB_GENERICO_${data.hub}`;
+
+            if (!mapChasis[idAgrupacion]) {
+                mapChasis[idAgrupacion] = {
+                    id: idAgrupacion,
+                    hub: nombreHub,
+                    hub_id: data.hub,
+                    total: 0,
+                    disp: 0,
+                    activos: 0
+                };
             }
+            
+            mapChasis[idAgrupacion].total++;
+            if (isDisp) mapChasis[idAgrupacion].disp++;
+            if (est === 'ACTIVO') mapChasis[idAgrupacion].activos++;
         });
 
         const totalPuertos = data.puertos.length;
@@ -154,10 +163,10 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   const guardarCapacidad = async () => {
     setGuardando(true);
     try {
-      // Usa el token directamente de las props. (Se eliminó localStorage)
       const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudadSelec)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
         body: JSON.stringify({ ancho_banda_total: editCapacidad })
       });
       if (res.ok) { setCapacidadTotal(editCapacidad); setModoEdicion(false); }
@@ -192,13 +201,12 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
     });
   }
 
-  // APLICACIÓN DEL FILTRO DE SITIO EN EL MAPA DE CALOR
   const chasisFiltradosParaCalor = datosChasis.filter(c => {
       if (sitioCalorFiltro === 'TODOS') return true;
       return c.hub_id === sitioCalorFiltro;
   });
 
-const exportarResumenExcel = async () => {
+  const exportarResumenExcel = async () => {
     if (datosHubs.length === 0) return;
     setCargando(true);
     
@@ -213,7 +221,7 @@ const exportarResumenExcel = async () => {
         stats_total_disp: stats.total_disp,
         hubs: datosHubs.map(h => ({
             nombre: limpiarNombreSitio(h.nombre),
-            id: h.id, // <-- RESTAURADO SOLO PARA USO INTERNO DEL BACKEND
+            id: h.id, 
             disp_gi: h.disp_gi, total_gi: h.total_gi, 
             disp_te: h.disp_te, total_te: h.total_te, 
             disp_25: h.disp_25, total_25: h.total_25, 
@@ -224,15 +232,16 @@ const exportarResumenExcel = async () => {
         }))
     };
 
-try {
-        // Usa el token directamente de las props. (Se eliminó localStorage)
+    try {
         const res = await fetch(`${API_URL}/api/resumen/exportar-excel`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            credentials: 'include',
             body: JSON.stringify(payload)
         });
         
         if (!res.ok) throw new Error("Fallo en descarga");
+        
         const blob = await res.blob();
         const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -365,7 +374,6 @@ try {
                 </div>
             </div>
 
-            {/* MAPA DE CALOR POR CHASIS OPTIMIZADO CON FILTRO SEPARADO */}
             <div className="bg-[#0b132b]/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-6 mt-6">
               <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
@@ -373,7 +381,6 @@ try {
                     Mapa de Calor Operativo (Por Equipo)
                 </h3>
                 
-                {/* 🎯 NUEVO FILTRO DINÁMICO DE SITIO */}
                 <div className="flex items-center gap-2 bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-lg w-full sm:w-auto">
                     <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
                     <select 
@@ -520,7 +527,7 @@ try {
                                         style={{ width: `${porcentajeOcupado}%` }}
                                     ></div>
                                 </div>
-                                <span className={`font-black text-[10px] w-10 text-right tracking-widest ${esCritico ? 'text-red-400' : esPeligro ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                <span className={`font-bold text-[10px] w-10 text-right tracking-widest ${esCritico ? 'text-red-400' : esPeligro ? 'text-amber-400' : 'text-emerald-400'}`}>
                                     {porcentajeLibre}%
                                 </span>
                             </div>
