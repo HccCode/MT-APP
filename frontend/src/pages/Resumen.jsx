@@ -36,8 +36,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   const cargarConfigCiudad = async (ciudad) => {
     try {
       const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        credentials: 'include'
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const json = await res.json();
@@ -54,8 +53,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
     try {
       const hubs = estructuraGeografica[regionSelec]?.ciudades?.[ciudadSelec]?.hubs || [];
       const promesas = hubs.map(h => fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        credentials: 'include'
+        headers: { 'Authorization': `Bearer ${token}` }
       }).then(res => res.json()));
       const resultados = await Promise.all(promesas);
 
@@ -106,28 +104,26 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                 else { global.disp_gi++; subDispGi++; }
             }
 
-            // CORRECCIÓN MAPA DE CALOR: Agrupación segura
+            // CORRECCIÓN MAPA DE CALOR: Recuperamos el EQUIPO_HOTEL_ID para el gráfico
             const chasisID = String(p.EQUIPO_HOTEL_ID || '').trim();
-            
-            // Si el puerto no tiene Chasis, lo agrupamos usando el ID del HUB como paraguas general
-            const idAgrupacion = (chasisID && chasisID !== '-' && chasisID.toLowerCase() !== 'null') 
-                ? chasisID 
-                : `HUB_GENERICO_${data.hub}`;
 
-            if (!mapChasis[idAgrupacion]) {
-                mapChasis[idAgrupacion] = {
-                    id: idAgrupacion,
-                    hub: nombreHub,
-                    hub_id: data.hub,
-                    total: 0,
-                    disp: 0,
-                    activos: 0
-                };
+            if (chasisID && chasisID !== '-' && chasisID.toLowerCase() !== 'null') {
+                if (!mapChasis[chasisID]) {
+                    mapChasis[chasisID] = {
+                        id: chasisID,
+                        equipo: chasisID, // Nombre del chasis/equipo físico
+                        hub: nombreHub,   // Nombre limpio del nodo
+                        hub_id: data.hub, // ID oculto usado internamente para filtros
+                        total: 0,
+                        disp: 0,
+                        activos: 0
+                    };
+                }
+                
+                mapChasis[chasisID].total++;
+                if (isDisp) mapChasis[chasisID].disp++;
+                if (est === 'ACTIVO') mapChasis[chasisID].activos++;
             }
-            
-            mapChasis[idAgrupacion].total++;
-            if (isDisp) mapChasis[idAgrupacion].disp++;
-            if (est === 'ACTIVO') mapChasis[idAgrupacion].activos++;
         });
 
         const totalPuertos = data.puertos.length;
@@ -166,7 +162,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
       const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudadSelec)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        credentials: 'include',
         body: JSON.stringify({ ancho_banda_total: editCapacidad })
       });
       if (res.ok) { setCapacidadTotal(editCapacidad); setModoEdicion(false); }
@@ -236,7 +231,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
         const res = await fetch(`${API_URL}/api/resumen/exportar-excel`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            credentials: 'include',
             body: JSON.stringify(payload)
         });
         
@@ -420,8 +414,8 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                               <div key={i} className={`p-4 rounded-xl border flex flex-col gap-3 transition-transform hover:scale-[1.02] ${colorClass}`}>
                                   <div className="flex justify-between items-start">
                                       <div className="overflow-hidden pr-2">
-                                          <p className="font-black text-white text-sm truncate" title="Nodo / Equipo">{limpiarNombreSitio(c.hub)}</p>
-                                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate"><MapPin className="w-3 h-3 shrink-0"/> Equipo Físico</p>
+                                          <p className="font-black text-white text-sm truncate" title={c.equipo}>{c.equipo}</p>
+                                          <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate"><MapPin className="w-3 h-3 shrink-0"/> {c.hub}</p>
                                       </div>
                                       <div className={`px-2 py-1 rounded font-black text-[10px] shrink-0 ${isCrit ? 'bg-red-500/20 text-red-400' : isWarn ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                                           {pct}% Libre

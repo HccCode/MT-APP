@@ -667,14 +667,15 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
         puertos_lista = []
         for p in query_ports:
             puertos_lista.append({
-                "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto, 
-                "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca, "SERVICIO": p.servicio, 
-                "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio, 
-                "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta, 
-                "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas, 
-                "DISTANCIA_CLIENTE": p.distancia_cliente, "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe, 
-                "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, "SERIE_SFP_HUB": p.serie_sfp_hub, 
-                "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie, 
+                "ID": p.id, "REGION": p.region, "CIUDAD": p.ciudad, "ESTATUS": p.estatus, "PUERTO": p.puerto,
+                "EQUIPO_HOTEL_ID": p.equipo_hotel_id, # <--- RESTAURADO PARA EL MAPA DE CALOR
+                "IP_HUB": p.ip_hub, "NOMBRE_CORTO": p.nombre_corto, "ID_MCA": p.id_mca, "SERVICIO": p.servicio,
+                "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "TIPO_SERVICIO": p.tipo_servicio,
+                "MBPS": p.mbps, "IP_GESTION": p.ip_gestion, "IP_CLIENTE": p.ip_cliente, "BDI": p.bdi, "RUTA": p.ruta,
+                "BUFFER": p.buffer, "HILOS": p.hilos, "PARCHEO": p.parcheo, "LAMBDAS": p.lambdas,
+                "DISTANCIA_CLIENTE": p.distancia_cliente, "MARCA_CPE": p.marca_cpe, "MODELO_CPE": p.modelo_cpe,
+                "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, "SERIE_SFP_HUB": p.serie_sfp_hub,
+                "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, "SERIE": p.serie,
                 "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,
                 "CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono
             })
