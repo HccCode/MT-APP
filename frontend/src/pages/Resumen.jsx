@@ -38,7 +38,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
 
   const cargarConfigCiudad = async (ciudad) => {
     try {
-      const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`,credentials: 'include');
+      const res = await fetch(`${API_URL}/api/config-ciudades/${encodeURIComponent(ciudad)}`);
       if (res.ok) {
         const json = await res.json();
         setCapacidadTotal(json.data?.ancho_banda_total || '40G');
