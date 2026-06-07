@@ -58,15 +58,16 @@ function App() {
     setEstructuraGeografica({});
   };
 
-  const cargarGeographyDB = async () => {
+const cargarGeographyDB = async () => {
     if (!token) return; 
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/api/geography?t=${new Date().getTime()}`, {
         method: 'GET',
         headers: { 
-          'Authorization': `Bearer ${token}`,credentials: 'include',
+          'Authorization': `Bearer ${token}`, 
           'Cache-Control': 'no-cache'
-        }
+        },
+        credentials: 'include' // 
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) {
