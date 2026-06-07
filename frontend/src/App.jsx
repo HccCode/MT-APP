@@ -166,7 +166,7 @@ function App() {
                   onClick={() => setTabActiva('geografia')} 
                   className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'geografia' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  <span className="text-[13px]">🌐</span> Configuración
+                  <span className="text-[13px]">🌐</span> Red Geografica
                 </button>
               )}
               
