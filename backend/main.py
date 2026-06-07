@@ -590,7 +590,20 @@ def delete_city(city_id: str, current_user: UserModel = Depends(get_current_user
 
 @app.post("/api/geography/hubs")
 def assign_or_create_hub(data: GeographyHubCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    # 1. Verificar si tiene acceso a la pestaña Geografía o es Admin
+    pestanas = [p.strip().lower() for p in str(current_user.pestanas).split(",")]
+    tiene_acceso_geografia = "*" in pestanas or "geografia" in pestanas
+    
+    if not is_admin(current_user) and not tiene_acceso_geografia:
+        raise HTTPException(status_code=403, detail="Permisos insuficientes para acceder a configuración.")
+        
+    # 2. Si NO es admin, validar estrictamente que la ciudad objetivo esté en sus plazas
+    if not is_admin(current_user) and current_user.plazas != "*":
+        plazas_permitidas = [p.strip().upper() for p in str(current_user.plazas).split(",")]
+        if data.ciudad_id.upper().strip() not in plazas_permitidas:
+            raise HTTPException(status_code=403, detail=f"Operación denegada. Solo puedes agregar HUBs en tus ciudades asignadas.")
+
+    # 3. Lógica de creación / actualización
     id_nodo = data.id.upper().strip()
     hub = db.query(HubMappingModel).filter(HubMappingModel.id == id_nodo).first()
     if hub:
@@ -601,19 +614,29 @@ def assign_or_create_hub(data: GeographyHubCreate, current_user: UserModel = Dep
     else:
         db.add(HubMappingModel(id=id_nodo, nombre=data.nombre, ciudad_id=data.ciudad_id.upper().strip(), direccion=data.direccion, coordenadas=data.coordenadas))
     db.commit()
-    return {"status": "success"}
 
 @app.delete("/api/geography/hubs/{hub_id}")
 def delete_hub(hub_id: str, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    # 1. Verificar acceso base
+    pestanas = [p.strip().lower() for p in str(current_user.pestanas).split(",")]
+    tiene_acceso_geografia = "*" in pestanas or "geografia" in pestanas
+    
+    if not is_admin(current_user) and not tiene_acceso_geografia:
+        raise HTTPException(status_code=403, detail="Permisos insuficientes.")
+        
     hub = db.query(HubMappingModel).filter(HubMappingModel.id == hub_id.upper().strip()).first()
     if hub:
+        # 2. Si NO es admin, validar que no intente borrar un HUB de una ciudad que no le corresponde
+        if not is_admin(current_user) and current_user.plazas != "*":
+            plazas_permitidas = [p.strip().upper() for p in str(current_user.plazas).split(",")]
+            if hub.ciudad_id.upper().strip() not in plazas_permitidas:
+                raise HTTPException(status_code=403, detail="Operación denegada. No puedes eliminar HUBs fuera de tus ciudades asignadas.")
+                
         db.query(PortModel).filter(PortModel.hub_id == hub.id).delete()
         db.delete(hub)
         db.commit()
     return {"status": "success"}
 
-# ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
 # ================= ENDPOINT DE BÚSQUEDA GLOBAL (MODO CUADRILLA) =================
 @app.get("/api/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):

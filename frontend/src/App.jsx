@@ -223,7 +223,7 @@ function App() {
           <Cuadrilla token={token} />
         )}
         {tabActiva === 'geografia' && (
-          <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} />
+          <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} esAdmin={esAdmin} />
         )}
         {tabActiva === 'carga_excel' && (
           <CargaExcel token={token} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} puedeCargar={puedeCargar} />
