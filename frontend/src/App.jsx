@@ -15,6 +15,9 @@ function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
   const [usuario, setUsuario] = useState(JSON.parse(localStorage.getItem('mcm_user')) || null);
   
+  // NUEVO ESTADO: Controla si estamos validando el token en el servidor antes de mostrar la UI
+  const [validandoSesion, setValidandoSesion] = useState(!!localStorage.getItem('mcm_token'));
+  
   const [estructuraGeografica, setEstructuraGeografica] = useState({});
   const [tabActiva, setTabActiva] = useState('inventario'); 
 
@@ -56,10 +59,16 @@ function App() {
     setUsuario(null); 
     setTabActiva('inventario');
     setEstructuraGeografica({});
+    setValidandoSesion(false); // Asegurarnos de apagar la carga al cerrar sesión
   };
 
-const cargarGeographyDB = async () => {
-    if (!token) return; 
+  const cargarGeographyDB = async () => {
+    // Si no hay token, no hay nada que validar
+    if (!token) {
+      setValidandoSesion(false);
+      return; 
+    }
+
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/api/geography?t=${new Date().getTime()}`, {
         method: 'GET',
@@ -67,15 +76,23 @@ const cargarGeographyDB = async () => {
           'Authorization': `Bearer ${token}`, 
           'Cache-Control': 'no-cache'
         },
-        credentials: 'include' // 
+        credentials: 'include' 
       });
-      if (res.status === 401) { handleLogout(); return; }
+
+      if (res.status === 401) { 
+        handleLogout(); 
+        return; 
+      }
+
       if (res.ok) {
         const data = await res.json(); 
         setEstructuraGeografica(data);
       }
     } catch (e) { 
       console.error("Error descargando geografía:", e); 
+    } finally {
+      // NUEVO: Independientemente de si falló o fue exitoso, apagamos la pantalla de carga
+      setValidandoSesion(false);
     }
   };
 
@@ -93,10 +110,29 @@ const cargarGeographyDB = async () => {
     }
   }, [token]);
 
+  // ================= RENDERIZADO CONDICIONAL =================
+  
+  // 1. PANTALLA DE CARGA (Evita el "Flicker" cuando validamos el token)
+  if (validandoSesion) {
+    return (
+      <div className="h-screen w-screen bg-[#030712] flex flex-col items-center justify-center">
+        <div className="relative">
+          <div className="w-16 h-16 border-4 border-blue-900 border-t-blue-500 rounded-full animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Server className="w-6 h-6 text-blue-500 animate-pulse" />
+          </div>
+        </div>
+        <h2 className="mt-4 text-slate-300 font-medium tracking-wide">Autenticando...</h2>
+      </div>
+    );
+  }
+
+  // 2. PANTALLA DE LOGIN (Si no hay token válido)
   if (!token) {
     return <Login setToken={setToken} setUsuario={setUsuario} setTabActiva={setTabActiva} />;
   }
 
+  // 3. DASHBOARD PRIVADO (Si el token es válido y la sesión cargó)
   return (
     <div className="h-screen w-screen bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
