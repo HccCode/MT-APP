@@ -12,12 +12,11 @@ import Cuadrilla from './pages/Cuadrilla';
 import Auditoria from './pages/Auditoria'; 
 
 function App() {
+  // RESTAURADO: Mantenemos el estado de token basado en el Header tradicional
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
   const [usuario, setUsuario] = useState(JSON.parse(localStorage.getItem('mcm_user')) || null);
   
-  // NUEVO ESTADO: Controla si estamos validando el token en el servidor antes de mostrar la UI
   const [validandoSesion, setValidandoSesion] = useState(!!localStorage.getItem('mcm_token'));
-  
   const [estructuraGeografica, setEstructuraGeografica] = useState({});
   const [tabActiva, setTabActiva] = useState('inventario'); 
 
@@ -49,8 +48,6 @@ function App() {
   const mostrarGeografia = puedeVerTab('geografia', esAdmin);
   const mostrarCarga = puedeVerTab('carga_excel', puedeCargar);
   const mostrarUsuarios = puedeVerTab('usuarios', esAdmin);
-  
-  // 1. RESTRICCIÓN ESTRICTA: Solo será true si la variable esAdmin es verdadera
   const mostrarAuditoria = esAdmin; 
 
   const handleLogout = () => {
@@ -59,11 +56,10 @@ function App() {
     setUsuario(null); 
     setTabActiva('inventario');
     setEstructuraGeografica({});
-    setValidandoSesion(false); // Asegurarnos de apagar la carga al cerrar sesión
+    setValidandoSesion(false);
   };
 
   const cargarGeographyDB = async () => {
-    // Si no hay token, no hay nada que validar
     if (!token) {
       setValidandoSesion(false);
       return; 
@@ -73,10 +69,9 @@ function App() {
       const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/api/geography?t=${new Date().getTime()}`, {
         method: 'GET',
         headers: { 
-          'Authorization': `Bearer ${token}`, 
+          'Authorization': `Bearer ${token}`, // Inyección limpia del JWT evadiendo bloqueos cross-domain
           'Cache-Control': 'no-cache'
-        },
-        credentials: 'include' 
+        }
       });
 
       if (res.status === 401) { 
@@ -91,7 +86,6 @@ function App() {
     } catch (e) { 
       console.error("Error descargando geografía:", e); 
     } finally {
-      // NUEVO: Independientemente de si falló o fue exitoso, apagamos la pantalla de carga
       setValidandoSesion(false);
     }
   };
@@ -112,7 +106,6 @@ function App() {
 
   // ================= RENDERIZADO CONDICIONAL =================
   
-  // 1. PANTALLA DE CARGA (Evita el "Flicker" cuando validamos el token)
   if (validandoSesion) {
     return (
       <div className="h-screen w-screen bg-[#030712] flex flex-col items-center justify-center">
@@ -127,12 +120,10 @@ function App() {
     );
   }
 
-  // 2. PANTALLA DE LOGIN (Si no hay token válido)
   if (!token) {
     return <Login setToken={setToken} setUsuario={setUsuario} setTabActiva={setTabActiva} />;
   }
 
-  // 3. DASHBOARD PRIVADO (Si el token es válido y la sesión cargó)
   return (
     <div className="h-screen w-screen bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
@@ -268,8 +259,6 @@ function App() {
         {tabActiva === 'usuarios' && (
           <Usuarios token={token} usuario={usuario} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
-        
-        {/* 2. RESTRICCIÓN ESTRICTA DE RENDERIZADO */}
         {tabActiva === 'auditoria' && esAdmin && (
           <Auditoria token={token} />
         )}

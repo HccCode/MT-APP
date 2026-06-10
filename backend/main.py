@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Query, Request, Response, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Query, Request, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from datetime import datetime, timedelta
@@ -35,7 +36,7 @@ class Settings(BaseSettings):
     secret_key: str
     admin_default_password: str
     allowed_origins: str 
-    database_url: str  # <- OBTENIDO DEL .ENV
+    database_url: str  # Cargado de forma segura desde el archivo .env o variables de entorno
     
     model_config = SettingsConfigDict(env_file=".env")
 
@@ -61,6 +62,8 @@ Base = declarative_base()
 SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -191,23 +194,27 @@ def get_db():
     try: yield db
     finally: db.close()
 
-# NUEVO: LECTURA DE SESIÓN VÍA COOKIES HTTPONLY
+# MODIFICADO: Extracción manual súper robusta con mensajes de diagnóstico detallados
 def get_current_user(request: Request, db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(status_code=401, detail="Token inválido o vencido")
-    token_cookie = request.cookies.get("access_token")
-    if not token_cookie: 
-        raise credentials_exception
-        
-    token = token_cookie.replace("Bearer ", "")
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401, 
+            detail="Falta la cabecera de autorizacion (Authorization: Bearer <token>) o el formato es invalido"
+        )
     
+    token = auth_header.replace("Bearer ", "").strip()
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        if username is None: raise credentials_exception
-    except JWTError: raise credentials_exception
-    
+        if username is None: 
+            raise HTTPException(status_code=401, detail="El token decodificado no contiene la propiedad obligatoria 'sub'")
+    except JWTError as e: 
+        raise HTTPException(status_code=401, detail=f"Fallo critico al validar firma o expiracion del JWT: {str(e)}")
+        
     user = db.query(UserModel).filter(UserModel.username == username).first()
-    if user is None: raise credentials_exception
+    if user is None: 
+        raise HTTPException(status_code=401, detail=f"El usuario '{username}' extraido del token ya no existe en el sistema")
     return user
 
 def is_admin(user: UserModel):
@@ -408,32 +415,15 @@ app.add_middleware(
 # ================= RUTAS DE AUTENTICACIÓN Y USUARIOS =================
 @app.post("/api/auth/login")
 @limiter.limit("5/minute")
-def login(request: Request, response: Response, data: UserLogin, db: Session = Depends(get_db)):
+def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.username == data.username).first()
     if not user or not verify_password(data.password, user.password_hash):
         logger.warning(f"Intento de intrusión bloqueado para el usuario: {data.username} desde IP: {request.client.host}")
         return JSONResponse(status_code=400, content={"status": "error", "detail": "Credenciales inválidas"})
     
     access_token = jwt.encode({"sub": user.username, "role": user.role, "plazas": user.plazas, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
-    
-    # NUEVO: Despachamos el token mediante Cookie Segura HttpOnly
-    response.set_cookie(
-        key="access_token",
-        value=f"Bearer {access_token}",
-        httponly=True,
-        secure=True, # Requiere HTTPS (como Render)
-        samesite="none", # Asegura interoperabilidad de cross-origin si hay dominios separados
-        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    )
-    
     logger.info(f"Sesión iniciada exitosamente: {user.username}")
-    return {"status": "success", "user": {"username": user.username, "role": user.role, "plazas": user.plazas, "pestanas": user.pestanas, "nombre_completo": user.nombre_completo}}
-
-@app.post("/api/auth/logout")
-def logout(response: Response):
-    # NUEVO: Limpiamos la cookie al cerrar sesión
-    response.delete_cookie("access_token", samesite="none", secure=True)
-    return {"status": "success"}
+    return {"status": "success", "token": access_token, "user": {"username": user.username, "role": user.role, "plazas": user.plazas, "pestanas": user.pestanas, "nombre_completo": user.nombre_completo}}
 
 @app.post("/api/auth/register")
 def register(data: UserRegister, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -756,7 +746,7 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
     registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", f"Modificó el puerto {db_port.puerto}. Cambios: " + " | ".join(cambios_realizados))
     return {"status": "success"}
 
-# ================= MOTOR DE CARGA MASIVA =================
+# ================= MOTOR DE CARGA MASIVA (STAGING AREA) =================
 @app.post("/api/hubs/upload-excel")
 async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
@@ -904,7 +894,7 @@ async def upload_json_chasis(request: Request, id_hub: str = Query(...), current
         except: pass
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
-# ================= EXPORTACIÓN EXCEL =================
+# ================= EXPORTACIÓN EXCEL INVENTARIO =================
 @app.get("/api/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     try:

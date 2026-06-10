@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-// Recibimos las props que nos manda App.jsx (Modificado setToken por setIsLogged)
-const Login = ({ setIsLogged, setUsuario, setTabActiva }) => {
+// Recibimos las props correctas que manda App.jsx de vuelta
+const Login = ({ setToken, setUsuario, setTabActiva }) => {
   const [credenciales, setCredenciales] = useState({ usuario: '', password: '' });
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState('');
@@ -16,7 +16,6 @@ const Login = ({ setIsLogged, setUsuario, setTabActiva }) => {
     setError('');
 
     try {
-      // Usar la variable de entorno o localhost
       const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
       
       const response = await fetch(`${apiUrl}/api/auth/login`, {
@@ -24,9 +23,6 @@ const Login = ({ setIsLogged, setUsuario, setTabActiva }) => {
         headers: {
           'Content-Type': 'application/json',
         },
-        // CRÍTICO: Esto permite que el navegador reciba y almacene la cookie HttpOnly
-        credentials: 'include', 
-        // Tu backend FastAPI espera username y password
         body: JSON.stringify({
             username: credenciales.usuario,
             password: credenciales.password
@@ -39,12 +35,13 @@ const Login = ({ setIsLogged, setUsuario, setTabActiva }) => {
         throw new Error(data.detail || 'Error al iniciar sesión');
       }
 
-      // 1. Guardar en localStorage SOLO la info visual del usuario, NUNCA el JWT
+      // 1. Guardar de forma persistente en LocalStorage para restaurar tras recargas
+      localStorage.setItem('mcm_token', data.token);
       localStorage.setItem('mcm_user', JSON.stringify(data.user));
 
-      // 2. Actualizar los estados de App.jsx para que quite el Login y muestre el panel
+      // 2. Levantar los estados compartidos hacia App.jsx
       setUsuario(data.user);
-      setIsLogged(true); // Indicamos a la App que la sesión es válida (la cookie hace el resto)
+      setToken(data.token);
       setTabActiva('inventario');
 
     } catch (err) {
