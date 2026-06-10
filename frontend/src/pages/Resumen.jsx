@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck, Thermometer, MapPin, SlidersHorizontal } from 'lucide-react';
+import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck, Thermometer, MapPin, SlidersHorizontal, Route } from 'lucide-react';
 
 export default function Resumen({ token, estructuraGeografica, puedeEditar, esAdmin }) {
   const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
@@ -104,10 +104,8 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                 else { global.disp_gi++; subDispGi++; }
             }
 
-// CORRECCIÓN MAPA DE CALOR: Recuperamos el EQUIPO_HOTEL_ID para el gráfico
+            // CORRECCIÓN MAPA DE CALOR: Agrupamos por Chasis y extraemos la Ruta
             const chasisRaw = String(p.EQUIPO_HOTEL_ID || '').trim();
-            
-            // Si el puerto no tiene Chasis asignado, lo agrupamos como "CHASIS PRINCIPAL"
             const idAgrupacion = (chasisRaw && chasisRaw !== '-' && chasisRaw.toLowerCase() !== 'null') 
                 ? chasisRaw 
                 : "CHASIS PRINCIPAL";
@@ -115,19 +113,27 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
             if (!mapChasis[idAgrupacion]) {
                 mapChasis[idAgrupacion] = {
                     id: idAgrupacion,
-                    equipo: idAgrupacion, // Nombre del chasis/equipo físico que se muestra en pantalla
-                    hub: nombreHub,   // Nombre limpio del nodo
-                    hub_id: data.hub, // ID oculto usado internamente para filtros
+                    equipo: idAgrupacion, 
+                    hub: nombreHub,   
+                    hub_id: data.hub, 
                     total: 0,
                     disp: 0,
-                    activos: 0
+                    activos: 0,
+                    rutasSet: new Set() // 🚀 NUEVO: Colección para guardar las rutas únicas
                 };
             }
             
             mapChasis[idAgrupacion].total++;
             if (isDisp) mapChasis[idAgrupacion].disp++;
             if (est === 'ACTIVO') mapChasis[idAgrupacion].activos++;
+            
+            // 🚀 NUEVO: Extraer la ruta del puerto y agregarla al Set si es válida
+            const valRuta = String(p.RUTA || '').trim();
+            if (valRuta && valRuta !== '-' && valRuta.toUpperCase() !== 'NULL' && valRuta.toUpperCase() !== 'NAN') {
+                mapChasis[idAgrupacion].rutasSet.add(valRuta);
+            }
         });
+
         const totalPuertos = data.puertos.length;
         const pctLibres = totalPuertos > 0 ? ((subDisp / totalPuertos) * 100).toFixed(1) : 0;
 
@@ -145,6 +151,8 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
 
       const arrChasis = Object.values(mapChasis).map(c => {
           c.pct_libres = c.total > 0 ? ((c.disp / c.total) * 100).toFixed(1) : 0;
+          // 🚀 NUEVO: Convertir las rutas recolectadas a un texto legible
+          c.rutasDisplay = c.rutasSet.size > 0 ? Array.from(c.rutasSet).join(' / ') : 'Sin ruta OSP';
           return c;
       });
       arrChasis.sort((a, b) => parseFloat(a.pct_libres) - parseFloat(b.pct_libres));
@@ -418,6 +426,10 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                                       <div className="overflow-hidden pr-2">
                                           <p className="font-black text-white text-sm truncate" title={c.equipo}>{c.equipo}</p>
                                           <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5 truncate"><MapPin className="w-3 h-3 shrink-0"/> {c.hub}</p>
+                                          {/* 🚀 NUEVO: MOSTRAR RUTA */}
+                                          <p className="text-[9px] text-indigo-400 flex items-center gap-1 mt-0.5 truncate" title={`Ruta(s): ${c.rutasDisplay}`}>
+                                            <Route className="w-3 h-3 shrink-0" /> {c.rutasDisplay}
+                                          </p>
                                       </div>
                                       <div className={`px-2 py-1 rounded font-black text-[10px] shrink-0 ${isCrit ? 'bg-red-500/20 text-red-400' : isWarn ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                                           {pct}% Libre
