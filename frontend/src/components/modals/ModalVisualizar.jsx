@@ -31,9 +31,8 @@ export default function ModalVisualizar({ puertoDetalle, cerrarModal }) {
 
             <div className="space-y-3 bg-[#050814] p-4 rounded-lg border border-slate-800/60 shadow-inner">
               <h4 className="text-blue-500 font-bold border-b border-slate-800 pb-1 text-[11px] uppercase tracking-wider">Planta Externa / Óptica</h4>
-              {/* 🚀 NUEVO: CAMPO DE RUTA OSP AÑADIDO AQUÍ */}
-              <div><span className="text-slate-500 text-[10px] block font-bold">RUTA OSP</span><span className="text-emerald-400 font-mono font-bold tracking-wide">{puertoDetalle.RUTA || '-'}</span></div>
               <div><span className="text-slate-500 text-[10px] block font-bold">POTENCIA HUB / CPE</span><span className="text-amber-400 font-mono">{puertoDetalle.POTENCIA_HUB || '-'} / {puertoDetalle.POTENCIA_CPE || '-'}</span></div>
+              <div><span className="text-slate-500 text-[10px] block font-bold">RUTA OSP</span><span className="text-slate-200 font-mono font-bold tracking-wide">{puertoDetalle.RUTA || '-'}</span></div>
               <div><span className="text-slate-500 text-[10px] block font-bold">HILOS / LAMBDAS</span><span className="text-slate-200 font-mono">{puertoDetalle.HILOS || '-'} / {puertoDetalle.LAMBDAS || '-'}</span></div>
               <div><span className="text-slate-500 text-[10px] block font-bold">DISTANCIA CLIENTE</span><span className="text-slate-200 font-mono">{puertoDetalle.DISTANCIA_CLIENTE || '-'}</span></div>
             </div>
