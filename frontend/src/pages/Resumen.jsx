@@ -12,6 +12,19 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   const [datosChasis, setDatosChasis] = useState([]);
   const [cargando, setCargando] = useState(false);
 
+  // 1. Añade este estado debajo de tus otros useState
+  const [inicializadoReg, setInicializadoReg] = useState(false);
+
+  // 2. Añade este useEffect debajo de los primeros useEffect
+  useEffect(() => {
+    if (!esAdmin && !inicializadoReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
+      const primeraRegion = Object.keys(estructuraGeografica)[0];
+      setRegionSelec(primeraRegion);
+      setCiudadSelec('');
+      setInicializadoReg(true);
+    }
+  }, [estructuraGeografica, esAdmin, inicializadoReg]);
+
   const [capacidadTotal, setCapacidadTotal] = useState('40G'); 
   const [editCapacidad, setEditCapacidad] = useState('');
   const [modoEdicion, setModoEdicion] = useState(false);

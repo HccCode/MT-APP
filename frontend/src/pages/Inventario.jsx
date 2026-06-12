@@ -22,6 +22,17 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [errorApp, setErrorApp] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroEstatus, setFiltroEstatus] = useState('TODOS');
+
+  const [inicializadoReg, setInicializadoReg] = useState(false);
+  useEffect(() => {
+    if (!esAdmin && !inicializadoReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
+      const primeraRegion = Object.keys(estructuraGeografica)[0];
+      setInventarioReg(primeraRegion);
+      setInventarioCd('');
+      setInventarioHub('TODOS');
+      setInicializadoReg(true); // Evita que se resetee si la data se recarga
+    }
+  }, [estructuraGeografica, esAdmin, inicializadoReg]);
   
   const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});

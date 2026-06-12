@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, AlertOctagon, ArrowRight, Edit, Trash2, Check, X, FileSpreadsheet, XCircle } from 'lucide-react';
 
-export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica }) {
+export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica, esAdmin }) {
   const [cabezales, setCabezales] = useState([]);
   
   const [filtroReg, setFiltroReg] = useState(localStorage.getItem('mcm_cab_reg') || '');
@@ -33,6 +33,18 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
 
   useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
   useEffect(() => { localStorage.setItem('mcm_cab_cd', filtroCd); }, [filtroCd]);
+
+  const [inicializadoReg, setInicializadoReg] = useState(false);
+
+  // 3. Añade este useEffect
+  useEffect(() => {
+    if (!esAdmin && !inicializadoReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
+      const primeraRegion = Object.keys(estructuraGeografica)[0];
+      setFiltroReg(primeraRegion);
+      setFiltroCd('');
+      setInicializadoReg(true);
+    }
+  }, [estructuraGeografica, esAdmin, inicializadoReg]);
 
   // Memoización para evitar recalcular la lista de ciudades en cada render
   const ciudadesOrdenadas = useMemo(() => {
