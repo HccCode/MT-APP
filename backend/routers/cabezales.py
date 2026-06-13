@@ -3,6 +3,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 import pandas as pd
 import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from database import get_db
 from models import CabezalModel, AlineacionCabezalModel, UserModel
@@ -101,4 +104,49 @@ async def upload_cabezales_excel(mode: str = Query("preview"), file: UploadFile 
         return {"status": "success", "detail": "Proceso completado."}
     except Exception as e:
         db.rollback()
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+
+        # ================= EXPORTACIÓN EXCEL ALINEACIÓN =================
+@router.get("/cabezales/{cabezal_id}/exportar-excel")
+def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    try:
+        cabezal = db.query(CabezalModel).filter(CabezalModel.id == cabezal_id).first()
+        if not cabezal: raise HTTPException(status_code=404)
+        
+        alineaciones = db.query(AlineacionCabezalModel).filter(AlineacionCabezalModel.cabezal_id == cabezal_id).order_by(AlineacionCabezalModel.id.asc()).all()
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Alineacion_Canales"
+        headers = ["PORTADORA", "FORMATO", "CANAL NUM", "NOMBRE DE CANAL", "MCAST IP", "SOURCE IP", "UDP", "SID"]
+        ws.append(headers)
+        
+        for col_idx in range(1, len(headers)+1):
+            cell = ws.cell(row=1, column=col_idx)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="0B132B")
+            
+        for al in alineaciones: 
+            ws.append([al.portadora, al.formato, al.canal_num, al.nombre_canal, al.mcast_ip, al.source_ip, al.udp, al.sid])
+            
+        for col in ws.columns: 
+            ws.column_dimensions[col[0].column_letter].width = 18
+            
+        if len(alineaciones) > 0:
+            tab = Table(displayName="TablaAlineacion", ref=f"A1:H{len(alineaciones)+1}")
+            tab.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True)
+            ws.add_table(tab)
+            
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return StreamingResponse(
+            output, 
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            headers={
+                "Content-Disposition": f"attachment; filename=Alineacion_{cabezal.servicio}.xlsx", 
+                "Access-Control-Expose-Headers": "Content-Disposition"
+            }
+        )
+    except Exception as e: 
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
