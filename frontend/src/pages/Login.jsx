@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 const Login = ({ setToken, setUsuario, setTabActiva }) => {
   const [credenciales, setCredenciales] = useState({ usuario: '', password: '' });
   
-  // Nuevos estados para el cambio de contraseña obligatorio
+  // Estados de control para el cambio de clave
   const [requiereCambio, setRequiereCambio] = useState(false);
   const [nuevosDatos, setNuevosDatos] = useState({ nueva: '', confirmar: '' });
   const [authTemporal, setAuthTemporal] = useState(null); 
@@ -19,7 +19,6 @@ const Login = ({ setToken, setUsuario, setTabActiva }) => {
     setNuevosDatos({ ...nuevosDatos, [e.target.name]: e.target.value });
   };
 
-  // Función final que da acceso a la plataforma
   const completarLogin = (data) => {
     localStorage.setItem('mcm_token', data.token);
     localStorage.setItem('mcm_user', JSON.stringify(data.user));
@@ -47,24 +46,21 @@ const Login = ({ setToken, setUsuario, setTabActiva }) => {
       const data = await response.json();
 
       if (!response.ok || data.status === "error") {
-        throw new Error(data.detail || 'Error al iniciar sesión');
+        throw new Error(data.detail || 'Credenciales incorrectas');
       }
 
-      // Validación ultra segura para atrapar cualquier forma de True, 1 o "1"
-      const flagCambio = data.user.must_change_password;
-      const necesitaCambio = (flagCambio === true || flagCambio === 1 || flagCambio === "1" || flagCambio === "true");
-
-      if (necesitaCambio) {
-        setAuthTemporal(data); // Guardamos el token en memoria RAM temporalmente
+      // Si el backend dictamina que necesita cambio
+      if (data.user.must_change_password === true) {
+        setAuthTemporal(data);
         setRequiereCambio(true);
-        return; // Interrumpimos el flujo
+        return; // Interrumpe y no hace login aún
       }
 
-      // Si no exige cambio, pasa directo
+      // Si no, lo deja pasar
       completarLogin(data);
 
     } catch (err) {
-      setError(err.message || 'Credenciales incorrectas o error en el servidor.');
+      setError(err.message || 'Error en el servidor.');
     } finally {
       setCargando(false);
     }
@@ -98,10 +94,9 @@ const Login = ({ setToken, setUsuario, setTabActiva }) => {
         const data = await response.json();
         
         if (!response.ok) {
-            throw new Error(data.detail || 'Fallo al actualizar la contraseña.');
+            throw new Error(data.detail || 'Fallo al actualizar.');
         }
 
-        // Actualizamos el objeto temporal para reflejar que ya no requiere cambio
         const dataActualizada = {
             ...authTemporal,
             user: { ...authTemporal.user, must_change_password: false }
@@ -148,92 +143,72 @@ const Login = ({ setToken, setUsuario, setTabActiva }) => {
         </div>
 
         {error && (
-          <div className="mb-6 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-center animate-in fade-in zoom-in duration-300">
+          <div className="mb-6 p-3 bg-red-500/10 border border-red-500/50 rounded-lg text-center">
             <p className="text-sm text-red-400">{error}</p>
           </div>
         )}
 
         {!requiereCambio ? (
-            <form onSubmit={handleSubmit} className="space-y-5 animate-in fade-in">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="usuario">Usuario</label>
-                <div className="relative group">
-                  <input
-                    id="usuario"
-                    name="usuario"
-                    type="text"
-                    required
-                    value={credenciales.usuario}
-                    onChange={handleChange}
-                    className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                    placeholder="Escribe tu usuario"
-                  />
-                </div>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Usuario</label>
+                <input
+                  name="usuario"
+                  type="text"
+                  required
+                  value={credenciales.usuario}
+                  onChange={handleChange}
+                  className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Escribe tu usuario"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="password">Contraseña</label>
-                <div className="relative group">
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    required
-                    value={credenciales.password}
-                    onChange={handleChange}
-                    className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                    placeholder="••••••••"
-                  />
-                </div>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Contraseña</label>
+                <input
+                  name="password"
+                  type="password"
+                  required
+                  value={credenciales.password}
+                  onChange={handleChange}
+                  className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="••••••••"
+                />
               </div>
 
-              <button
-                type="submit"
-                disabled={cargando}
-                className="w-full mt-2 flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold tracking-wide text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#030712] focus:ring-blue-500 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={cargando} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70">
                 {cargando ? 'Validando...' : 'Iniciar Sesión'}
               </button>
             </form>
         ) : (
-            <form onSubmit={handleCambioPassword} className="space-y-5 animate-in slide-in-from-right-8 fade-in">
+            <form onSubmit={handleCambioPassword} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="nueva">Nueva Contraseña</label>
-                <div className="relative group">
-                  <input
-                    id="nueva"
-                    name="nueva"
-                    type="password"
-                    required
-                    value={nuevosDatos.nueva}
-                    onChange={handleNuevosDatosChange}
-                    className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                    placeholder="Al menos 6 caracteres"
-                  />
-                </div>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Nueva Contraseña</label>
+                <input
+                  name="nueva"
+                  type="password"
+                  required
+                  value={nuevosDatos.nueva}
+                  onChange={handleNuevosDatosChange}
+                  className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="Mínimo 6 caracteres"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="confirmar">Confirmar Contraseña</label>
-                <div className="relative group">
-                  <input
-                    id="confirmar"
-                    name="confirmar"
-                    type="password"
-                    required
-                    value={nuevosDatos.confirmar}
-                    onChange={handleNuevosDatosChange}
-                    className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200"
-                    placeholder="Repite tu nueva contraseña"
-                  />
-                </div>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Confirmar Contraseña</label>
+                <input
+                  name="confirmar"
+                  type="password"
+                  required
+                  value={nuevosDatos.confirmar}
+                  onChange={handleNuevosDatosChange}
+                  className="block w-full px-4 py-3 border border-gray-700 rounded-xl bg-gray-800/50 text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="Repite la contraseña"
+                />
               </div>
 
-              <button
-                type="submit"
-                disabled={cargando}
-                className="w-full mt-2 flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent rounded-xl shadow-[0_0_15px_rgba(245,158,11,0.3)] text-sm font-bold tracking-wide text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 focus:ring-2 focus:ring-offset-2 focus:ring-offset-[#030712] focus:ring-amber-500 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={cargando} className="w-full py-3.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70">
                 {cargando ? 'Actualizando...' : 'Actualizar y Entrar'}
               </button>
             </form>
