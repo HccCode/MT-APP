@@ -340,27 +340,19 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
 @app.post("/api/auth/change-password")
 def change_password(data: PasswordChangeReq, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:
-        # 1. Validar longitud
         if len(data.new_password) < 6:
             return JSONResponse(status_code=400, content={"status": "error", "detail": "La contraseña debe tener al menos 6 caracteres"})
             
-        # 2. Aplicar el hash y cambiar el flag
         current_user.password_hash = hash_password(data.new_password)
         current_user.must_change_password = False
-        
-        # 3. Guardar en base de datos
         db.commit()
         
         return {"status": "success"}
-        
     except Exception as e:
-        # Si la base de datos choca, deshacemos el cambio y enviamos el error exacto al Frontend
-        db.rollback()
-        logger.error(f"Fallo crítico al cambiar contraseña: {str(e)}")
-        return JSONResponse(
-            status_code=500, 
-            content={"status": "error", "detail": f"Error interno en la Base de Datos: {str(e)}"}
-        )
+        db.rollback() # Deshace el cambio si la base de datos se bloquea
+        logger.error(f"Fallo critico al cambiar contrasena: {str(e)}")
+        # Forzamos un código 400 en lugar de 500 para evitar que el navegador bloquee el CORS
+        return JSONResponse(status_code=400, content={"status": "error", "detail": f"Error interno en BD: {str(e)}"})
 
 @app.post("/api/auth/register")
 def register(data: UserRegister, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
