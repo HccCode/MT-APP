@@ -3,7 +3,8 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from config import settings
 
 DATABASE_URL = settings.database_url
-# Aseguramos que la URL sea compatible con el driver de PostgreSQL moderno
+
+# Render usa postgres:// pero SQLAlchemy requiere postgresql://
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
