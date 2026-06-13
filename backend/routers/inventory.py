@@ -9,6 +9,7 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.chart import PieChart, Reference
 from openpyxl.chart.label import DataLabelList
+from openpyxl.utils import get_column_letter
 
 from database import get_db
 from models import PortModel, CityModel, RegionModel, HubMappingModel, ConfigCiudadModel, UserModel, AuditLogModel
@@ -240,7 +241,7 @@ def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_curre
     if not is_admin(current_user): raise HTTPException(status_code=403)
     return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()]}
 
-    # ================= EXPORTACIÓN EXCEL INVENTARIO =================
+# ================= EXPORTACIÓN EXCEL INVENTARIO =================
 @router.get("/hubs/exportar-excel")
 def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
     try:
@@ -387,7 +388,9 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             ws_data.column_dimensions[col[0].column_letter].width = max(12, min(max_length + 3, 45))
 
         if len(puertos) > 0:
-            tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:{chr(64+len(headers))}{len(puertos)+1}")
+            # === CORRECCIÓN AQUÍ: Usamos get_column_letter en lugar de chr(64+len) ===
+            ultima_letra = get_column_letter(len(headers))
+            tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:{ultima_letra}{len(puertos)+1}")
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
             ws_data.add_table(tab)
             
@@ -401,6 +404,8 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             headers={"Content-Disposition": f"attachment; filename=MTDB_Ingenieria_{str(scope).replace(' ', '_')}.xlsx", "Access-Control-Expose-Headers": "Content-Disposition"}
         )
     except Exception as e: 
+        import logging
+        logging.error(f"Error generando Excel: {str(e)}")
         return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 # ================= EXPORTACIÓN REPORTE GERENCIAL RESUMEN =================
