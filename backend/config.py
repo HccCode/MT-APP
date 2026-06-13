@@ -2,7 +2,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 
 class Settings(BaseSettings):
-    # Campos que Pydantic leerá automáticamente de tu archivo .env o variables de entorno de Render
     secret_key: str
     admin_default_password: str
     allowed_origins: str 
@@ -15,3 +14,10 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.allowed_origins.split(",")]
 
 settings = Settings()
+
+# ================= CONSTANTES DE APLICACIÓN =================
+MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024
+ALLOWED_EXCEL_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel"
+}
