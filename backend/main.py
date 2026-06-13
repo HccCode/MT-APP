@@ -91,7 +91,8 @@ class UserModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
-    must_change_password = Column(Boolean, default=True) # <-- ESTA ES LA COLUMNA CRITICA
+    # SOLUCIÓN: Cambiado a Integer para compatibilidad absoluta con PostgreSQL (1 = Sí, 0 = No)
+    must_change_password = Column(Integer, default=1) 
     role = Column(String(50), default="LECTURA")
     plazas = Column(String(500), default="*")
     pestanas = Column(String(500), default="*") 
@@ -182,10 +183,10 @@ class AuditLogModel(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# Fuerza la existencia de la columna si no estaba
+# Auto-migración modificada a INTEGER
 try:
     with engine.connect() as conn:
-        conn.execute(text("ALTER TABLE sys_usuarios ADD COLUMN must_change_password BOOLEAN DEFAULT 1"))
+        conn.execute(text("ALTER TABLE sys_usuarios ADD COLUMN must_change_password INTEGER DEFAULT 1"))
         conn.commit()
 except Exception:
     pass
@@ -300,7 +301,7 @@ ALLOWED_EXCEL_MIME_TYPES = {"application/vnd.openxmlformats-officedocument.sprea
 try:
     db_init = SessionLocal()
     if db_init.query(UserModel).count() == 0:
-        db_init.add(UserModel(username="admin", password_hash=hash_password(settings.admin_default_password), role="ADMIN", plazas="*", pestanas="*", nombre_completo="Administrador", must_change_password=False))
+        db_init.add(UserModel(username="admin", password_hash=hash_password(settings.admin_default_password), role="ADMIN", plazas="*", pestanas="*", nombre_completo="Administrador", must_change_password=0))
         db_init.commit()
     db_init.close()
 except Exception: pass
@@ -321,8 +322,8 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     
     access_token = jwt.encode({"sub": user.username, "role": user.role, "plazas": user.plazas, "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)}, SECRET_KEY, algorithm=ALGORITHM)
     
-    # ASEGURAMOS EL BOOLEANO
-    debe_cambiar = True if user.must_change_password else False
+    # Conversión limpia a booleano puro para el Frontend (1=True, 0=False)
+    debe_cambiar = True if user.must_change_password == 1 else False
     
     return {
         "status": "success", 
@@ -344,14 +345,12 @@ def change_password(data: PasswordChangeReq, current_user: UserModel = Depends(g
             return JSONResponse(status_code=400, content={"status": "error", "detail": "La contraseña debe tener al menos 6 caracteres"})
             
         current_user.password_hash = hash_password(data.new_password)
-        current_user.must_change_password = False
+        current_user.must_change_password = 0 # Envia Integer 0 (False)
         db.commit()
         
         return {"status": "success"}
     except Exception as e:
-        db.rollback() # Deshace el cambio si la base de datos se bloquea
-        logger.error(f"Fallo critico al cambiar contrasena: {str(e)}")
-        # Forzamos un código 400 en lugar de 500 para evitar que el navegador bloquee el CORS
+        db.rollback()
         return JSONResponse(status_code=400, content={"status": "error", "detail": f"Error interno en BD: {str(e)}"})
 
 @app.post("/api/auth/register")
@@ -362,7 +361,7 @@ def register(data: UserRegister, current_user: UserModel = Depends(get_current_u
         username=data.username.strip(), password_hash=hash_password(data.password), role=data.role, plazas=data.plazas, 
         pestanas=data.pestanas, nombre_completo=data.nombre_completo.strip(), num_empleado=data.num_empleado, 
         correo=data.correo, area_org=data.area_org, region_asignacion=data.region_asignacion, puesto=data.puesto,
-        must_change_password=True # <-- SE FUERZA AL CREAR
+        must_change_password=1 # Envia Integer 1 (True)
     ))
     db.commit()
     return {"status": "success"}
@@ -373,7 +372,8 @@ def list_all_users(current_user: UserModel = Depends(get_current_user), db: Sess
     return [{
         "id": u.id, "username": u.username, "role": u.role, "plazas": u.plazas, "pestanas": u.pestanas,
         "nombre_completo": u.nombre_completo,"num_empleado": u.num_empleado, "correo": u.correo, "area_org": u.area_org,
-        "region_asignacion": u.region_asignacion, "puesto": u.puesto, "must_change_password": bool(u.must_change_password)
+        "region_asignacion": u.region_asignacion, "puesto": u.puesto, 
+        "must_change_password": True if u.must_change_password == 1 else False
     } for u in db.query(UserModel).all()]
 
 @app.put("/api/users/{user_id}")
@@ -393,10 +393,9 @@ def update_user_profile(user_id: int, data: UserUpdate, current_user: UserModel 
     if data.region_asignacion is not None: user.region_asignacion = data.region_asignacion
     if data.puesto is not None: user.puesto = data.puesto
     
-    # <-- SE FUERZA AL EDITAR LA CONTRASEÑA
     if data.password and data.password.strip() != "": 
         user.password_hash = hash_password(data.password)
-        user.must_change_password = True
+        user.must_change_password = 1 # Envia Integer 1 (True)
         
     db.commit()
     return {"status": "success"}
