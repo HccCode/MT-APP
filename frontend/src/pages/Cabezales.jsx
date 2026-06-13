@@ -4,8 +4,18 @@ import { Search, Eye, UploadCloud, CheckCircle, AlertTriangle, AlertOctagon, Arr
 export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica, esAdmin }) {
   const [cabezales, setCabezales] = useState([]);
   
-  const [filtroReg, setFiltroReg] = useState(localStorage.getItem('mcm_cab_reg') || '');
-  const [filtroCd, setFiltroCd] = useState(localStorage.getItem('mcm_cab_cd') || '');
+  // Ignoramos localStorage para que siempre entre forzado si no es admin
+  const [filtroReg, setFiltroReg] = useState(() => esAdmin ? (localStorage.getItem('mcm_cab_reg') || '') : '');
+  const [filtroCd, setFiltroCd] = useState(() => esAdmin ? (localStorage.getItem('mcm_cab_cd') || '') : '');
+  
+  // Forzamos la selección dinámica de la región
+  useEffect(() => {
+    if (!esAdmin && !filtroReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
+      const primeraRegion = Object.keys(estructuraGeografica)[0];
+      setFiltroReg(primeraRegion);
+    }
+  }, [esAdmin, estructuraGeografica, filtroReg]);
+
   const [filtroTexto, setFiltroTexto] = useState('');
   
   const [modalAbierto, setModalAbierto] = useState(false);
@@ -14,7 +24,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   
   const [filtroCanal, setFiltroCanal] = useState('');
 
-  // Área de Staging
   const [modalCarga, setModalCarga] = useState(false);
   const [archivo, setArchivo] = useState(null);
   const [statusCarga, setStatusCarga] = useState({ loading: false, msg: '', type: '' });
@@ -34,19 +43,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
   useEffect(() => { localStorage.setItem('mcm_cab_cd', filtroCd); }, [filtroCd]);
 
-  const [inicializadoReg, setInicializadoReg] = useState(false);
-
-  // 3. Añade este useEffect
-  useEffect(() => {
-    if (!esAdmin && !inicializadoReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
-      const primeraRegion = Object.keys(estructuraGeografica)[0];
-      setFiltroReg(primeraRegion);
-      setFiltroCd('');
-      setInicializadoReg(true);
-    }
-  }, [estructuraGeografica, esAdmin, inicializadoReg]);
-
-  // Memoización para evitar recalcular la lista de ciudades en cada render
   const ciudadesOrdenadas = useMemo(() => {
     if (!filtroReg || !estructuraGeografica || !estructuraGeografica[filtroReg]?.ciudades) return [];
     return Object.keys(estructuraGeografica[filtroReg].ciudades).map(nombre => ({
@@ -55,7 +51,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   }, [filtroReg, estructuraGeografica]);
 
-  // Uso de useCallback y AbortController para evitar race conditions en búsquedas rápidas
   const buscarCabezales = useCallback(async () => {
     if (!filtroCd) {
       setCabezales([]);
@@ -92,7 +87,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     };
   }, [buscarCabezales]);
 
-  // Memoización de filtrado local para evitar iteraciones costosas
   const cabezalesFiltrados = useMemo(() => {
     if (!filtroTexto) return cabezales;
     const text = filtroTexto.toLowerCase();
@@ -132,7 +126,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
     }
   };
 
-  // Memoización de filtrado local de canales
   const canalesFiltrados = useMemo(() => {
     if (!filtroCanal) return alineacionActual;
     const text = filtroCanal.toLowerCase();

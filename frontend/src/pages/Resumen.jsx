@@ -2,28 +2,24 @@ import { useState, useEffect } from 'react';
 import { Download, Edit2, Check, X, Zap, AlertTriangle, Activity, Server, ShieldCheck, Thermometer, MapPin, SlidersHorizontal } from 'lucide-react';
 
 export default function Resumen({ token, estructuraGeografica, puedeEditar, esAdmin }) {
-  const [regionSelec, setRegionSelec] = useState(localStorage.getItem('mcm_res_reg') || '');
-  const [ciudadSelec, setCiudadSelec] = useState(localStorage.getItem('mcm_res_cd') || '');
+  // Ignoramos el localStorage si no es admin
+  const [regionSelec, setRegionSelec] = useState(() => esAdmin ? (localStorage.getItem('mcm_res_reg') || '') : '');
+  const [ciudadSelec, setCiudadSelec] = useState(() => esAdmin ? (localStorage.getItem('mcm_res_cd') || '') : '');
   
+  // Forzamos la primera región dinámicamente
+  useEffect(() => {
+    if (!esAdmin && !regionSelec && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
+      const primeraRegion = Object.keys(estructuraGeografica)[0];
+      setRegionSelec(primeraRegion);
+    }
+  }, [esAdmin, estructuraGeografica, regionSelec]);
+
   const [sitioCalorFiltro, setSitioCalorFiltro] = useState('TODOS');
 
   const [stats, setStats] = useState({ activos: 0, suspendidos: 0, troncales: 0, total_disp: 0, disp_gi: 0, disp_te: 0, trafico_mbps: 0 });
   const [datosHubs, setDatosHubs] = useState([]);
   const [datosChasis, setDatosChasis] = useState([]);
   const [cargando, setCargando] = useState(false);
-
-  // 1. Añade este estado debajo de tus otros useState
-  const [inicializadoReg, setInicializadoReg] = useState(false);
-
-  // 2. Añade este useEffect debajo de los primeros useEffect
-  useEffect(() => {
-    if (!esAdmin && !inicializadoReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
-      const primeraRegion = Object.keys(estructuraGeografica)[0];
-      setRegionSelec(primeraRegion);
-      setCiudadSelec('');
-      setInicializadoReg(true);
-    }
-  }, [estructuraGeografica, esAdmin, inicializadoReg]);
 
   const [capacidadTotal, setCapacidadTotal] = useState('40G'); 
   const [editCapacidad, setEditCapacidad] = useState('');
@@ -117,10 +113,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                 else { global.disp_gi++; subDispGi++; }
             }
 
-// CORRECCIÓN MAPA DE CALOR: Recuperamos el EQUIPO_HOTEL_ID para el gráfico
             const chasisRaw = String(p.EQUIPO_HOTEL_ID || '').trim();
-            
-            // Si el puerto no tiene Chasis asignado, lo agrupamos como "CHASIS PRINCIPAL"
             const idAgrupacion = (chasisRaw && chasisRaw !== '-' && chasisRaw.toLowerCase() !== 'null') 
                 ? chasisRaw 
                 : "CHASIS PRINCIPAL";
@@ -128,9 +121,9 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
             if (!mapChasis[idAgrupacion]) {
                 mapChasis[idAgrupacion] = {
                     id: idAgrupacion,
-                    equipo: idAgrupacion, // Nombre del chasis/equipo físico que se muestra en pantalla
-                    hub: nombreHub,   // Nombre limpio del nodo
-                    hub_id: data.hub, // ID oculto usado internamente para filtros
+                    equipo: idAgrupacion,
+                    hub: nombreHub,   
+                    hub_id: data.hub, 
                     total: 0,
                     disp: 0,
                     activos: 0

@@ -6,9 +6,18 @@ import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
 
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
-  const [inventarioReg, setInventarioReg] = useState(localStorage.getItem('mcm_inv_reg') || '');
-  const [inventarioCd, setInventarioCd] = useState(localStorage.getItem('mcm_inv_cd') || '');
-  const [inventarioHub, setInventarioHub] = useState(localStorage.getItem('mcm_inv_hub') || 'TODOS');
+  // Ignoramos el localStorage si no es admin, forzando a que esté vacío al entrar
+  const [inventarioReg, setInventarioReg] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_reg') || '') : '');
+  const [inventarioCd, setInventarioCd] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_cd') || '') : '');
+  const [inventarioHub, setInventarioHub] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_hub') || 'TODOS') : 'TODOS');
+
+  // Lógica para asignar la primera región automáticamente al detectar que están vacíos
+  useEffect(() => {
+    if (!esAdmin && !inventarioReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
+      const primeraRegion = Object.keys(estructuraGeografica)[0];
+      setInventarioReg(primeraRegion);
+    }
+  }, [esAdmin, estructuraGeografica, inventarioReg]);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
@@ -22,17 +31,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [errorApp, setErrorApp] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroEstatus, setFiltroEstatus] = useState('TODOS');
-
-  const [inicializadoReg, setInicializadoReg] = useState(false);
-  useEffect(() => {
-    if (!esAdmin && !inicializadoReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
-      const primeraRegion = Object.keys(estructuraGeografica)[0];
-      setInventarioReg(primeraRegion);
-      setInventarioCd('');
-      setInventarioHub('TODOS');
-      setInicializadoReg(true); // Evita que se resetee si la data se recarga
-    }
-  }, [estructuraGeografica, esAdmin, inicializadoReg]);
   
   const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});

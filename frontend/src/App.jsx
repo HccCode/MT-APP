@@ -12,7 +12,6 @@ import Cuadrilla from './pages/Cuadrilla';
 import Auditoria from './pages/Auditoria'; 
 
 function App() {
-  // RESTAURADO: Mantenemos el estado de token basado en el Header tradicional
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
   const [usuario, setUsuario] = useState(JSON.parse(localStorage.getItem('mcm_user')) || null);
   
@@ -69,7 +68,7 @@ function App() {
       const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/api/geography?t=${new Date().getTime()}`, {
         method: 'GET',
         headers: { 
-          'Authorization': `Bearer ${token}`, // Inyección limpia del JWT evadiendo bloqueos cross-domain
+          'Authorization': `Bearer ${token}`,
           'Cache-Control': 'no-cache'
         }
       });
@@ -242,7 +241,8 @@ function App() {
           <Inventario token={token} usuario={usuario} puedeEditar={puedeEditar} esRnoc={esRnoc} esMcmNoc={esMcmNoc} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} handleLogout={handleLogout} />
         )}
         {tabActiva === 'cabezales' && (
-<Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} estructuraGeografica={estructuraGeografica} esAdmin={esAdmin} />        )}
+          <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} estructuraGeografica={estructuraGeografica} esAdmin={esAdmin}/>
+        )}
         {tabActiva === 'resumen' && (
           <Resumen token={token} estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>
         )}
