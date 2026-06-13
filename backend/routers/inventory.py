@@ -239,3 +239,264 @@ def update_config_ciudad(ciudad_nombre: str, data: ConfigCiudadUpdate, current_u
 def get_audit_logs(limit: int = 150, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not is_admin(current_user): raise HTTPException(status_code=403)
     return {"status": "success", "data": [{"id": l.id, "usuario": l.usuario, "accion": l.accion, "modulo": l.modulo, "detalle": l.detalle, "fecha": l.fecha} for l in db.query(AuditLogModel).order_by(AuditLogModel.id.desc()).limit(limit).all()]}
+
+    # ================= EXPORTACIÓN EXCEL INVENTARIO =================
+@router.get("/hubs/exportar-excel")
+def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: str = None, db: Session = Depends(get_db)):
+    try:
+        query = db.query(PortModel)
+        if region: query = query.filter(PortModel.region == region)
+        if ciudad: query = query.filter(PortModel.ciudad == ciudad)
+        if id_hub and id_hub != "TODOS": query = query.filter(PortModel.hub_id == id_hub)
+        puertos = query.all()
+
+        wb = Workbook()
+        ws_dash = wb.active
+        ws_dash.title = "Dashboard"
+        ws_dash.sheet_view.showGridLines = False
+
+        for row in range(1, 40):
+            for col in range(1, 15):
+                ws_dash.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F8F9FA")
+
+        scope = id_hub if id_hub and id_hub != 'TODOS' else (ciudad if ciudad else 'RED GLOBAL')
+        fecha_generacion = datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        ws_dash['B2'] = f"📊 REPORTE EJECUTIVO DE DISPONIBILIDAD ÓPTICA"
+        ws_dash['B2'].font = Font(size=20, bold=True, color="FFFFFF")
+        ws_dash['B2'].fill = PatternFill("solid", fgColor="0F172A") 
+        ws_dash['B2'].alignment = Alignment(horizontal="center", vertical="center")
+        ws_dash.merge_cells('B2:K3')
+
+        ws_dash['B4'] = f"Alcance: {scope}   |   Generado el: {fecha_generacion}"
+        ws_dash['B4'].font = Font(size=10, italic=True, color="475569")
+        ws_dash['B4'].alignment = Alignment(horizontal="right", vertical="center")
+        ws_dash.merge_cells('B4:K4')
+
+        estatus_counts = {}
+        for p in puertos:
+            st = str(p.estatus).upper().strip()
+            estatus_counts[st] = estatus_counts.get(st, 0) + 1
+
+        total = len(puertos)
+        activos = sum(v for k, v in estatus_counts.items() if "ACTIVO" in k)
+        troncales = sum(v for k, v in estatus_counts.items() if "TRONCAL" in k)
+        suspendidos = sum(v for k, v in estatus_counts.items() if "SUSPENDIDO" in k)
+
+        disp_gi = sum(v for k, v in estatus_counts.items() if "DISPONIBLE GI" in k)
+        disp_te = sum(v for k, v in estatus_counts.items() if "DISPONIBLE TE" in k)
+        disp_25 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 25" in k)
+        disp_100 = sum(v for k, v in estatus_counts.items() if "DISPONIBLE 100" in k)
+
+        def draw_kpi(cell_title, cell_val, title, val, color_bg):
+            col_title_let, row_title_num = cell_title[0], cell_title[1:]
+            col_val_let, row_val_num = cell_val[0], cell_val[1:]
+
+            ws_dash[cell_title] = title.upper()
+            ws_dash[cell_title].font = Font(color="FFFFFF", bold=True, size=9)
+            ws_dash[cell_title].fill = PatternFill("solid", fgColor=color_bg)
+            ws_dash[cell_title].alignment = Alignment(horizontal="center", vertical="center")
+            ws_dash.merge_cells(f"{cell_title}:{chr(ord(col_title_let)+1)}{row_title_num}")
+            
+            ws_dash[cell_val] = val
+            ws_dash[cell_val].font = Font(size=24, bold=True, color=color_bg)
+            ws_dash[cell_val].fill = PatternFill("solid", fgColor="FFFFFF")
+            ws_dash[cell_val].alignment = Alignment(horizontal="center", vertical="center")
+            ws_dash.merge_cells(f"{cell_val}:{chr(ord(col_val_let)+1)}{row_val_num}")
+            
+            thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1'))
+            ws_dash[cell_title].border = thin_border
+            ws_dash[chr(ord(col_title_let)+1)+row_title_num].border = thin_border
+            ws_dash[cell_val].border = thin_border
+            ws_dash[chr(ord(col_val_let)+1)+row_val_num].border = thin_border
+
+        draw_kpi('B6', 'B7', "CAPACIDAD TOTAL", total, "1E293B")       
+        draw_kpi('E6', 'E7', "PUERTOS ACTIVOS", activos, "0284C7")     
+        draw_kpi('H6', 'H7', "ENLACES TRONCALES", troncales, "D97706") 
+        draw_kpi('K6', 'K7', "SUSPENDIDOS", suspendidos, "DC2626")     
+
+        draw_kpi('B9', 'B10', "DISPONIBLE GI (1G)", disp_gi, "16A34A") 
+        draw_kpi('E9', 'E10', "DISPONIBLE TE (10G)", disp_te, "059669") 
+        draw_kpi('H9', 'H10', "DISPONIBLE 25G", disp_25, "0891B2")     
+        draw_kpi('K9', 'K10', "DISPONIBLE 100G", disp_100, "0284C7")    
+
+        ws_dash['Z1'] = "Estatus"
+        ws_dash['AA1'] = "Cantidad"
+        row_idx = 2
+        for k, v in estatus_counts.items():
+            if v > 0: 
+                ws_dash.cell(row=row_idx, column=26, value=k)
+                ws_dash.cell(row=row_idx, column=27, value=v)
+                row_idx += 1
+
+        if estatus_counts and row_idx > 2:
+            pie = PieChart()
+            pie.title = "Distribución Operativa de la Red"
+            labels = Reference(ws_dash, min_col=26, min_row=2, max_row=row_idx-1)
+            data = Reference(ws_dash, min_col=27, min_row=1, max_row=row_idx-1)
+            pie.add_data(data, titles_from_data=True)
+            pie.set_categories(labels)
+            pie.dataLabels = DataLabelList()
+            pie.dataLabels.showPercent = True
+            pie.width, pie.height = 15, 10
+            ws_dash.add_chart(pie, "C12")
+
+        ws_dash.column_dimensions['Z'].hidden = True
+        ws_dash.column_dimensions['AA'].hidden = True
+
+        ws_data = wb.create_sheet(title="Matriz de Inventario")
+        ws_data.sheet_view.showGridLines = False 
+
+        headers = [
+            "REGIÓN", "CIUDAD", "HUB / NODO", "ESTATUS", "PUERTO", "IP HUB", "IP GESTIÓN", "IP CLIENTE", "BDI", 
+            "POTENCIA HUB", "POTENCIA CPE", "SERIE SFP HUB", "SERIE SFP CPE", "RUTA", "DIST. CLIENTE", "LAMBDAS", 
+            "BUFFER", "HILOS", "PARCHEO", "MARCA CPE", "MODELO CPE", "SERIE CPE", "CLIENTE / SERVICIO", 
+            "TIPO SERVICIO", "ANCHO BANDA (MBPS)", "DIRECCIÓN SERVICIO", "COORDENADAS", "NOMBRE CONTACTO", 
+            "TELÉFONO CONTACTO", "FECHA DE ENTREGA", "COMENTARIOS"
+        ]
+        ws_data.append(headers)
+
+        for col_idx in range(1, len(headers)+1):
+            cell = ws_data.cell(row=1, column=col_idx)
+            cell.font = Font(bold=True, color="FFFFFF", size=10)
+            cell.fill = PatternFill("solid", fgColor="0F172A")
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws_data.row_dimensions[1].height = 25 
+
+        for r_idx, p in enumerate(puertos, 2):
+            row_data = [
+                p.region, p.ciudad, p.hub_id, p.estatus, p.puerto, p.ip_hub, p.ip_gestion, p.ip_cliente, p.bdi,
+                p.potencia_hub, p.potencia_cpe, p.serie_sfp_hub, p.serie_sfp_client, p.ruta, p.distancia_cliente, 
+                p.lambdas, p.buffer, p.hilos, p.parcheo, p.marca_cpe, p.modelo_cpe, p.serie_cpe, p.servicio, 
+                p.tipo_servicio, p.mbps, p.direccion, p.coordenadas, p.contacto_nombre, p.contacto_telefono,
+                p.fecha_entrega, p.comentarios
+            ]
+            ws_data.append(row_data)
+            for c_idx in range(1, len(row_data)+1):
+                ws_data.cell(row=r_idx, column=c_idx).alignment = Alignment(horizontal="left" if c_idx in [23, 26, 31] else "center", vertical="center")
+
+            c_est = ws_data.cell(row=r_idx, column=4)
+            val = str(p.estatus).upper()
+            if "ACTIVO" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="DCFCE7"), Font(color="166534", bold=True, size=10)
+            elif "DISPONIBLE" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="F1F5F9"), Font(color="475569", bold=True, size=10)
+            elif "SUSPENDIDO" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="FEE2E2"), Font(color="991B1B", bold=True, size=10)
+            elif "TRONCAL" in val: c_est.fill, c_est.font = PatternFill("solid", fgColor="FEF3C7"), Font(color="92400E", bold=True, size=10)
+
+        for col in ws_data.columns:
+            max_length = max(len(str(cell.value or '')) for cell in col)
+            ws_data.column_dimensions[col[0].column_letter].width = max(12, min(max_length + 3, 45))
+
+        if len(puertos) > 0:
+            tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:{chr(64+len(headers))}{len(puertos)+1}")
+            tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
+            ws_data.add_table(tab)
+            
+        ws_data.freeze_panes = "A2" 
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return StreamingResponse(
+            output, 
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            headers={"Content-Disposition": f"attachment; filename=MTDB_Ingenieria_{str(scope).replace(' ', '_')}.xlsx", "Access-Control-Expose-Headers": "Content-Disposition"}
+        )
+    except Exception as e: 
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+
+# ================= EXPORTACIÓN REPORTE GERENCIAL RESUMEN =================
+@router.post("/resumen/exportar-excel")
+def exportar_resumen_excel(req: ResumenExportReq, current_user: UserModel = Depends(get_current_user)):
+    try:
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Resumen de Nodos"
+        ws.sheet_view.showGridLines = False
+
+        for row in range(1, 40):
+            for col in range(1, 18):
+                ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="F8F9FA")
+
+        fecha_generacion = datetime.now().strftime('%Y-%m-%d %H:%M')
+        ws['B2'] = f"📊 DASHBOARD DE DISPONIBILIDAD - {req.ciudad.upper()}"
+        ws['B2'].font = Font(size=20, bold=True, color="FFFFFF")
+        ws['B2'].fill = PatternFill("solid", fgColor="0F172A") 
+        ws['B2'].alignment = Alignment(horizontal="center", vertical="center")
+        ws.merge_cells('B2:O3')
+
+        ws['B4'] = f"Generado el: {fecha_generacion}   |   Tráfico Total: {req.trafico_gbps} Gbps   |   Capacidad Backbone: {req.capacidad_total}"
+        ws['B4'].font = Font(size=10, italic=True, color="475569")
+        ws['B4'].alignment = Alignment(horizontal="right", vertical="center")
+        ws.merge_cells('B4:O4')
+
+        def draw_kpi_3col(start_col_let, start_row, title, val, color_bg):
+            title_cell, val_cell = f"{start_col_let}{start_row}", f"{start_col_let}{start_row + 1}"
+            ws[title_cell] = title.upper()
+            ws[title_cell].font, ws[title_cell].fill, ws[title_cell].alignment = Font(color="FFFFFF", bold=True, size=9), PatternFill("solid", fgColor=color_bg), Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{title_cell}:{chr(ord(start_col_let)+2)}{start_row}")
+            ws[val_cell] = val
+            ws[val_cell].font, ws[val_cell].fill, ws[val_cell].alignment = Font(size=22, bold=True, color=color_bg), PatternFill("solid", fgColor="FFFFFF"), Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{val_cell}:{chr(ord(start_col_let)+2)}{start_row + 1}")
+            
+            thin_border = Border(left=Side(style='thin', color='CBD5E1'), right=Side(style='thin', color='CBD5E1'), bottom=Side(style='thin', color='CBD5E1'), top=Side(style='thin', color='CBD5E1'))
+            for r in [start_row, start_row + 1]:
+                ws[f"{start_col_let}{r}"].border = thin_border
+                ws[f"{chr(ord(start_col_let)+2)}{r}"].border = thin_border
+
+        def draw_kpi_short(start_col_let, start_row, title, val, color_bg):
+            title_cell, val_cell = f"{start_col_let}{start_row}", f"{start_col_let}{start_row + 1}"
+            ws[title_cell] = title.upper()
+            ws[title_cell].font, ws[title_cell].fill, ws[title_cell].alignment = Font(color="FFFFFF", bold=True, size=9), PatternFill("solid", fgColor=color_bg), Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{title_cell}:{chr(ord(start_col_let)+1)}{start_row}")
+            ws[val_cell] = val
+            ws[val_cell].font, ws[val_cell].fill, ws[val_cell].alignment = Font(size=22, bold=True, color=color_bg), PatternFill("solid", fgColor="FFFFFF"), Alignment(horizontal="center", vertical="center")
+            ws.merge_cells(f"{val_cell}:{chr(ord(start_col_let)+1)}{start_row + 1}")
+
+        draw_kpi_3col('B', 6, "CAPACIDAD (PUERTOS)", sum([h.total for h in req.hubs]), "1E293B")
+        draw_kpi_3col('E', 6, "CLIENTES ACTIVOS", req.stats_activos, "0284C7")
+        draw_kpi_short('H', 6, "TOTAL DISPONIBLES", req.stats_total_disp, "16A34A")
+        draw_kpi_3col('K', 6, "DISPONIBILIDAD B.W.", f"{req.disponibilidad_pct}%", "8B5CF6")
+
+        ws['B10'] = "MATRIZ ESTADÍSTICA DE DISPONIBILIDAD POR NODO"
+        ws['B10'].font = Font(bold=True, size=12, color="0F172A")
+        
+        headers = [
+            "NODO / HUB", "DISP. GI", "TOTAL GI", "DISP. TE", "TOTAL TE", 
+            "DISP. 25G", "TOTAL 25G", "DISP. 100G", "TOTAL 100G",
+            "ACTIVOS", "SUSPENDIDOS", "TRONCALES", "TOTAL DISP.", "LIBRES %"
+        ]
+        
+        start_row = 11
+        for col_idx, h_title in enumerate(headers, 2):
+            c = ws.cell(row=start_row, column=col_idx, value=h_title)
+            c.font, c.fill, c.alignment = Font(bold=True, color="FFFFFF", size=9), PatternFill("solid", fgColor="0F172A"), Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.row_dimensions[start_row].height = 25
+            
+        r_idx = start_row + 1
+        for h in req.hubs:
+            row_data = [h.nombre, h.disp_gi, h.total_gi, h.disp_te, h.total_te, h.disp_25, h.total_25, h.disp_100, h.total_100, h.activos, h.suspendidos, h.troncales, h.total_disp, f"{h.pct_libres}%"]
+            for c_idx, val in enumerate(row_data, 2):
+                c = ws.cell(row=r_idx, column=c_idx, value=val)
+                c.alignment = Alignment(horizontal="center", vertical="center")
+                if c_idx == 15:
+                    val_num = float(str(val).replace('%',''))
+                    c.font = Font(bold=True, color="DC2626" if val_num < 20 else "16A34A" if val_num > 50 else "D97706")
+            r_idx += 1
+
+        if len(req.hubs) > 0:
+            tab = Table(displayName="TablaNodos", ref=f"B{start_row}:O{r_idx-1}")
+            tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
+            ws.add_table(tab)
+            
+        for col in range(2, 16): ws.column_dimensions[chr(64+col)].width = 13
+        ws.column_dimensions['B'].width = 25 
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return StreamingResponse(
+            output, 
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+            headers={"Content-Disposition": f"attachment; filename=Resumen_Nodos_{str(req.ciudad).replace(' ', '_')}.xlsx", "Access-Control-Expose-Headers": "Content-Disposition"}
+        )
+    except Exception as e: 
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
