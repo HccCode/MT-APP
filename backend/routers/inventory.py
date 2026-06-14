@@ -142,7 +142,11 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
         def get_idx(targets): return next((column_headers.index(t) for t in targets if t in column_headers), -1)
 
         idx_status, idx_puerto = get_idx(["STATUS", "ESTATUS", "ESTADO"]), get_idx(["PUERTO"])
-        idx_chasis, idx_iphub = get_idx(["EQUIPO ID", "CHASIS", "EQUIPO", "EQUIPO_HOTEL_ID"]), get_idx(["IP HUB", "IP_HUB"])
+        
+        # === SOLUCIÓN 1: Agregamos las variaciones con "/" que usas en tu Excel ===
+        idx_chasis = get_idx(["EQUIPO/HOTEL ID", "EQUIPO / HOTEL ID", "EQUIPO ID", "CHASIS", "EQUIPO", "EQUIPO_HOTEL_ID"])
+        idx_iphub = get_idx(["IP HUB", "IP_HUB"])
+        
         idx_serv, idx_mbps = get_idx(["CLIENTE / SERVICIO", "SERVICIO", "CLIENTE"]), get_idx(["ANCHO BANDA (MBPS)", "MBPS", "ANCHO BANDA"])
         idx_ipgest, idx_ipcli = get_idx(["IP GESTIÓN", "IP GESTION", "IP_GESTION"]), get_idx(["IP CLIENTE", "IP_CLIENTE"])
         
@@ -166,12 +170,14 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             
             errores_fila = []
             
-            # === SOLUCIÓN: Llave compuesta para evitar falsos duplicados ===
-            llave_unica = f"{chasis_val}_{p_val}"
+            # === SOLUCIÓN 2: Mejoramos el mensaje para que sea evidente si falta el chasis ===
+            chasis_str = chasis_val if chasis_val else "SIN_EQUIPO"
+            llave_unica = f"{chasis_str}_{p_val}"
+            
             if llave_unica in puertos_vistos: 
-                errores_fila.append("Duplicado.")
+                errores_fila.append(f"Puerto duplicado en el equipo '{chasis_str}'.")
             puertos_vistos.add(llave_unica)
-            # ===============================================================
+            # ===============================================================================
 
             if "ACTIVO" in est and not serv: errores_fila.append("ACTIVO requiere CLIENTE.")
             
