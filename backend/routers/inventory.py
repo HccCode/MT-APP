@@ -142,15 +142,34 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
         def get_idx(targets): return next((column_headers.index(t) for t in targets if t in column_headers), -1)
 
         idx_status, idx_puerto = get_idx(["STATUS", "ESTATUS", "ESTADO"]), get_idx(["PUERTO"])
-        
-        # === SOLUCIÓN 1: Agregamos las variaciones con "/" que usas en tu Excel ===
         idx_chasis = get_idx(["EQUIPO/HOTEL ID", "EQUIPO / HOTEL ID", "EQUIPO ID", "CHASIS", "EQUIPO", "EQUIPO_HOTEL_ID"])
         idx_iphub = get_idx(["IP HUB", "IP_HUB"])
-        
         idx_serv, idx_mbps = get_idx(["CLIENTE / SERVICIO", "SERVICIO", "CLIENTE"]), get_idx(["ANCHO BANDA (MBPS)", "MBPS", "ANCHO BANDA"])
         idx_ipgest, idx_ipcli = get_idx(["IP GESTIÓN", "IP GESTION", "IP_GESTION"]), get_idx(["IP CLIENTE", "IP_CLIENTE"])
         
         if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
+        
+        # === NUEVA VALIDACIÓN GLOBAL: DETECTAR EQUIPOS EN OTROS SITIOS/CIUDADES ===
+        # 1. Recolectamos todos los Chasis/Equipos que vienen en el Excel
+        chasis_in_excel = set()
+        for _, row in df_data.iterrows():
+            vals = list(row.values)
+            if idx_puerto >= len(vals): continue
+            chasis_val = str(vals[idx_chasis]).strip() if idx_chasis != -1 and idx_chasis < len(vals) else ""
+            if chasis_val and chasis_val.upper() != "NAN":
+                chasis_in_excel.add(chasis_val)
+                
+        # 2. Consultamos la Base de Datos buscando si existen en un HUB diferente al actual
+        equipos_en_otros_hubs = {}
+        if chasis_in_excel:
+            conflictos = db.query(PortModel.equipo_hotel_id, PortModel.hub_id, PortModel.ciudad).filter(
+                PortModel.equipo_hotel_id.in_(chasis_in_excel),
+                PortModel.hub_id != str(id_hub).upper().strip() # Comparamos contra el HUB destino
+            ).all()
+            for c in conflictos:
+                # Guardamos el sitio y ciudad donde ya se encuentra registrado
+                equipos_en_otros_hubs[c.equipo_hotel_id] = f"{c.hub_id} ({c.ciudad})"
+        # ===========================================================================
         
         preview_data = []
         has_errors = False
@@ -169,15 +188,17 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             chasis_val = rv(idx_chasis)
             
             errores_fila = []
-            
-            # === SOLUCIÓN 2: Mejoramos el mensaje para que sea evidente si falta el chasis ===
             chasis_str = chasis_val if chasis_val else "SIN_EQUIPO"
-            llave_unica = f"{chasis_str}_{p_val}"
             
+            # --- 1. Cruce con otros Sitios/Ciudades (La nueva regla) ---
+            if chasis_val and chasis_val in equipos_en_otros_hubs:
+                errores_fila.append(f"INCONSISTENCIA: El equipo '{chasis_val}' ya está asignado al sitio {equipos_en_otros_hubs[chasis_val]}.")
+            
+            # --- 2. Duplicidad de puertos dentro del mismo Equipo (La regla corregida anteriormente) ---
+            llave_unica = f"{chasis_str}_{p_val}"
             if llave_unica in puertos_vistos: 
-                errores_fila.append(f"Puerto duplicado en el equipo '{chasis_str}'.")
+                errores_fila.append(f"Puerto '{p_val}' duplicado internamente en el equipo '{chasis_str}'.")
             puertos_vistos.add(llave_unica)
-            # ===============================================================================
 
             if "ACTIVO" in est and not serv: errores_fila.append("ACTIVO requiere CLIENTE.")
             
@@ -200,7 +221,7 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
                 estatus=rv(idx_status) or "DISPONIBLE GI", puerto=p_val, ip_hub=rv(idx_iphub), 
                 equipo_hotel_id=rv(idx_chasis), servicio=rv(idx_serv), mbps=rv(idx_mbps), ip_gestion=rv(idx_ipgest), 
                 ip_cliente=rv(idx_ipcli)
-                # NOTA: Asegúrate de agregar el resto de tus campos a guardar aquí como lo tenías originalmente.
+                # NOTA: Asegúrate de agregar el resto de tus campos a guardar aquí como lo tenías originalmente si es necesario.
             ))
         db.commit()
         registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Archivo cargado en HUB {id_hub}")
