@@ -162,10 +162,17 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             est = rv(idx_status).upper() or "DISPONIBLE GI"
             serv = rv(idx_serv)
             ip_gest = rv(idx_ipgest)
+            chasis_val = rv(idx_chasis)
             
             errores_fila = []
-            if p_val in puertos_vistos: errores_fila.append("Duplicado.")
-            puertos_vistos.add(p_val)
+            
+            # === SOLUCIÓN: Llave compuesta para evitar falsos duplicados ===
+            llave_unica = f"{chasis_val}_{p_val}"
+            if llave_unica in puertos_vistos: 
+                errores_fila.append("Duplicado.")
+            puertos_vistos.add(llave_unica)
+            # ===============================================================
+
             if "ACTIVO" in est and not serv: errores_fila.append("ACTIVO requiere CLIENTE.")
             
             fila_obj = {"PUERTO": p_val, "ESTATUS": est, "SERVICIO": serv, "IP_GESTION": ip_gest, "_errores": errores_fila, "_valido": len(errores_fila) == 0}
@@ -187,9 +194,7 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
                 estatus=rv(idx_status) or "DISPONIBLE GI", puerto=p_val, ip_hub=rv(idx_iphub), 
                 equipo_hotel_id=rv(idx_chasis), servicio=rv(idx_serv), mbps=rv(idx_mbps), ip_gestion=rv(idx_ipgest), 
                 ip_cliente=rv(idx_ipcli)
-                # NOTA: En tu versión completa se extraían más campos (BDI, POTENCIAS, ETC).
-                # Para simplificar la respuesta, agregué solo los principales. Asegúrate de añadir los índices
-                # faltantes al importar si tu Excel los contiene.
+                # NOTA: Asegúrate de agregar el resto de tus campos a guardar aquí como lo tenías originalmente.
             ))
         db.commit()
         registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Archivo cargado en HUB {id_hub}")
