@@ -254,7 +254,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
           <div className="flex-1 overflow-y-auto custom-scrollbar relative">
             <table className="w-full text-xs text-slate-300 text-left border-collapse table-fixed">
-              {/* CAMBIO UI: 'sticky z-10' añadido a thead para que se fije arriba al hacer scroll */}
               <thead className="bg-[#0f172a] text-slate-400 uppercase font-bold sticky top-0 z-10 outline outline-1 outline-slate-800 shadow-md">
                 <tr>
                   <th className="p-3 w-12 text-center border-r border-slate-800">
@@ -282,7 +281,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   const est = String(p.ESTATUS || '').toUpperCase().trim();
                   const isDisponible = est.includes('DISPONIBLE');
                   return (
-                    {/* CAMBIO UI: 'group' en la fila permite estilos compartidos al pasar el cursor */}
                     <tr key={idx} onClick={() => seleccionarPuerto(p)} className={`group hover:bg-slate-800/60 transition-colors duration-200 ease-in-out cursor-pointer ${puertoDetalle?.ID === p.ID ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
                       <td className="p-3 text-center border-r border-slate-800/50" onClick={(e) => e.stopPropagation()}>
                         <input 
@@ -304,7 +302,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                           {p.ESTATUS}
                         </span>
                       </td>
-                      {/* CAMBIO UI: 'group-hover:text-*' ilumina el texto específico cuando el ratón pasa por cualquier parte de la fila */}
                       <td className="p-3 font-mono text-white truncate group-hover:text-blue-400 transition-colors">{p.PUERTO}</td>
                       <td className="p-3 text-slate-400 font-mono truncate group-hover:text-slate-200 transition-colors">
                         {inventarioHub === 'TODOS' ? (p.HUB_PERTENENCIA || '-') : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs?.find(h => h.id === inventarioHub)?.nombre || '-')}
