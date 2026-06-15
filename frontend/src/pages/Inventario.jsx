@@ -6,12 +6,10 @@ import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
 
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
-  // Ignoramos el localStorage si no es admin, forzando a que esté vacío al entrar
   const [inventarioReg, setInventarioReg] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_reg') || '') : '');
   const [inventarioCd, setInventarioCd] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_cd') || '') : '');
   const [inventarioHub, setInventarioHub] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_hub') || 'TODOS') : 'TODOS');
 
-  // Lógica para asignar la primera región automáticamente al detectar que están vacíos
   useEffect(() => {
     if (!esAdmin && !inventarioReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
       const primeraRegion = Object.keys(estructuraGeografica)[0];
@@ -237,7 +235,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden">
         
-        <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden">
+        <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
           
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full sm:max-w-md">
@@ -254,9 +252,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 overflow-y-auto custom-scrollbar relative">
             <table className="w-full text-xs text-slate-300 text-left border-collapse table-fixed">
-              <thead className="bg-[#0b132b] text-slate-400 uppercase font-bold sticky top-0 border-b border-slate-800 z-10 shadow-sm">
+              {/* CAMBIO UI: 'sticky z-10' añadido a thead para que se fije arriba al hacer scroll */}
+              <thead className="bg-[#0f172a] text-slate-400 uppercase font-bold sticky top-0 z-10 outline outline-1 outline-slate-800 shadow-md">
                 <tr>
                   <th className="p-3 w-12 text-center border-r border-slate-800">
                     <input 
@@ -283,7 +282,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   const est = String(p.ESTATUS || '').toUpperCase().trim();
                   const isDisponible = est.includes('DISPONIBLE');
                   return (
-                    <tr key={idx} onClick={() => seleccionarPuerto(p)} className={`hover:bg-slate-800/20 cursor-pointer ${puertoDetalle?.ID === p.ID ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
+                    {/* CAMBIO UI: 'group' en la fila permite estilos compartidos al pasar el cursor */}
+                    <tr key={idx} onClick={() => seleccionarPuerto(p)} className={`group hover:bg-slate-800/60 transition-colors duration-200 ease-in-out cursor-pointer ${puertoDetalle?.ID === p.ID ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
                       <td className="p-3 text-center border-r border-slate-800/50" onClick={(e) => e.stopPropagation()}>
                         <input 
                           type="checkbox" 
@@ -304,12 +304,13 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                           {p.ESTATUS}
                         </span>
                       </td>
-                      <td className="p-3 font-mono text-white truncate">{p.PUERTO}</td>
-                      <td className="p-3 text-slate-400 font-mono truncate">
+                      {/* CAMBIO UI: 'group-hover:text-*' ilumina el texto específico cuando el ratón pasa por cualquier parte de la fila */}
+                      <td className="p-3 font-mono text-white truncate group-hover:text-blue-400 transition-colors">{p.PUERTO}</td>
+                      <td className="p-3 text-slate-400 font-mono truncate group-hover:text-slate-200 transition-colors">
                         {inventarioHub === 'TODOS' ? (p.HUB_PERTENENCIA || '-') : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs?.find(h => h.id === inventarioHub)?.nombre || '-')}
                       </td>
-                      <td className="p-3 font-mono text-emerald-400 truncate">{p.IP_GESTION || '-'}</td>
-                      <td className="p-3 text-slate-200 truncate font-medium">{p.SERVICIO || '-'}</td>
+                      <td className="p-3 font-mono text-emerald-400/80 truncate group-hover:text-emerald-300 transition-colors">{p.IP_GESTION || '-'}</td>
+                      <td className="p-3 text-slate-300 truncate font-medium group-hover:text-white transition-colors">{p.SERVICIO || '-'}</td>
                     </tr>
                   );
                 })}

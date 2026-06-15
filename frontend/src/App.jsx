@@ -107,7 +107,8 @@ function App() {
   
   if (validandoSesion) {
     return (
-      <div className="h-screen w-screen bg-[#030712] flex flex-col items-center justify-center">
+      // CAMBIO UI: w-full min-h-screen
+      <div className="min-h-screen w-full bg-[#030712] flex flex-col items-center justify-center">
         <div className="relative">
           <div className="w-16 h-16 border-4 border-blue-900 border-t-blue-500 rounded-full animate-spin"></div>
           <div className="absolute inset-0 flex items-center justify-center">
@@ -124,7 +125,8 @@ function App() {
   }
 
   return (
-    <div className="h-screen w-screen bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
+    // CAMBIO UI: w-full min-h-screen
+    <div className="min-h-screen w-full bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
       <header className="bg-[#0b132b] border-b border-slate-800 shrink-0">
         <div className="px-4 py-3 sm:px-6 sm:py-4 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3">

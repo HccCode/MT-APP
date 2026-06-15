@@ -1,5 +1,33 @@
 @import "tailwindcss";
 
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /* Fondo oscuro persistente desde el inicio para evitar parpadeos blancos */
+  background-color: #030712; 
+  /* Fuerza al navegador a usar barras de desplazamiento oscuras */
+  color-scheme: dark; 
+}
+
+/* Evita que el contenedor principal genere scroll horizontal en Windows */
 body {
-  background-color: #030712;
+  overflow-x: hidden; 
+}
+
+/* Personalización sutil para barras de desplazamiento interiores */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
 }

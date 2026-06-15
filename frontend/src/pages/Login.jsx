@@ -112,7 +112,8 @@ const Login = ({ setToken, setUsuario, setTabActiva }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#030712] p-4 font-sans relative overflow-hidden">
+    // CAMBIO UI: min-h-screen y w-full aplicados
+    <div className="min-h-screen w-full flex items-center justify-center bg-[#030712] p-4 font-sans relative overflow-hidden">
       
       <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-600/20 rounded-full blur-3xl"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-purple-600/20 rounded-full blur-3xl"></div>
@@ -176,7 +177,7 @@ const Login = ({ setToken, setUsuario, setTabActiva }) => {
                 />
               </div>
 
-              <button type="submit" disabled={cargando} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70">
+              <button type="submit" disabled={cargando} className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70 cursor-pointer">
                 {cargando ? 'Validando...' : 'Iniciar Sesión'}
               </button>
             </form>
@@ -208,7 +209,7 @@ const Login = ({ setToken, setUsuario, setTabActiva }) => {
                 />
               </div>
 
-              <button type="submit" disabled={cargando} className="w-full py-3.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70">
+              <button type="submit" disabled={cargando} className="w-full py-3.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-bold rounded-xl shadow-lg transition-all disabled:opacity-70 cursor-pointer">
                 {cargando ? 'Actualizando...' : 'Actualizar y Entrar'}
               </button>
             </form>
