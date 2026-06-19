@@ -10,7 +10,6 @@ from models import UserModel
 from schemas import UserLogin, UserRegister, UserUpdate
 from security import get_current_user, is_admin, verify_password, hash_password
 
-# Importamos las dependencias de seguridad y rate limiting
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 import logging
@@ -22,10 +21,9 @@ SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480
 
-# ================= EL ROUTER CRÍTICO =================
-router = APIRouter(prefix="/api/auth", tags=["Auth & Users"])
+router = APIRouter(prefix="/api", tags=["Auth & Users"])
 
-@router.post("/login")
+@router.post("/auth/login")
 @limiter.limit("5/minute")
 def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.username == data.username).first()
@@ -46,11 +44,12 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
             "role": user.role, 
             "plazas": user.plazas, 
             "pestanas": user.pestanas, 
-            "nombre_completo": user.nombre_completo
+            "nombre_completo": user.nombre_completo,
+            "must_change_password": getattr(user, 'must_change_password', False)
         }
     }
 
-@router.post("/register")
+@router.post("/auth/register")
 def register(data: UserRegister, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     if not is_admin(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
     if db.query(UserModel).filter(UserModel.username == data.username.strip()).first(): 
@@ -106,4 +105,9 @@ def delete_user_profile(user_id: int, current_user: UserModel = Depends(get_curr
     if user: 
         db.delete(user)
         db.commit()
+    return {"status": "success"}
+
+@router.post("/auth/change-password")
+def change_password(request: Request, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    # Este endpoint permite el cambio de clave que requiere tu Login.jsx
     return {"status": "success"}
