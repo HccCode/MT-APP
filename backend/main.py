@@ -13,8 +13,8 @@ from models import UserModel
 from security import hash_password
 
 # ================= IMPORTACIÓN DE MÓDULOS (ROUTERS) =================
-# Verificamos que se importan las variables "router" de cada archivo
-from routers import auth, geography, inventory, cabezales,microondas
+# AÑADIDO: microondas
+from routers import auth, geography, inventory, cabezales, microondas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -34,8 +34,7 @@ try:
         db_init.add(UserModel(username="admin", password_hash=hash_password(settings.admin_default_password), role="ADMIN", plazas="*", pestanas="*", nombre_completo="Administrador", must_change_password=0))
         db_init.commit()
     db_init.close()
-except Exception: 
-    pass
+except Exception: pass
 
 # Instancia FastAPI
 limiter = Limiter(key_func=get_remote_address)
@@ -53,11 +52,12 @@ app.add_middleware(
 )
 
 # ================= CONEXIÓN DE ROUTERS AL SERVIDOR =================
-# Al usar app.include_router, FastAPI busca la variable "router" dentro de cada archivo importado
 app.include_router(auth.router)
 app.include_router(geography.router)
 app.include_router(inventory.router)
 app.include_router(cabezales.router)
+
+# AÑADIDO: Conexión de las rutas de microondas
 app.include_router(microondas.router)
 
 if __name__ == "__main__":
