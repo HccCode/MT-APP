@@ -13,7 +13,6 @@ from models import UserModel
 from security import hash_password
 
 # ================= IMPORTACIÓN DE MÓDULOS (ROUTERS) =================
-# AÑADIDO: microondas
 from routers import auth, geography, inventory, cabezales, microondas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -21,12 +20,22 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Inicialización de Base de Datos y Auto-Migraciones
 Base.metadata.create_all(bind=engine)
 
+# Parche automático para usuarios
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE sys_usuarios ADD COLUMN must_change_password INTEGER DEFAULT 1"))
         conn.commit()
 except Exception:
     pass
+
+# === SOLUCIÓN: PARCHE AUTOMÁTICO PARA MICROONDAS ===
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE inventario_microondas_ubq ADD COLUMN ap_id INTEGER REFERENCES inventario_microondas_ap(id) ON DELETE SET NULL"))
+        conn.commit()
+except Exception:
+    pass
+# ===================================================
 
 try:
     db_init = SessionLocal()
@@ -56,8 +65,6 @@ app.include_router(auth.router)
 app.include_router(geography.router)
 app.include_router(inventory.router)
 app.include_router(cabezales.router)
-
-# AÑADIDO: Conexión de las rutas de microondas
 app.include_router(microondas.router)
 
 if __name__ == "__main__":
