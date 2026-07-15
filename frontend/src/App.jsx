@@ -275,6 +275,8 @@ function App() {
         {tabActiva === 'auditoria' && esAdmin && (
           <Auditoria token={token} />
         )}
+        {tabActiva === 'microondas' && ( <Microondas token={token} puedeEditar={puedeEditar} handleLogout={handleLogout} estructuraGeografica={estructuraGeografica} />
+          )}
       </div>
     </div>
   );
