@@ -159,7 +159,7 @@ function App() {
                   onClick={() => setTabActiva('inventario')} 
                   className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'inventario' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  <span className="text-[13px]">📋</span> Servicios Dedicados
+                  <span className="text-[13px]">📋</span> Servicios Dedicados (FO)
                 </button>
               )}
 
@@ -195,7 +195,7 @@ function App() {
                   onClick={() => setTabActiva('microondas')} 
                   className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'microondas' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
                 >
-                  <Radio className="w-3.5 h-3.5" /> Enlaces Ubiquiti
+                  <Radio className="w-3.5 h-3.5" /> Enlaces MW
                 </button>
               )}
               
