@@ -255,7 +255,7 @@ function App() {
           <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} estructuraGeografica={estructuraGeografica} esAdmin={esAdmin}/>
         )}
         {tabActiva === 'microondas' && (
-          <Microondas token={token} puedeEditar={puedeEditar} handleLogout={handleLogout} esAdmin={esAdmin}/>
+          <Microondas token={token} puedeEditar={puedeEditar} handleLogout={handleLogout} esAdmin={esAdmin} estructuraGeografica={estructuraGeografica} />
         )}
         {tabActiva === 'resumen' && (
           <Resumen token={token} estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>
@@ -275,8 +275,6 @@ function App() {
         {tabActiva === 'auditoria' && esAdmin && (
           <Auditoria token={token} />
         )}
-        {tabActiva === 'microondas' && ( <Microondas token={token} puedeEditar={puedeEditar} handleLogout={handleLogout} estructuraGeografica={estructuraGeografica} />
-          )}
       </div>
     </div>
   );
