@@ -43,14 +43,22 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
   const seleccionarItem = (item) => {
     setCreandoNuevo(false);
     setItemDetalle(item);
-    setEditCampos(item);
+    
+    let nuevosCampos = { ...item };
     
     if (subTab === 'enlaces' && item.ap_id) {
         const ap = accessPoints.find(a => a.id === item.ap_id);
-        if (ap) setFormRbId(ap.radio_base_id);
+        if (ap) {
+            setFormRbId(ap.radio_base_id);
+            // === CORRECCIÓN: Forzamos la carga de datos del AP ===
+            nuevosCampos.frecuencia = ap.frecuencia || nuevosCampos.frecuencia || '';
+            nuevosCampos.ssid = ap.ssid || nuevosCampos.ssid || '';
+        }
     } else {
         setFormRbId('');
     }
+    
+    setEditCampos(nuevosCampos);
   };
 
   const prepararNuevo = () => {
@@ -100,7 +108,6 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
     } catch (e) { console.error(e); }
   };
 
-  // === EXPLICACIÓN: AUTO-COMPLETADO DE PARÁMETROS RF INCLUYENDO FRECUENCIA ===
   const manejarCambioAP = (ap_id) => {
       const idStr = String(ap_id);
       if (!idStr) {
@@ -119,14 +126,19 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
               modelo_ap: ap.modelo || '',
               ip_gestion_ap: ap.ip_gestion || '',
               mac_ap: ap.mac || '',
-              frecuencia: ap.frecuencia || '', // Auto-llenado de Frecuencia Maestro
-              ancho_canal: ap.ancho_canal || '', // Auto-llenado de Ancho de Canal Maestro
-              ssid: ap.ssid || '' // Auto-llenado de SSID Maestro
+              frecuencia: ap.frecuencia || '', 
+              ancho_canal: ap.ancho_canal || '', 
+              ssid: ap.ssid || '' 
           });
       }
   };
 
-  const generarUrlMaps = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+  const generarUrlMaps = (query) => `http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(query)}`;
+
+  // === MAGIA UX: Valores de respaldo visuales ===
+  const apSeleccionado = accessPoints.find(a => String(a.id) === String(editCampos.ap_id));
+  const frecuenciaMostrar = apSeleccionado?.frecuencia || editCampos.frecuencia || '';
+  const ssidMostrar = apSeleccionado?.ssid || editCampos.ssid || '';
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#070b19]">
@@ -222,7 +234,6 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
               
               <div className="flex-1 overflow-y-auto mt-4 pr-2 space-y-4 custom-scrollbar text-[11px] text-slate-300">
                 
-                {/* FORMULARIO RADIO BASES */}
                 {subTab === 'radiobases' && (
                    <>
                      <div><label className="block text-slate-500 font-bold mb-1">NOMBRE RADIO BASE</label><input type="text" disabled={!puedeEditar} value={editCampos.nombre || ''} onChange={e=>setEditCampos({...editCampos, nombre: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
@@ -235,7 +246,6 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                    </>
                 )}
 
-                {/* FORMULARIO ACCESS POINTS */}
                 {subTab === 'aps' && (
                    <>
                      <div className="grid grid-cols-2 gap-3">
@@ -246,7 +256,7 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                            </select>
                         </div>
                         <div><label className="block text-slate-500 font-bold mb-1">ESTATUS</label>
-                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none">
+                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none cursor-pointer">
                               <option value="ACTIVO">ACTIVO</option>
                               <option value="SUSPENDIDO">SUSPENDIDO</option>
                               <option value="FALLA">FALLA / CAÍDO</option>
@@ -268,11 +278,14 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                            <div><label className="block text-slate-500 font-bold mb-1">FRECUENCIA (MHz)</label><input type="text" disabled={!puedeEditar} value={editCampos.frecuencia || ''} onChange={e=>setEditCampos({...editCampos, frecuencia: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="Ej: 5800"/></div>
                            <div><label className="block text-slate-500 font-bold mb-1">ANCHO CANAL</label><input type="text" disabled={!puedeEditar} value={editCampos.ancho_canal || ''} onChange={e=>setEditCampos({...editCampos, ancho_canal: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="20/40/80"/></div>
                         </div>
+                        <div className="grid grid-cols-2 gap-3">
+                           <div><label className="block text-slate-500 font-bold mb-1">AZIMUT (Grados)</label><input type="text" disabled={!puedeEditar} value={editCampos.azimut || ''} onChange={e=>setEditCampos({...editCampos, azimut: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">ALTURA INSTALACIÓN</label><input type="text" disabled={!puedeEditar} value={editCampos.altura || ''} onChange={e=>setEditCampos({...editCampos, altura: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
+                        </div>
                      </div>
                    </>
                 )}
 
-                {/* FORMULARIO ENLACES (CLIENTES) */}
                 {subTab === 'enlaces' && (
                    <>
                      <div className="grid grid-cols-2 gap-3 mb-2">
@@ -286,20 +299,19 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                         </div>
                      </div>
 
-                     {/* VINCULACIÓN AL ACCESS POINT */}
                      <div className="p-3 border border-blue-500/30 rounded-lg bg-blue-900/10 space-y-3">
                         <h4 className="font-bold text-blue-400 uppercase flex items-center gap-1 border-b border-blue-900 pb-1"><Link className="w-3 h-3"/> Vinculación a Torre</h4>
                         <div className="grid grid-cols-2 gap-3">
                            <div>
                               <label className="block text-blue-300/70 font-bold mb-1">1. FILTRAR POR RADIO BASE</label>
-                              <select disabled={!puedeEditar} value={formRbId} onChange={e=>setFormRbId(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-emerald-400 font-bold outline-none">
+                              <select disabled={!puedeEditar} value={formRbId} onChange={e=>setFormRbId(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-emerald-400 font-bold outline-none cursor-pointer">
                                  <option value="">-- Seleccionar Base --</option>
                                  {radioBases.map(rb => <option key={rb.id} value={rb.id}>{rb.nombre}</option>)}
                               </select>
                            </div>
                            <div>
                               <label className="block text-blue-300/70 font-bold mb-1">2. SELECCIONAR ACCESS POINT</label>
-                              <select disabled={!puedeEditar || (!formRbId && !editCampos.ap_id)} value={editCampos.ap_id || ''} onChange={e=>manejarCambioAP(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-purple-400 font-bold outline-none">
+                              <select disabled={!puedeEditar || (!formRbId && !editCampos.ap_id)} value={editCampos.ap_id || ''} onChange={e=>manejarCambioAP(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-purple-400 font-bold outline-none cursor-pointer">
                                  <option value="">-- Seleccionar AP --</option>
                                  {accessPoints.filter(ap => !formRbId || ap.radio_base_id == formRbId).map(ap => <option key={ap.id} value={ap.id}>{ap.nombre_ap} ({ap.ssid})</option>)}
                               </select>
@@ -307,7 +319,6 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                         </div>
                      </div>
 
-                     {/* NUEVO: UBICACIÓN GEOGRÁFICA DEL CLIENTE */}
                      <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
                         <h4 className="font-bold text-emerald-400 uppercase border-b border-slate-800 pb-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Ubicación de Entrega</h4>
                         <div>
@@ -325,13 +336,22 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                         </div>
                      </div>
 
-                     {/* Station / CPE y RF (Auto-completados por AP, Señales Editables) */}
                      <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
                         <h4 className="font-bold text-amber-500 uppercase border-b border-slate-800 pb-1">Radiofrecuencia e Interfaz (CPE)</h4>
+                        
+                        {/* === MAGIA UX: Inputs dinámicos para siempre mostrar los datos reales de la Torre === */}
                         <div className="grid grid-cols-2 gap-3">
-                           <div><label className="block text-slate-500 font-bold mb-1">FRECUENCIA ACTUAL (AP)</label><input type="text" disabled={true} value={editCampos.frecuencia || ''} className="w-full bg-slate-900/50 font-mono text-slate-400 p-2 rounded border border-slate-800 outline-none cursor-not-allowed" placeholder="Auto-completado" /></div>
-                           <div><label className="block text-slate-500 font-bold mb-1">SSID VINCULADO</label><input type="text" disabled={true} value={editCampos.ssid || ''} className="w-full bg-slate-900/50 font-mono text-slate-400 p-2 rounded border border-slate-800 outline-none cursor-not-allowed" placeholder="Auto-completado" /></div>
+                           <div>
+                                <label className="block text-slate-500 font-bold mb-1">FRECUENCIA ACTUAL (AP)</label>
+                                <input type="text" disabled={true} value={frecuenciaMostrar} className="w-full bg-slate-900/50 font-mono text-slate-400 p-2 rounded border border-slate-800 outline-none cursor-not-allowed" placeholder="Auto-completado" />
+                           </div>
+                           <div>
+                                <label className="block text-slate-500 font-bold mb-1">SSID VINCULADO</label>
+                                <input type="text" disabled={true} value={ssidMostrar} className="w-full bg-slate-900/50 font-mono text-slate-400 p-2 rounded border border-slate-800 outline-none cursor-not-allowed" placeholder="Auto-completado" />
+                           </div>
                         </div>
+                        {/* ============================================================================== */}
+
                         <div className="grid grid-cols-2 gap-3">
                            <div><label className="block text-slate-500 font-bold mb-1">MODELO CPE CLIENTE</label><input type="text" disabled={!puedeEditar} value={editCampos.modelo_st || ''} onChange={e=>setEditCampos({...editCampos, modelo_st: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="Ej: LiteBeam 5AC Gen2" /></div>
                            <div><label className="block text-slate-500 font-bold mb-1">IP GESTIÓN CLIENTE</label><input type="text" disabled={!puedeEditar} value={editCampos.ip_gestion_st || ''} onChange={e=>setEditCampos({...editCampos, ip_gestion_st: e.target.value})} className="w-full bg-[#050814] font-mono text-emerald-400 p-2 rounded border border-slate-700 outline-none" placeholder="Ej: 10.x.x.x" /></div>
@@ -341,8 +361,8 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                            <div><label className="block text-slate-500 font-bold mb-1">DISTANCIA (km)</label><input type="text" disabled={!puedeEditar} value={editCampos.distancia_km || ''} onChange={e=>setEditCampos({...editCampos, distancia_km: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX AP (dBm)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_ap || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_ap: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-55" /></div>
-                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX ST (dBm)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_st || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_st: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-56" /></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX AP (Remoto)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_ap || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_ap: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-55" title="Señal con la que la torre escucha al cliente"/></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX ST (Local)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_st || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_st: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-56" title="Señal con la que el cliente escucha a la torre"/></div>
                         </div>
                      </div>
                      <div><label className="block text-slate-500 font-bold mb-1">COMENTARIOS</label><textarea rows="2" disabled={!puedeEditar} value={editCampos.comentarios || ''} onChange={e=>setEditCampos({...editCampos, comentarios: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white resize-none outline-none" /></div>
