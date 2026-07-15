@@ -14,7 +14,7 @@ from security import hash_password
 
 # ================= IMPORTACIÓN DE MÓDULOS (ROUTERS) =================
 # Verificamos que se importan las variables "router" de cada archivo
-from routers import auth, geography, inventory, cabezales
+from routers import auth, geography, inventory, cabezales,microondas
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -58,6 +58,7 @@ app.include_router(auth.router)
 app.include_router(geography.router)
 app.include_router(inventory.router)
 app.include_router(cabezales.router)
+app.include_router(microondas.router)
 
 if __name__ == "__main__":
     import uvicorn

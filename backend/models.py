@@ -113,3 +113,34 @@ class AuditLogModel(Base):
     modulo = Column(String(100))
     detalle = Column(Text)
     fecha = Column(String(50))
+
+# ================= NUEVO MÓDULO MICROONDAS =================
+class MicroondaUbiquitiModel(Base):
+    __tablename__ = "inventario_microondas_ubq"
+    id = Column(Integer, primary_key=True, index=True)
+    ciudad = Column(String(50), index=True)
+    sitio_base = Column(String(100), index=True)
+    cliente = Column(String(150), index=True)
+    estatus = Column(String(50), default="ACTIVO")
+    
+    # Datos RF / Enlace
+    ssid = Column(String(100))
+    frecuencia = Column(String(50))
+    ancho_canal = Column(String(50))
+    distancia_km = Column(String(50))
+    
+    # Access Point (Equipo Local / Emisor)
+    modelo_ap = Column(String(100))
+    ip_gestion_ap = Column(String(50))
+    mac_ap = Column(String(50))
+    senal_rx_ap = Column(String(50))
+    
+    # Station / CPE (Equipo Remoto / Cliente)
+    modelo_st = Column(String(100))
+    ip_gestion_st = Column(String(50))
+    mac_st = Column(String(50))
+    senal_rx_st = Column(String(50))
+    
+    # Rendimiento
+    tx_rx_rate = Column(String(50))
+    comentarios = Column(Text)

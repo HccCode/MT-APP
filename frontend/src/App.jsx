@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Server, LogOut } from 'lucide-react';
+import { Server, LogOut, Radio } from 'lucide-react'; // Añadido Radio
 
 import Login from './pages/Login';
 import Inventario from './pages/Inventario';
@@ -10,6 +10,7 @@ import Usuarios from './pages/Usuarios';
 import Cabezales from './pages/Cabezales';
 import Cuadrilla from './pages/Cuadrilla';
 import Auditoria from './pages/Auditoria'; 
+import Microondas from './pages/Microondas'; // Importado el nuevo componente
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mcm_token') || null);
@@ -43,6 +44,7 @@ function App() {
   const mostrarInventario = puedeVerTab('inventario', true);
   const mostrarResumen = puedeVerTab('resumen', true);
   const mostrarCabezales = puedeVerTab('cabezales', true);
+  const mostrarMicroondas = puedeVerTab('microondas', true); // Nueva pestaña
   const mostrarCuadrilla = puedeVerTab('cuadrilla', true);
   const mostrarGeografia = puedeVerTab('geografia', esAdmin);
   const mostrarCarga = puedeVerTab('carga_excel', puedeCargar);
@@ -107,7 +109,6 @@ function App() {
   
   if (validandoSesion) {
     return (
-      // CAMBIO UI: w-full min-h-screen
       <div className="min-h-screen w-full bg-[#030712] flex flex-col items-center justify-center">
         <div className="relative">
           <div className="w-16 h-16 border-4 border-blue-900 border-t-blue-500 rounded-full animate-spin"></div>
@@ -125,7 +126,6 @@ function App() {
   }
 
   return (
-    // CAMBIO UI: w-full min-h-screen
     <div className="min-h-screen w-full bg-[#070b19] text-slate-100 font-sans flex flex-col overflow-hidden">
       
       <header className="bg-[#0b132b] border-b border-slate-800 shrink-0">
@@ -189,6 +189,15 @@ function App() {
                   <span className="text-[13px]">📡</span> Cabezales
                 </button>
               )}
+
+              {mostrarMicroondas && (
+                <button 
+                  onClick={() => setTabActiva('microondas')} 
+                  className={`hidden md:flex shrink-0 snap-start px-4 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap items-center gap-1.5 ${tabActiva === 'microondas' ? 'bg-blue-500 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                >
+                  <Radio className="w-3.5 h-3.5" /> Enlaces Ubiquiti
+                </button>
+              )}
               
               {mostrarGeografia && (
                 <button 
@@ -244,6 +253,9 @@ function App() {
         )}
         {tabActiva === 'cabezales' && (
           <Cabezales token={token} handleLogout={handleLogout} puedeCargar={puedeCargar} estructuraGeografica={estructuraGeografica} esAdmin={esAdmin}/>
+        )}
+        {tabActiva === 'microondas' && (
+          <Microondas token={token} puedeEditar={puedeEditar} handleLogout={handleLogout} esAdmin={esAdmin}/>
         )}
         {tabActiva === 'resumen' && (
           <Resumen token={token} estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>

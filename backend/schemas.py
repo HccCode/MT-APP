@@ -137,3 +137,31 @@ class ResumenExportReq(BaseModel):
     stats_troncales: int
     stats_total_disp: int
     hubs: List[HubStatItem]
+
+# ================= NUEVO MÓDULO MICROONDAS =================
+class MicroondaUbiquitiBase(BaseModel):
+    ciudad: str = None
+    sitio_base: str = None
+    cliente: str = None
+    estatus: str = None
+    ssid: str = None
+    frecuencia: str = None
+    ancho_canal: str = None
+    distancia_km: str = None
+    modelo_ap: str = None
+    ip_gestion_ap: str = None
+    mac_ap: str = None
+    senal_rx_ap: str = None
+    modelo_st: str = None
+    ip_gestion_st: str = None
+    mac_st: str = None
+    senal_rx_st: str = None
+    tx_rx_rate: str = None
+    comentarios: str = None
+
+class MicroondaUbiquitiCreate(MicroondaUbiquitiBase):
+    cliente: str
+    sitio_base: str
+
+class MicroondaUbiquitiUpdate(MicroondaUbiquitiBase):
+    pass
