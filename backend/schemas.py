@@ -138,8 +138,36 @@ class ResumenExportReq(BaseModel):
     stats_total_disp: int
     hubs: List[HubStatItem]
 
-# ================= NUEVO MÓDULO MICROONDAS =================
+# ================= MÓDULO MICROONDAS =================
+
+class MWRadioBaseBase(BaseModel):
+    nombre: str
+    ciudad: str
+    coordenadas: str = None
+    altura_torre: str = None
+    comentarios: str = None
+
+class MWRadioBaseCreate(MWRadioBaseBase):
+    pass
+
+class MWAccessPointBase(BaseModel):
+    radio_base_id: int
+    nombre_ap: str
+    ip_gestion: str = None
+    mac: str = None
+    modelo: str = None
+    frecuencia: str = None
+    ancho_canal: str = None
+    ssid: str = None
+    azimut: str = None
+    altura: str = None
+    estatus: str = "ACTIVO"
+
+class MWAccessPointCreate(MWAccessPointBase):
+    pass
+
 class MicroondaUbiquitiBase(BaseModel):
+    ap_id: int = None # NUEVO: ID del Access Point Seleccionado
     ciudad: str = None
     sitio_base: str = None
     cliente: str = None
@@ -161,7 +189,6 @@ class MicroondaUbiquitiBase(BaseModel):
 
 class MicroondaUbiquitiCreate(MicroondaUbiquitiBase):
     cliente: str
-    sitio_base: str
 
 class MicroondaUbiquitiUpdate(MicroondaUbiquitiBase):
     pass
