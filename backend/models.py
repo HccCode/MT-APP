@@ -143,7 +143,6 @@ class MicroondasAccessPointModel(Base):
 class MicroondaUbiquitiModel(Base):
     __tablename__ = "inventario_microondas_ubq"
     id = Column(Integer, primary_key=True, index=True)
-    # NUEVO: Llave foránea para relacionar al cliente con un AP específico
     ap_id = Column(Integer, ForeignKey("inventario_microondas_ap.id", ondelete="SET NULL"), nullable=True)
     
     ciudad = Column(String(50), index=True)
@@ -155,6 +154,10 @@ class MicroondaUbiquitiModel(Base):
     frecuencia = Column(String(50))
     ancho_canal = Column(String(50))
     distancia_km = Column(String(50))
+    
+    # NUEVO: Ubicación geográfica específica del cliente/CPE
+    direccion = Column(Text, nullable=True)
+    coordenadas = Column(String(100), nullable=True)
     
     modelo_ap = Column(String(100))
     ip_gestion_ap = Column(String(50))

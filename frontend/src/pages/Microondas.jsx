@@ -14,7 +14,6 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
   const [editCampos, setEditCampos] = useState({});
   const [creandoNuevo, setCreandoNuevo] = useState(false);
 
-  // Auxiliar para el formulario de Enlaces
   const [formRbId, setFormRbId] = useState('');
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
@@ -46,7 +45,6 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
     setItemDetalle(item);
     setEditCampos(item);
     
-    // Si seleccionamos un enlace, auto-seleccionar la Radio Base temporal
     if (subTab === 'enlaces' && item.ap_id) {
         const ap = accessPoints.find(a => a.id === item.ap_id);
         if (ap) setFormRbId(ap.radio_base_id);
@@ -59,9 +57,9 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
     setItemDetalle(null);
     setCreandoNuevo(true);
     setFormRbId('');
-    if (subTab === 'enlaces') setEditCampos({ estatus: 'ACTIVO', cliente: '', ap_id: '' });
-    else if (subTab === 'radiobases') setEditCampos({ nombre: '', ciudad: '' });
-    else if (subTab === 'aps') setEditCampos({ radio_base_id: '', nombre_ap: '', estatus: 'ACTIVO' });
+    if (subTab === 'enlaces') setEditCampos({ estatus: 'ACTIVO', cliente: '', ap_id: '', direccion: '', coordenadas: '' });
+    else if (subTab === 'radiobases') setEditCampos({ nombre: '', ciudad: '', coordenadas: '', altura_torre: '' });
+    else if (subTab === 'aps') setEditCampos({ radio_base_id: '', nombre_ap: '', estatus: 'ACTIVO', frecuencia: '', ssid: '' });
   };
 
   const guardarItem = async () => {
@@ -102,7 +100,7 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
     } catch (e) { console.error(e); }
   };
 
-  // MAGIA UX: Cuando seleccionan el AP, rellenamos los datos de solo lectura para el enlace
+  // === EXPLICACIÓN: AUTO-COMPLETADO DE PARÁMETROS RF INCLUYENDO FRECUENCIA ===
   const manejarCambioAP = (ap_id) => {
       const idStr = String(ap_id);
       if (!idStr) {
@@ -121,32 +119,34 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
               modelo_ap: ap.modelo || '',
               ip_gestion_ap: ap.ip_gestion || '',
               mac_ap: ap.mac || '',
-              frecuencia: ap.frecuencia || '',
-              ancho_canal: ap.ancho_canal || '',
-              ssid: ap.ssid || ''
+              frecuencia: ap.frecuencia || '', // Auto-llenado de Frecuencia Maestro
+              ancho_canal: ap.ancho_canal || '', // Auto-llenado de Ancho de Canal Maestro
+              ssid: ap.ssid || '' // Auto-llenado de SSID Maestro
           });
       }
   };
+
+  const generarUrlMaps = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#070b19]">
       
       {/* MENÚ DE SUB-PESTAÑAS */}
       <div className="bg-[#0b132b] border-b border-slate-800 p-4 flex gap-2 shrink-0">
-          <button onClick={() => { setSubTab('enlaces'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors ${subTab==='enlaces' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
+          <button onClick={() => { setSubTab('enlaces'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors ${subTab==='enlaces' ? 'bg-blue-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
              <Link className="w-4 h-4"/> Enlaces (Clientes)
           </button>
-          <button onClick={() => { setSubTab('aps'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors ${subTab==='aps' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
+          <button onClick={() => { setSubTab('aps'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors ${subTab==='aps' ? 'bg-purple-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
              <Router className="w-4 h-4"/> Access Points
           </button>
-          <button onClick={() => { setSubTab('radiobases'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors ${subTab==='radiobases' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
+          <button onClick={() => { setSubTab('radiobases'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors ${subTab==='radiobases' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
              <MapPin className="w-4 h-4"/> Radio Bases
           </button>
       </div>
 
       <div className="flex-1 flex flex-col xl:flex-row gap-6 p-6 overflow-hidden">
         
-        {/* PANEL IZQUIERDO: TABLA CENTRAL */}
+        {/* TABLA CENTRAL */}
         <div className="xl:col-span-2 flex-1 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full max-w-md relative">
@@ -154,7 +154,7 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
               <input type="text" placeholder="Buscar..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-[#050814] border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 w-full rounded pl-9 py-2" />
             </div>
             {puedeEditar && (
-              <button onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 cursor-pointer shadow-lg ${subTab==='enlaces'?'bg-blue-600 hover:bg-blue-500':subTab==='aps'?'bg-purple-600 hover:bg-purple-500':'bg-emerald-600 hover:bg-emerald-500'}`}>
+              <button onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 cursor-pointer shadow-lg ${subTab==='enlaces'?'bg-blue-600':subTab==='aps'?'bg-purple-600':'bg-emerald-600'}`}>
                 <Plus className="w-4 h-4" /> Nuevo Registro
               </button>
             )}
@@ -162,8 +162,6 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
 
           <div className="flex-1 overflow-y-auto custom-scrollbar relative">
             <table className="w-full text-xs text-slate-300 text-left whitespace-nowrap">
-              
-              {/* CABECERAS DINÁMICAS */}
               <thead className="bg-[#0f172a] text-slate-400 uppercase font-bold sticky top-0 z-10 shadow-md">
                 {subTab === 'enlaces' && (
                   <tr><th className="p-3">Estatus</th><th className="p-3">Cliente / Servicio</th><th className="p-3">Sitio Base</th><th className="p-3">IP AP</th><th className="p-3">IP Cliente</th><th className="p-3">SSID</th></tr>
@@ -176,11 +174,9 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                 )}
               </thead>
 
-              {/* CUERPO DINÁMICO */}
               <tbody className="divide-y divide-slate-800/40">
-                
-                {subTab === 'enlaces' && enlaces.map((e) => (
-                  <tr key={e.id} onClick={() => seleccionarItem(e)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === e.id ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
+                {subTab === 'enlaces' && enlaces.map((e, i) => (
+                  <tr key={i} onClick={() => seleccionarItem(e)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === e.id ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
                     <td className="p-3 font-black text-[10px]">{e.estatus === 'ACTIVO' ? <span className="text-blue-400 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20">ACTIVO</span> : <span className="text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">{e.estatus}</span>}</td>
                     <td className="p-3 font-bold group-hover:text-blue-400">{e.cliente}</td>
                     <td className="p-3 text-emerald-400/80">{e.sitio_base}</td>
@@ -190,10 +186,10 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                   </tr>
                 ))}
 
-                {subTab === 'aps' && accessPoints.map((ap) => {
+                {subTab === 'aps' && accessPoints.map((ap, i) => {
                   const rbName = radioBases.find(r => r.id === ap.radio_base_id)?.nombre || 'Desconocida';
                   return (
-                  <tr key={ap.id} onClick={() => seleccionarItem(ap)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === ap.id ? 'bg-purple-600/10 border-l-4 border-l-purple-500' : ''}`}>
+                  <tr key={i} onClick={() => seleccionarItem(ap)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === ap.id ? 'bg-purple-600/10 border-l-4 border-l-purple-500' : ''}`}>
                     <td className="p-3 font-black text-[10px]">{ap.estatus === 'ACTIVO' ? <span className="text-blue-400 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20">ACTIVO</span> : <span className="text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">{ap.estatus}</span>}</td>
                     <td className="p-3 font-bold group-hover:text-purple-400">{ap.nombre_ap}</td>
                     <td className="p-3 text-emerald-400/80">{rbName}</td>
@@ -203,21 +199,20 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                   </tr>
                 )})}
 
-                {subTab === 'radiobases' && radioBases.map((rb) => (
-                  <tr key={rb.id} onClick={() => seleccionarItem(rb)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === rb.id ? 'bg-emerald-600/10 border-l-4 border-l-emerald-500' : ''}`}>
+                {subTab === 'radiobases' && radioBases.map((rb, i) => (
+                  <tr key={i} onClick={() => seleccionarItem(rb)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === rb.id ? 'bg-emerald-600/10 border-l-4 border-l-emerald-500' : ''}`}>
                     <td className="p-3 font-bold group-hover:text-emerald-400">{rb.nombre}</td>
                     <td className="p-3 text-slate-300">{rb.ciudad}</td>
                     <td className="p-3 font-mono text-amber-500/80">{rb.coordenadas || '-'}</td>
                     <td className="p-3 text-slate-400">{rb.altura_torre || '-'}</td>
                   </tr>
                 ))}
-
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* PANEL DERECHO: DETALLES Y EDICIÓN */}
+        {/* PANEL DERECHO */}
         <div className="w-full xl:w-1/3 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col shadow-xl">
           {(itemDetalle || creandoNuevo) ? (
             <div className="flex flex-col h-full overflow-hidden">
@@ -227,7 +222,7 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
               
               <div className="flex-1 overflow-y-auto mt-4 pr-2 space-y-4 custom-scrollbar text-[11px] text-slate-300">
                 
-                {/* --- FORMULARIO RADIO BASES --- */}
+                {/* FORMULARIO RADIO BASES */}
                 {subTab === 'radiobases' && (
                    <>
                      <div><label className="block text-slate-500 font-bold mb-1">NOMBRE RADIO BASE</label><input type="text" disabled={!puedeEditar} value={editCampos.nombre || ''} onChange={e=>setEditCampos({...editCampos, nombre: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
@@ -240,7 +235,7 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                    </>
                 )}
 
-                {/* --- FORMULARIO ACCESS POINTS --- */}
+                {/* FORMULARIO ACCESS POINTS */}
                 {subTab === 'aps' && (
                    <>
                      <div className="grid grid-cols-2 gap-3">
@@ -251,7 +246,7 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                            </select>
                         </div>
                         <div><label className="block text-slate-500 font-bold mb-1">ESTATUS</label>
-                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none cursor-pointer">
+                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none">
                               <option value="ACTIVO">ACTIVO</option>
                               <option value="SUSPENDIDO">SUSPENDIDO</option>
                               <option value="FALLA">FALLA / CAÍDO</option>
@@ -270,18 +265,14 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                            <div><label className="block text-slate-500 font-bold mb-1">SSID</label><input type="text" disabled={!puedeEditar} value={editCampos.ssid || ''} onChange={e=>setEditCampos({...editCampos, ssid: e.target.value})} className="w-full bg-[#050814] font-mono p-2 rounded border border-slate-700 text-white outline-none" /></div>
-                           <div><label className="block text-slate-500 font-bold mb-1">FRECUENCIA</label><input type="text" disabled={!puedeEditar} value={editCampos.frecuencia || ''} onChange={e=>setEditCampos({...editCampos, frecuencia: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="Ej: 5800"/></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">FRECUENCIA (MHz)</label><input type="text" disabled={!puedeEditar} value={editCampos.frecuencia || ''} onChange={e=>setEditCampos({...editCampos, frecuencia: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="Ej: 5800"/></div>
                            <div><label className="block text-slate-500 font-bold mb-1">ANCHO CANAL</label><input type="text" disabled={!puedeEditar} value={editCampos.ancho_canal || ''} onChange={e=>setEditCampos({...editCampos, ancho_canal: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="20/40/80"/></div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                           <div><label className="block text-slate-500 font-bold mb-1">AZIMUT (Grados)</label><input type="text" disabled={!puedeEditar} value={editCampos.azimut || ''} onChange={e=>setEditCampos({...editCampos, azimut: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
-                           <div><label className="block text-slate-500 font-bold mb-1">ALTURA INSTALACIÓN</label><input type="text" disabled={!puedeEditar} value={editCampos.altura || ''} onChange={e=>setEditCampos({...editCampos, altura: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
                         </div>
                      </div>
                    </>
                 )}
 
-                {/* --- FORMULARIO ENLACES (CLIENTES) --- */}
+                {/* FORMULARIO ENLACES (CLIENTES) */}
                 {subTab === 'enlaces' && (
                    <>
                      <div className="grid grid-cols-2 gap-3 mb-2">
@@ -301,40 +292,57 @@ export default function Microondas({ token, puedeEditar, handleLogout }) {
                         <div className="grid grid-cols-2 gap-3">
                            <div>
                               <label className="block text-blue-300/70 font-bold mb-1">1. FILTRAR POR RADIO BASE</label>
-                              <select disabled={!puedeEditar} value={formRbId} onChange={e=>setFormRbId(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-emerald-400 outline-none cursor-pointer">
+                              <select disabled={!puedeEditar} value={formRbId} onChange={e=>setFormRbId(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-emerald-400 font-bold outline-none">
                                  <option value="">-- Seleccionar Base --</option>
                                  {radioBases.map(rb => <option key={rb.id} value={rb.id}>{rb.nombre}</option>)}
                               </select>
                            </div>
                            <div>
                               <label className="block text-blue-300/70 font-bold mb-1">2. SELECCIONAR ACCESS POINT</label>
-                              <select disabled={!puedeEditar || (!formRbId && !editCampos.ap_id)} value={editCampos.ap_id || ''} onChange={e=>manejarCambioAP(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-purple-400 font-bold outline-none cursor-pointer">
+                              <select disabled={!puedeEditar || (!formRbId && !editCampos.ap_id)} value={editCampos.ap_id || ''} onChange={e=>manejarCambioAP(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-purple-400 font-bold outline-none">
                                  <option value="">-- Seleccionar AP --</option>
                                  {accessPoints.filter(ap => !formRbId || ap.radio_base_id == formRbId).map(ap => <option key={ap.id} value={ap.id}>{ap.nombre_ap} ({ap.ssid})</option>)}
                               </select>
                            </div>
                         </div>
-                        {editCampos.ap_id && (
-                           <div className="text-[9px] text-blue-400/60 mt-1 italic">
-                              SSID, Frecuencias y datos de Torre se han copiado automáticamente del AP maestro.
-                           </div>
-                        )}
                      </div>
 
-                     {/* Station / CPE */}
+                     {/* NUEVO: UBICACIÓN GEOGRÁFICA DEL CLIENTE */}
                      <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
-                        <h4 className="font-bold text-amber-500 uppercase border-b border-slate-800 pb-1">Equipo Cliente (Station / CPE)</h4>
+                        <h4 className="font-bold text-emerald-400 uppercase border-b border-slate-800 pb-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Ubicación de Entrega</h4>
+                        <div>
+                           <label className="block text-slate-500 font-bold mb-1">DIRECCIÓN DEL CLIENTE</label>
+                           <input type="text" disabled={!puedeEditar} value={editCampos.direccion || ''} onChange={e=>setEditCampos({...editCampos, direccion: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none focus:border-blue-500" placeholder="Calle, Número, Colonia" />
+                        </div>
+                        <div>
+                           <label className="block text-slate-500 font-bold mb-1">COORDENADAS CPE</label>
+                           <div className="flex bg-[#050814] border border-slate-700 rounded overflow-hidden focus-within:border-amber-500">
+                              <input type="text" disabled={!puedeEditar} value={editCampos.coordenadas || ''} onChange={e=>setEditCampos({...editCampos, coordenadas: e.target.value})} className="w-full bg-transparent p-2 text-amber-400 font-mono outline-none" placeholder="Latitud, Longitud" />
+                              {editCampos.coordenadas && (
+                                 <a href={generarUrlMaps(editCampos.coordenadas)} target="_blank" rel="noreferrer" className="px-3 bg-amber-600 hover:bg-amber-500 text-white flex items-center justify-center border-l border-slate-700"><MapPin className="w-4 h-4" /></a>
+                              )}
+                           </div>
+                        </div>
+                     </div>
+
+                     {/* Station / CPE y RF (Auto-completados por AP, Señales Editables) */}
+                     <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
+                        <h4 className="font-bold text-amber-500 uppercase border-b border-slate-800 pb-1">Radiofrecuencia e Interfaz (CPE)</h4>
                         <div className="grid grid-cols-2 gap-3">
-                           <div><label className="block text-slate-500 font-bold mb-1">MODELO UBIQUITI</label><input type="text" disabled={!puedeEditar} value={editCampos.modelo_st || ''} onChange={e=>setEditCampos({...editCampos, modelo_st: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
-                           <div><label className="block text-slate-500 font-bold mb-1">IP GESTIÓN CLIENTE</label><input type="text" disabled={!puedeEditar} value={editCampos.ip_gestion_st || ''} onChange={e=>setEditCampos({...editCampos, ip_gestion_st: e.target.value})} className="w-full bg-[#050814] font-mono text-emerald-400 p-2 rounded border border-slate-700 outline-none" /></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">FRECUENCIA ACTUAL (AP)</label><input type="text" disabled={true} value={editCampos.frecuencia || ''} className="w-full bg-slate-900/50 font-mono text-slate-400 p-2 rounded border border-slate-800 outline-none cursor-not-allowed" placeholder="Auto-completado" /></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">SSID VINCULADO</label><input type="text" disabled={true} value={editCampos.ssid || ''} className="w-full bg-slate-900/50 font-mono text-slate-400 p-2 rounded border border-slate-800 outline-none cursor-not-allowed" placeholder="Auto-completado" /></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                           <div><label className="block text-slate-500 font-bold mb-1">MODELO CPE CLIENTE</label><input type="text" disabled={!puedeEditar} value={editCampos.modelo_st || ''} onChange={e=>setEditCampos({...editCampos, modelo_st: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="Ej: LiteBeam 5AC Gen2" /></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">IP GESTIÓN CLIENTE</label><input type="text" disabled={!puedeEditar} value={editCampos.ip_gestion_st || ''} onChange={e=>setEditCampos({...editCampos, ip_gestion_st: e.target.value})} className="w-full bg-[#050814] font-mono text-emerald-400 p-2 rounded border border-slate-700 outline-none" placeholder="Ej: 10.x.x.x" /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                            <div><label className="block text-slate-500 font-bold mb-1">MAC ADDRESS CPE</label><input type="text" disabled={!puedeEditar} value={editCampos.mac_st || ''} onChange={e=>setEditCampos({...editCampos, mac_st: e.target.value})} className="w-full bg-[#050814] font-mono p-2 rounded border border-slate-700 text-slate-400 outline-none" /></div>
                            <div><label className="block text-slate-500 font-bold mb-1">DISTANCIA (km)</label><input type="text" disabled={!puedeEditar} value={editCampos.distancia_km || ''} onChange={e=>setEditCampos({...editCampos, distancia_km: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX AP (Remoto)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_ap || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_ap: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-55" title="Señal con la que la torre escucha al cliente"/></div>
-                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX ST (Local)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_st || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_st: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-56" title="Señal con la que el cliente escucha a la torre"/></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX AP (dBm)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_ap || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_ap: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-55" /></div>
+                           <div><label className="block text-slate-500 font-bold mb-1">SEÑAL RX ST (dBm)</label><input type="text" disabled={!puedeEditar} value={editCampos.senal_rx_st || ''} onChange={e=>setEditCampos({...editCampos, senal_rx_st: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="-56" /></div>
                         </div>
                      </div>
                      <div><label className="block text-slate-500 font-bold mb-1">COMENTARIOS</label><textarea rows="2" disabled={!puedeEditar} value={editCampos.comentarios || ''} onChange={e=>setEditCampos({...editCampos, comentarios: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white resize-none outline-none" /></div>

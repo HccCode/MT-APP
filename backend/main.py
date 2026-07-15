@@ -25,17 +25,23 @@ try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE sys_usuarios ADD COLUMN must_change_password INTEGER DEFAULT 1"))
         conn.commit()
-except Exception:
-    pass
+except Exception: pass
 
-# === SOLUCIÓN: PARCHE AUTOMÁTICO PARA MICROONDAS ===
+# Parche automático para el mapeo relacional de Microondas
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE inventario_microondas_ubq ADD COLUMN ap_id INTEGER REFERENCES inventario_microondas_ap(id) ON DELETE SET NULL"))
         conn.commit()
-except Exception:
-    pass
-# ===================================================
+except Exception: pass
+
+# === NUEVO: PARCHE AUTOMÁTICO PARA UBICACIÓN EN ENLACES ===
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE inventario_microondas_ubq ADD COLUMN direccion TEXT"))
+        conn.execute(text("ALTER TABLE inventario_microondas_ubq ADD COLUMN coordenadas VARCHAR(100)"))
+        conn.commit()
+except Exception: pass
+# ==========================================================
 
 try:
     db_init = SessionLocal()
