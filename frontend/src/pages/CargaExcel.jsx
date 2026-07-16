@@ -57,7 +57,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     return String(nombreRaw).replace(/^[0-9]+_/, '').replace(/_[0-9]+(:[0-9]+)?$/, '').replace(/_/g, ' ').trim();
   };
 
-  // CORREÇÃO APLICADA AQUI: Retornar objetos {id, nombre} em vez de apenas strings
   const obtenerCiudadesOrdenadas = (region) => {
     if (!region || !estructuraGeografica[region]?.ciudades) return [];
     return Object.keys(estructuraGeografica[region].ciudades).map(nombre => ({
@@ -257,7 +256,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         <div className="bg-red-950/20 border border-red-900/50 p-10 rounded-2xl text-center max-w-md">
           <ShieldCheck className="w-16 h-16 text-red-500/50 mx-auto mb-4" />
           <h2 className="text-xl font-black text-red-400 mb-2 uppercase tracking-widest">Acceso Denegado</h2>
-          <p className="text-slate-400 text-sm">Tu nivel de autorización no permite a execução de rotinas de carga em massa no MT_DB.</p>
+          <p className="text-slate-400 text-sm">Tu nivel de autorización no permite la ejecución de rutinas de carga masiva en MT_DB.</p>
         </div>
       </div>
     );
@@ -272,7 +271,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
             <UploadCloud className="w-6 h-6 text-emerald-500" /> 
             Aprovisionamiento Masivo (Carga DML)
         </h2>
-        <p className="text-xs text-slate-500 mt-1">Motor de ingesta de datos. Utiliza esta ferramenta para criar ou sobrescrever inventários em grande escala.</p>
+        <p className="text-xs text-slate-500 mt-1">Motor de ingesta de datos. Utiliza esta herramienta para crear o sobrescribir inventarios a gran escala.</p>
       </div>
 
       {/* PESTAÑAS TECNOLÓGICAS */}
@@ -295,7 +294,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
               <h1 className={`text-2xl font-black flex items-center gap-3 ${tabActiva==='fibra' ? 'text-emerald-400' : 'text-purple-400'}`}>
                 <Database className="w-7 h-7" /> {tabActiva === 'fibra' ? 'Aprovisionamiento FO' : 'Aprovisionamiento MW'}
               </h1>
-              <p className="text-slate-400 text-sm mt-1">Da de alta novo equipamento ou injeta dados massivos a partir de um Excel.</p>
+              <p className="text-slate-400 text-sm mt-1">Da de alta nuevo equipo o inyecta datos masivos a partir de un Excel.</p>
             </div>
             {tabActiva === 'fibra' && paso === 1 && (
               <div className="flex bg-[#050814] border border-slate-700 p-1 rounded-xl">
@@ -467,8 +466,8 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                   <div className={`p-4 rounded-full group-hover:scale-110 transition-transform duration-300 ${tabActiva === 'microondas' ? 'bg-purple-500/10' : 'bg-indigo-500/10'}`}>
                     <UploadCloud className={`w-12 h-12 ${tabActiva === 'microondas' ? 'text-purple-400' : 'text-indigo-400'}`} />
                   </div>
-                  <h3 className="text-white font-bold mt-4 text-lg">Seleciona tu archivo Excel</h3>
-                  <p className="text-slate-500 text-sm mt-1 max-w-xs">Peligro: Pode sobrescrever dados se o arquivo contiver chaves primárias existentes.</p>
+                  <h3 className="text-white font-bold mt-4 text-lg">Selecciona tu archivo Excel</h3>
+                  <p className="text-slate-500 text-sm mt-1 max-w-xs">Peligro: Puede sobrescribir datos si el archivo contiene claves primarias existentes.</p>
                 </label>
 
                 {archivo && (
@@ -484,7 +483,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                         </button>
                     ) : (
                         <button onClick={procesarExcelMicroondas} disabled={cargando || !ciudadSelec} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all disabled:opacity-50 flex justify-center items-center gap-2">
-                          {cargando ? 'Subiendo Masivo...' : 'Injetar Microondas'} <ArrowRight className="w-4 h-4" />
+                          {cargando ? 'Subiendo Masivo...' : 'Inyectar Microondas'} <ArrowRight className="w-4 h-4" />
                         </button>
                     )}
 
@@ -509,15 +508,15 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                 {hayErrores ? <AlertOctagon className="w-6 h-6 text-red-500 animate-pulse" /> : <CheckCircle className="w-6 h-6 text-emerald-500" />}
                 <div>
                   <h2 className={`font-black text-lg uppercase tracking-wider ${hayErrores ? 'text-red-400' : 'text-emerald-400'}`}>
-                    {hayErrores ? '⚠️ Errores en la validación' : '✅ Lote aprobado para injeção'}
+                    {hayErrores ? '⚠️ Errores en la validación' : '✅ Lote aprobado para inyección'}
                   </h2>
-                  <p className="text-xs text-slate-400">{previewData.length} registros estruturados na memória.</p>
+                  <p className="text-xs text-slate-400">{previewData.length} registros estructurados en memoria.</p>
                 </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={reiniciarProceso} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold transition">Descartar</button>
                 <button onClick={modoCarga === 'manual' ? guardarChasisManual : () => procesarExcelFibra('commit')} disabled={hayErrores || cargando} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-black uppercase tracking-widest shadow-[0_0_15px_rgba(16,185,129,0.3)] transition disabled:opacity-50 disabled:cursor-not-allowed">
-                  {cargando ? 'Processando no MT_DB...' : 'Injetar na Rede'}
+                  {cargando ? 'Procesando en MT_DB...' : 'Inyectar en la Red'}
                 </button>
               </div>
             </div>
@@ -532,7 +531,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                     ) : (
                         <><th className="p-3">CABEZAL ID</th><th className="p-3">MARCA/MOD</th><th className="p-3">SERVICIO</th><th className="p-3">PORTADORA / CANAL</th></>
                     )}
-                    <th className="p-3">VEREDICTO DO SISTEMA</th>
+                    <th className="p-3">VEREDICTO DEL SISTEMA</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/50">
@@ -564,7 +563,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                             {fila._errores.map((err, i) => <span key={i}>• {err}</span>)}
                           </div>
                         ) : (
-                          <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Pronto para injeção</span>
+                          <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Listo para inyección</span>
                         )}
                       </td>
                     </tr>
@@ -581,13 +580,13 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
             <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
               <CheckCircle className="w-10 h-10 text-emerald-400" />
             </div>
-            <h2 className="text-3xl font-black text-white mb-2">Aprovisionamiento Efetuado</h2>
+            <h2 className="text-3xl font-black text-white mb-2">Aprovisionamiento Efectuado</h2>
             <p className="text-emerald-400 font-medium mb-8">
               {modoCarga === 'manual' 
-                ? `O chassi ${nuevoEquipo.chasis} e suas ${previewData.length} portas foram criados com sucesso no banco de dados.` 
-                : 'O inventário em massa do Excel foi injetado no MT_DB.'}
+                ? `El chasis ${nuevoEquipo.chasis} y sus ${previewData.length} puertos fueron creados con éxito en la base de datos.` 
+                : 'El inventario masivo de Excel fue inyectado en MT_DB.'}
             </p>
-            <button onClick={reiniciarProceso} className="bg-[#0b132b] border border-slate-700 hover:border-emerald-500 text-white px-6 py-3 rounded-lg font-bold transition shadow-lg">Registrar Novo Movimento</button>
+            <button onClick={reiniciarProceso} className="bg-[#0b132b] border border-slate-700 hover:border-emerald-500 text-white px-6 py-3 rounded-lg font-bold transition shadow-lg">Registrar Nuevo Movimiento</button>
           </div>
         )}
       </div>
