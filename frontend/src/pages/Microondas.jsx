@@ -21,17 +21,14 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
   const [editCampos, setEditCampos] = useState({});
   const [creandoNuevo, setCreandoNuevo] = useState(false);
 
-  // Auxiliar para el formulario de selección en cascada dentro del panel lateral
   const [formRbId, setFormRbId] = useState('');
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // Persistencia de filtros en almacenamiento local
   useEffect(() => { localStorage.setItem('mcm_mw_reg', mwReg); }, [mwReg]);
   useEffect(() => { localStorage.setItem('mcm_mw_cd', mwCd); }, [mwCd]);
   useEffect(() => { localStorage.setItem('mcm_mw_rb', mwRb); }, [mwRb]);
 
-  // Selección automática de la primera región para usuarios no administradores
   useEffect(() => {
     if (!mwReg && estructuraGeografica && Object.keys(estructuraGeografica).length > 0) {
       setMwReg(Object.keys(estructuraGeografica)[0]);
@@ -93,7 +90,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
     setCreandoNuevo(true);
     setFormRbId('');
     
-    // UX Avanzada: Auto-asignamos la ciudad y base según los filtros maestros actuales
     if (subTab === 'enlaces') {
       setEditCampos({ 
         estatus: 'ACTIVO', cliente: '', ap_id: '', direccion: '', coordenadas: '',
@@ -173,11 +169,10 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
       }
   };
 
-  const generarUrlMaps = (query) => `https://maps.google.com/?q=${encodeURIComponent(query)}`;
+  const generarUrlMaps = (query) => `http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(query)}`;
 
-  // --- FILTRADO DE LISTAS EN TIEMPO REAL SEGÚN SELECTORES MAESTROS ---
+  // --- FILTRADO DE LISTAS EN TIEMPO REAL ---
   const radioBasesFiltradas = radioBases.filter(rb => !mwCd || String(rb.ciudad).toUpperCase() === String(mwCd).toUpperCase());
-  
   const rbIdsDeCiudad = radioBasesFiltradas.map(r => r.id);
   
   const apsFiltrados = accessPoints.filter(ap => {
@@ -203,7 +198,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-[#070b19]">
       
-      {/* 1. FILTROS MAESTROS SUPERIORES (IDENTICO A INVENTARIO) */}
+      {/* 1. FILTROS MAESTROS SUPERIORES */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-3 shrink-0">
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
           <span className="px-3 py-1 rounded-md text-indigo-400 border border-indigo-500/30 shadow-sm uppercase tracking-wider font-bold">ZONA RF</span>
@@ -247,7 +242,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
       {/* AREA DE TRABAJO */}
       <div className="flex-1 flex flex-col xl:flex-row gap-6 p-6 overflow-hidden">
         
-        {/* TABLA PRINCIPAL DE REGISTROS */}
+        {/* TABLA CENTRAL */}
         <div className="xl:col-span-2 flex-1 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full max-w-md relative">
@@ -256,7 +251,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
             </div>
             {puedeEditar && (
               <button disabled={!mwCd} onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all ${subTab==='enlaces'?'bg-blue-600 hover:bg-blue-500':subTab==='aps'?'bg-purple-600 hover:bg-purple-500':'bg-emerald-600 hover:bg-emerald-500'}`}>
-                <Plus className="w-4 h-4" /> Nuevo{'...'}
+                <Plus className="w-4 h-4" /> Nuevo
               </button>
             )}
           </div>
@@ -268,7 +263,8 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                   <tr><th className="p-3">Estatus</th><th className="p-3">Cliente / Servicio</th><th className="p-3">Sitio Base</th><th className="p-3">IP AP</th><th className="p-3">IP Cliente</th><th className="p-3">SSID</th></tr>
                 )}
                 {subTab === 'aps' && (
-                  <tr><th className="p-3">Estatus</th><th className="p-3">Nombre AP</th><th className="p-3">Radio Base</th><th className="p-3">Modelo</th><th className="p-3">IP Gestión</th><th className="p-3">SSID</th></tr>
+                  // === NUEVO: Columnas añadidas al listado para visualizarlas al vuelo ===
+                  <tr><th className="p-3">Estatus</th><th className="p-3">Nombre AP</th><th className="p-3">Radio Base</th><th className="p-3">Frecuencia</th><th className="p-3">Ancho Canal</th><th className="p-3">IP Gestión</th><th className="p-3">SSID</th></tr>
                 )}
                 {subTab === 'radiobases' && (
                   <tr><th className="p-3">Nombre Radio Base</th><th className="p-3">Ciudad</th><th className="p-3">Coordenadas</th><th className="p-3">Altura Torre</th></tr>
@@ -298,7 +294,11 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                     <td className="p-3 font-black text-[10px]">{ap.estatus === 'ACTIVO' ? <span className="text-blue-400 bg-blue-500/10 px-2 py-1 rounded border border-blue-500/20">ACTIVO</span> : <span className="text-amber-400 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">{ap.estatus}</span>}</td>
                     <td className="p-3 font-bold group-hover:text-purple-400">{ap.nombre_ap}</td>
                     <td className="p-3 text-emerald-400/80">{rbName}</td>
-                    <td className="p-3 text-slate-400">{ap.modelo}</td>
+                    
+                    {/* === NUEVO: Renderizado de celdas RF con estilos llamativos === */}
+                    <td className="p-3 font-mono text-amber-400 font-bold">{ap.frecuencia ? `${ap.frecuencia} MHz` : '-'}</td>
+                    <td className="p-3 font-mono text-indigo-400">{ap.ancho_canal ? `${ap.ancho_canal} MHz` : '-'}</td>
+                    
                     <td className="p-3 font-mono text-slate-400">{ap.ip_gestion}</td>
                     <td className="p-3 font-mono text-purple-400/80">{ap.ssid}</td>
                   </tr>
@@ -390,7 +390,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                         </div>
                      </div>
 
-                     {/* VINCULACIÓN AL ACCESS POINT */}
                      <div className="p-3 border border-blue-500/30 rounded-lg bg-blue-900/10 space-y-3">
                         <h4 className="font-bold text-blue-400 uppercase flex items-center gap-1 border-b border-blue-900 pb-1"><Link className="w-3 h-3"/> Vinculación a Torre</h4>
                         <div className="grid grid-cols-2 gap-3">
@@ -411,7 +410,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                         </div>
                      </div>
 
-                     {/* UBICACIÓN GEOGRÁFICA DEL CLIENTE */}
                      <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
                         <h4 className="font-bold text-emerald-400 uppercase border-b border-slate-800 pb-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Ubicación de Entrega</h4>
                         <div>
@@ -429,7 +427,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                         </div>
                      </div>
 
-                     {/* DATOS RF DEL CPE */}
                      <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
                         <h4 className="font-bold text-amber-500 uppercase border-b border-slate-800 pb-1">Radiofrecuencia e Interfaz (CPE)</h4>
                         
