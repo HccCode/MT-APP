@@ -8,7 +8,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
   const [mwRb, setMwRb] = useState(() => localStorage.getItem('mcm_mw_rb') || 'TODOS');
 
   // --- CONTROL DE SUB-PESTAÑAS INTERNAS ---
-  const [subTab, setSubTab] = useState('enlaces'); // 'enlaces', 'radiobases', 'aps'
+  const [subTab, setSubTab] = useState('enlaces'); 
   
   // --- ESTADOS DE DATOS CRUD ---
   const [enlaces, setEnlaces] = useState([]);
@@ -105,7 +105,41 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
     }
   };
 
+  // === SOLUCIÓN ERROR 422: Sanitización y validación estricta ===
   const guardarItem = async () => {
+    const payload = { ...editCampos };
+
+    // Validaciones de seguridad para evitar choques en Base de Datos
+    if (subTab === 'aps') {
+        if (!payload.radio_base_id || isNaN(parseInt(payload.radio_base_id))) {
+            alert("Error: Debes seleccionar una Radio Base Padre válida para este AP.");
+            return;
+        }
+        if (!payload.nombre_ap || String(payload.nombre_ap).trim() === '') {
+            alert("Error: El Nombre del AP es obligatorio.");
+            return;
+        }
+        payload.radio_base_id = parseInt(payload.radio_base_id);
+    } 
+    else if (subTab === 'radiobases') {
+        if (!payload.nombre || String(payload.nombre).trim() === '') {
+            alert("Error: El Nombre de la Radio Base es obligatorio.");
+            return;
+        }
+    } 
+    else if (subTab === 'enlaces') {
+        if (!payload.cliente || String(payload.cliente).trim() === '') {
+            alert("Error: El nombre del Cliente / Servicio es obligatorio.");
+            return;
+        }
+        // Sanitizar ID del AP para que no envíe strings vacíos al Backend numérico
+        if (payload.ap_id) {
+            payload.ap_id = parseInt(payload.ap_id);
+        } else {
+            payload.ap_id = null; 
+        }
+    }
+
     try {
       const isUpdate = !creandoNuevo && itemDetalle?.id;
       let endpoint = '/api/microondas';
@@ -117,7 +151,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
       const res = await fetch(url, {
         method: isUpdate ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(editCampos)
+        body: JSON.stringify(payload)
       });
 
       if (res.ok) {
@@ -126,9 +160,11 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
         setItemDetalle(null);
         cargarDatosSistemas();
       } else {
-        alert("Error de validación o parámetros duplicados.");
+        const errorData = await res.json();
+        console.error("Detalle del Error Backend:", errorData);
+        alert("Error de validación. Revisa que todos los parámetros sean correctos.");
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error de Red:", e); }
   };
 
   const eliminarItem = async () => {
@@ -169,7 +205,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
       }
   };
 
-  // URL CORRECTA PARA GOOGLE MAPS
   const generarUrlMaps = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
   // --- FILTRADO DE LISTAS EN TIEMPO REAL ---
@@ -303,7 +338,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                   </tr>
                 )})}
 
-                {/* AQUÍ ESTÁ EL ENLACE A GOOGLE MAPS PARA LA TABLA DE RADIO BASES */}
                 {!cargando && mwCd && subTab === 'radiobases' && radioBasesFiltradas.map((rb, i) => (
                   <tr key={i} onClick={() => seleccionarItem(rb)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === rb.id ? 'bg-emerald-600/10 border-l-4 border-l-emerald-500' : ''}`}>
                     <td className="p-3 font-bold group-hover:text-emerald-400">{rb.nombre}</td>
@@ -367,7 +401,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                    <>
                      <div className="grid grid-cols-2 gap-3">
                         <div><label className="block text-slate-500 font-bold mb-1">RADIO BASE PADRE</label>
-                           <select disabled={!puedeEditar} value={editCampos.radio_base_id || ''} onChange={e=>setEditCampos({...editCampos, radio_base_id: parseInt(e.target.value)})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-emerald-400 font-bold outline-none cursor-pointer">
+                           <select disabled={!puedeEditar} value={editCampos.radio_base_id || ''} onChange={e=>setEditCampos({...editCampos, radio_base_id: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-emerald-400 font-bold outline-none cursor-pointer">
                               <option value="">-- Seleccionar --</option>
                               {radioBasesFiltradas.map(rb => <option key={rb.id} value={rb.id}>{rb.nombre}</option>)}
                            </select>
