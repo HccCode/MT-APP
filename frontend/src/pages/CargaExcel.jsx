@@ -293,7 +293,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
           <div className="flex items-center justify-between">
             <div>
               <h1 className={`text-2xl font-black flex items-center gap-3 ${tabActiva==='fibra' ? 'text-emerald-400' : 'text-purple-400'}`}>
-                <Database className="w-7 h-7" /> {tabActiva === 'fibra' ? 'Aprovisionamiento FO' : 'Ingesta MW Ubiquiti'}
+                <Database className="w-7 h-7" /> {tabActiva === 'fibra' ? 'Aprovisionamiento FO' : 'Aprovisionamiento MW'}
               </h1>
               <p className="text-slate-400 text-sm mt-1">Da de alta novo equipamento ou injeta dados massivos a partir de um Excel.</p>
             </div>

@@ -63,50 +63,98 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
     return {"status": "success"}
 
 @router.post("/cabezales/upload-excel")
-async def upload_cabezales_excel(mode: str = Query("preview"), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+async def upload_cabezales_excel(
+    ciudad: str = Query(...), # AÑADIDO PARA EVITAR QUE SE PIERDA Y PARA INYECTARLO CORRECTAMENTE
+    mode: str = Query("preview"), 
+    file: UploadFile = File(...), 
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     if not can_upload_excel(current_user): raise HTTPException(status_code=403)
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))): return JSONResponse(status_code=400, content={"status": "error", "detail": "Excel inválido."})
+    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))): 
+        return JSONResponse(status_code=400, content={"status": "error", "detail": "Excel inválido."})
     try:
         contents = await file.read()
-        df = pd.read_excel(io.BytesIO(contents)).fillna("")
+        # Forzamos openpyxl
+        df = pd.read_excel(io.BytesIO(contents), engine='openpyxl').fillna("")
         column_headers = [str(col).upper().strip() for col in df.columns]
 
         def get_idx(targets): return next((column_headers.index(t) for t in targets if t in column_headers), -1)
 
-        idx_ciudad = get_idx(["CIUDAD"])
-        idx_id = get_idx(["ID", "ID EQUIPO", "ID_EQUIPO"])
-        idx_servicio = get_idx(["SERVICIO", "CLIENTE", "CLIENTE / SERVICIO"])
-        idx_canal, idx_nombre = get_idx(["# CANAL", "CANAL NUM", "CANAL"]), get_idx(["NOMBRE DE CANAL", "NOMBRE CANAL"])
+        idx_id = get_idx(["ID_EQUIPO", "ID EQUIPO", "ID"])
+        idx_marca = get_idx(["MARCA"])
+        idx_modelo = get_idx(["MODELO"])
+        idx_servicio = get_idx(["SERVICIO", "CLIENTE"])
+        idx_canal = get_idx(["CANAL", "# CANAL", "CANAL NUM"])
+        idx_nombre = get_idx(["NOMBRE CANAL", "NOMBRE DE CANAL"])
+        idx_portadora = get_idx(["PORTADORA"])
 
-        if idx_id == -1 or idx_servicio == -1 or idx_ciudad == -1: 
-            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes."})
+        if idx_id == -1: 
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta la columna ID_EQUIPO en el archivo."})
 
         preview_data = []
         has_errors = False
+        
         for _, row in df.iterrows():
             vals = list(row.values)
             def read_val(idx): return str(vals[idx]).strip() if idx != -1 and idx < len(vals) else ""
-            val_id, val_servicio, val_ciudad = read_val(idx_id), read_val(idx_servicio), read_val(idx_ciudad)
-            if not val_id and not val_servicio and not val_ciudad and not read_val(idx_canal): continue
-            errores_fila = []
-            if not val_id: errores_fila.append("Falta ID de Equipo.")
-            if not val_servicio: errores_fila.append("Falta Servicio.")
             
+            val_id = read_val(idx_id)
+            val_servicio = read_val(idx_servicio)
+            
+            if not val_id or val_id.upper() == "NAN": continue
+            
+            errores_fila = []
             valido = len(errores_fila) == 0
             if not valido: has_errors = True
-            preview_data.append({"ID_EQUIPO": val_id, "CIUDAD": val_ciudad, "SERVICIO": val_servicio, "CANAL": read_val(idx_canal), "NOMBRE_CANAL": read_val(idx_nombre), "_errores": errores_fila, "_valido": valido})
+            
+            preview_data.append({
+                "ID_EQUIPO": val_id, 
+                "CIUDAD": ciudad, # Usamos la ciudad que viene del parametro en la URL
+                "SERVICIO": val_servicio, 
+                "MARCA": read_val(idx_marca),
+                "MODELO": read_val(idx_modelo),
+                "CANAL": read_val(idx_canal), 
+                "PORTADORA": read_val(idx_portadora),
+                "NOMBRE_CANAL": read_val(idx_nombre), 
+                "_errores": errores_fila, 
+                "_valido": valido
+            })
 
-        if mode == "preview": return {"status": "success", "data": preview_data, "has_errors": has_errors}
+        if mode == "preview": 
+            return {"status": "success", "data": preview_data, "has_errors": has_errors}
 
-        # Committing the data (simplified logic for structure)
+        # === LÓGICA DE INYECCIÓN (COMMIT) ===
+        for item in preview_data:
+            if not item["_valido"]: continue
+            
+            cab_db = db.query(CabezalModel).filter(
+                CabezalModel.ciudad == ciudad, 
+                CabezalModel.id_equipo == item["ID_EQUIPO"]
+            ).first()
+            
+            if cab_db:
+                # Update existente
+                if item.get("SERVICIO"): cab_db.servicio = item["SERVICIO"]
+                if item.get("MARCA"): cab_db.marca = item["MARCA"]
+                if item.get("MODELO"): cab_db.modelo = item["MODELO"]
+            else:
+                # Crea nuevo
+                db.add(CabezalModel(
+                    ciudad=ciudad,
+                    id_equipo=item["ID_EQUIPO"],
+                    servicio=item.get("SERVICIO"),
+                    marca=item.get("MARCA"),
+                    modelo=item.get("MODELO")
+                ))
+                
         db.commit()
-        registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", "Se actualizaron cabezales mediante Excel.")
-        return {"status": "success", "detail": "Proceso completado."}
+        registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", f"Carga masiva por Excel en {ciudad}.")
+        return {"status": "success", "detail": "Cabezales inyectados con éxito."}
     except Exception as e:
         db.rollback()
-        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error procesando el Excel: {str(e)}"})
 
-        # ================= EXPORTACIÓN EXCEL ALINEACIÓN =================
 @router.get("/cabezales/{cabezal_id}/exportar-excel")
 def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
     try:

@@ -14,7 +14,7 @@ from openpyxl.utils import get_column_letter
 from database import get_db
 from models import PortModel, CityModel, RegionModel, HubMappingModel, ConfigCiudadModel, UserModel, AuditLogModel
 from schemas import PortUpdate, PortBulkUpdate, ConfigCiudadUpdate, ResumenExportReq
-from config import ALLOWED_EXCEL_MIME_TYPES, MAX_EXCEL_FILE_SIZE # Debes agregar MAX_EXCEL_FILE_SIZE = 5 * 1024 * 1024 en config.py
+from config import ALLOWED_EXCEL_MIME_TYPES, MAX_EXCEL_FILE_SIZE
 from security import get_current_user, is_admin, can_edit_ports, can_upload_excel, registrar_auditoria
 
 router = APIRouter(prefix="/api", tags=["Inventario y Puertos"])
@@ -44,7 +44,8 @@ def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_curr
                 })
                 if len(resultados) >= 40: break
         return {"status": "success", "data": resultados}
-    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "data": [], "detail": str(e)})
+    except Exception as e: 
+        return JSONResponse(status_code=500, content={"status": "error", "data": [], "detail": str(e)})
 
 @router.get("/hubs")
 def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
@@ -73,7 +74,8 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
             }, 
             "puertos": puertos_lista
         }
-    except Exception as e: return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+    except Exception as e: 
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
 
 @router.put("/ports/bulk-update")
 def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -116,28 +118,46 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
     return {"status": "success"}
 
 @router.post("/hubs/upload-excel")
-async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"), file: UploadFile = File(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not can_upload_excel(current_user): raise HTTPException(status_code=403)
+async def upload_hub_excel(
+    id_hub: str = Query(...), 
+    mode: str = Query("preview"), 
+    file: UploadFile = File(...), 
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    if not can_upload_excel(current_user): 
+        raise HTTPException(status_code=403)
     if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))):
         return JSONResponse(status_code=400, content={"status": "error", "detail": "Excel inválido."})
+    
     try:
         contents = await file.read()
-        if len(contents) > MAX_EXCEL_FILE_SIZE: return JSONResponse(status_code=400, content={"status": "error", "detail": "Supera 5MB."})
-        df = pd.read_excel(io.BytesIO(contents), header=None).fillna("")
+        if len(contents) > MAX_EXCEL_FILE_SIZE: 
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo supera los 5MB."})
+        
+        # Forzamos openpyxl para evitar que Pandas falle internamente
+        df = pd.read_excel(io.BytesIO(contents), header=None, engine='openpyxl').fillna("")
         
         header_row_idx = 0
         for idx, row in df.iterrows():
             if "PUERTO" in [str(cell).upper().strip() for cell in row.values]:
                 header_row_idx = idx
                 break
+                
         column_headers = [str(cell).upper().strip() for cell in df.iloc[header_row_idx].values]
         df_data = df.iloc[header_row_idx + 1:]
         
         hub_cfg = db.query(HubMappingModel).filter(HubMappingModel.id == str(id_hub).upper().strip()).first()
-        if not hub_cfg: return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe."})
+        if not hub_cfg: 
+            return JSONResponse(status_code=400, content={"status": "error", "detail": f"El HUB '{id_hub}' no existe en la base de datos."})
         
         ciudad_obj = db.query(CityModel).filter(CityModel.id == hub_cfg.ciudad_id).first()
-        region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
+        region_name = "SIN REGION"
+        ciudad_name = "SIN CIUDAD"
+        if ciudad_obj:
+            ciudad_name = ciudad_obj.nombre
+            region_obj = db.query(RegionModel).filter(RegionModel.id == ciudad_obj.region_id).first()
+            if region_obj: region_name = region_obj.nombre
         
         def get_idx(targets): return next((column_headers.index(t) for t in targets if t in column_headers), -1)
 
@@ -147,10 +167,10 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
         idx_serv, idx_mbps = get_idx(["CLIENTE / SERVICIO", "SERVICIO", "CLIENTE"]), get_idx(["ANCHO BANDA (MBPS)", "MBPS", "ANCHO BANDA"])
         idx_ipgest, idx_ipcli = get_idx(["IP GESTIÓN", "IP GESTION", "IP_GESTION"]), get_idx(["IP CLIENTE", "IP_CLIENTE"])
         
-        if idx_puerto == -1: return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO"})
+        if idx_puerto == -1: 
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "Falta columna PUERTO en el archivo."})
         
-        # === NUEVA VALIDACIÓN GLOBAL: DETECTAR EQUIPOS EN OTROS SITIOS/CIUDADES ===
-        # 1. Recolectamos todos los Chasis/Equipos que vienen en el Excel
+        # === VALIDACIÓN GLOBAL DETECTANDO OTROS HUBS ===
         chasis_in_excel = set()
         for _, row in df_data.iterrows():
             vals = list(row.values)
@@ -159,17 +179,15 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             if chasis_val and chasis_val.upper() != "NAN":
                 chasis_in_excel.add(chasis_val)
                 
-        # 2. Consultamos la Base de Datos buscando si existen en un HUB diferente al actual
         equipos_en_otros_hubs = {}
         if chasis_in_excel:
+            # CORRECCIÓN: Convirtiendo el SET a LIST para no colapsar la consulta de SQLAlchemy
             conflictos = db.query(PortModel.equipo_hotel_id, PortModel.hub_id, PortModel.ciudad).filter(
-                PortModel.equipo_hotel_id.in_(chasis_in_excel),
-                PortModel.hub_id != str(id_hub).upper().strip() # Comparamos contra el HUB destino
+                PortModel.equipo_hotel_id.in_(list(chasis_in_excel)),
+                PortModel.hub_id != str(id_hub).upper().strip()
             ).all()
             for c in conflictos:
-                # Guardamos el sitio y ciudad donde ya se encuentra registrado
                 equipos_en_otros_hubs[c.equipo_hotel_id] = f"{c.hub_id} ({c.ciudad})"
-        # ===========================================================================
         
         preview_data = []
         has_errors = False
@@ -190,24 +208,29 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             errores_fila = []
             chasis_str = chasis_val if chasis_val else "SIN_EQUIPO"
             
-            # --- 1. Cruce con otros Sitios/Ciudades (La nueva regla) ---
             if chasis_val and chasis_val in equipos_en_otros_hubs:
-                errores_fila.append(f"INCONSISTENCIA: El equipo '{chasis_val}' ya está asignado al sitio {equipos_en_otros_hubs[chasis_val]}.")
+                errores_fila.append(f"INCONSISTENCIA: Equipo '{chasis_val}' ya existe en el sitio {equipos_en_otros_hubs[chasis_val]}.")
             
-            # --- 2. Duplicidad de puertos dentro del mismo Equipo (La regla corregida anteriormente) ---
             llave_unica = f"{chasis_str}_{p_val}"
             if llave_unica in puertos_vistos: 
                 errores_fila.append(f"Puerto '{p_val}' duplicado internamente en el equipo '{chasis_str}'.")
             puertos_vistos.add(llave_unica)
 
-            if "ACTIVO" in est and not serv: errores_fila.append("ACTIVO requiere CLIENTE.")
+            if "ACTIVO" in est and not serv: 
+                errores_fila.append("ACTIVO requiere CLIENTE.")
             
-            fila_obj = {"PUERTO": p_val, "ESTATUS": est, "SERVICIO": serv, "IP_GESTION": ip_gest, "_errores": errores_fila, "_valido": len(errores_fila) == 0}
+            fila_obj = {
+                "PUERTO": p_val, "ESTATUS": est, "SERVICIO": serv, "IP_GESTION": ip_gest, 
+                "EQUIPO_HOTEL_ID": chasis_val, "IP_HUB": rv(idx_iphub),
+                "_errores": errores_fila, "_valido": len(errores_fila) == 0
+            }
             if not fila_obj["_valido"]: has_errors = True
             preview_data.append(fila_obj)
 
-        if mode == "preview": return {"status": "success", "data": preview_data, "has_errors": has_errors}
+        if mode == "preview": 
+            return {"status": "success", "data": preview_data, "has_errors": has_errors}
 
+        # === INYECCIÓN (COMMIT) ===
         db.query(PortModel).filter(PortModel.hub_id == str(id_hub).upper().strip()).delete()
         for _, row in df_data.iterrows():
             vals = list(row.values)
@@ -217,11 +240,10 @@ async def upload_hub_excel(id_hub: str = Query(...), mode: str = Query("preview"
             def rv(idx): return str(vals[idx]).strip() if (idx != -1 and idx < len(vals) and str(vals[idx]).upper() != "NAN") else ""
             
             db.add(PortModel(
-                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
+                region=region_name, ciudad=ciudad_name, hub_id=str(id_hub).upper().strip(), 
                 estatus=rv(idx_status) or "DISPONIBLE GI", puerto=p_val, ip_hub=rv(idx_iphub), 
-                equipo_hotel_id=rv(idx_chasis), servicio=rv(idx_serv), mbps=rv(idx_mbps), ip_gestion=rv(idx_ipgest), 
-                ip_cliente=rv(idx_ipcli)
-                # NOTA: Asegúrate de agregar el resto de tus campos a guardar aquí como lo tenías originalmente si es necesario.
+                equipo_hotel_id=rv(idx_chasis), servicio=rv(idx_serv), mbps=rv(idx_mbps), 
+                ip_gestion=rv(idx_ipgest), ip_cliente=rv(idx_ipcli)
             ))
         db.commit()
         registrar_auditoria(db, current_user.username, "APROVISIONAMIENTO MASIVO", "CARGA EXCEL", f"Archivo cargado en HUB {id_hub}")
@@ -244,7 +266,9 @@ async def upload_json_chasis(request: Request, id_hub: str = Query(...), current
         
         for p in puertos:
             db.add(PortModel(
-                region=region_obj.nombre, ciudad=ciudad_obj.nombre, hub_id=str(id_hub).upper().strip(), 
+                region=region_obj.nombre if region_obj else "", 
+                ciudad=ciudad_obj.nombre if ciudad_obj else "", 
+                hub_id=str(id_hub).upper().strip(), 
                 estatus=p.get("ESTATUS", "DISPONIBLE GI"), puerto=p.get("PUERTO"), 
                 equipo_hotel_id=p.get("EQUIPO_HOTEL_ID", ""), ip_hub=p.get("IP_HUB", ""), servicio=""
             ))
@@ -420,7 +444,6 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
             ws_data.column_dimensions[col[0].column_letter].width = max(12, min(max_length + 3, 45))
 
         if len(puertos) > 0:
-            # === CORRECCIÓN AQUÍ: Usamos get_column_letter en lugar de chr(64+len) ===
             ultima_letra = get_column_letter(len(headers))
             tab = Table(displayName="InventarioFichaTecnica", ref=f"A1:{ultima_letra}{len(puertos)+1}")
             tab.tableStyleInfo = TableStyleInfo(name="TableStyleLight1", showRowStripes=True)
