@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { UploadCloud, CheckCircle, AlertOctagon, FileSpreadsheet, Server, XCircle, ArrowRight, PlusSquare, Settings2, Database, Zap, Network, Layers } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { UploadCloud, CheckCircle, AlertOctagon, FileSpreadsheet, Server, XCircle, ArrowRight, Settings2, Database, Zap, Network, Layers, ShieldCheck, Radio, Download } from 'lucide-react';
+import { generarPlantillaExcel, generarPlantillaMicroondas } from '../utils/helpers';
 
-export default function CargaExcel({ token, estructuraGeografica }) {
+export default function CargaExcel({ token, estructuraGeografica, puedeCargar, handleLogout }) {
+  // --- CONTROL DE PESTAÑAS PRINCIPALES ---
+  const [tabActiva, setTabActiva] = useState('fibra'); // 'fibra' | 'microondas'
+
+  // --- ESTADOS FIBRA ÓPTICA ---
   const [modoCarga, setModoCarga] = useState('excel'); 
-  
-  const [regionSelec, setRegionSelec] = useState('');
-  const [ciudadSelec, setCiudadSelec] = useState('');
-  const [hubSelec, setHubSelec] = useState('');
+  const [regionSelec, setRegionSelec] = useState(() => localStorage.getItem('mcm_load_reg') || '');
+  const [ciudadSelec, setCiudadSelec] = useState(() => localStorage.getItem('mcm_load_cd') || '');
+  const [hubSelec, setHubSelec] = useState(() => localStorage.getItem('mcm_load_hub') || '');
+  const [tipoCargaExcel, setTipoCargaExcel] = useState('PUERTOS'); 
   
   const [archivo, setArchivo] = useState(null);
   const [paso, setPaso] = useState(1);
@@ -21,14 +26,12 @@ export default function CargaExcel({ token, estructuraGeografica }) {
   const [nuevoEquipo, setNuevoEquipo] = useState({
     chasis: '',
     ip_hub: '',
-    
     // Bloque Principal
     tipo_puerto: '1G',
     cantidad_puertos: 24,
     prefijo_puerto: 'Gi1/0/',
     inicio_puerto: 1, 
     estatus_inicial: 'DISPONIBLE GI',
-    
     // Bloque Secundario (Ej. Uplinks)
     incluir_uplinks: false,
     tipo_uplink: '10G',
@@ -38,19 +41,30 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     estatus_uplink: 'DISPONIBLE TE'
   });
 
+  // --- ESTADOS MICROONDAS (FUTURO) ---
+  const [resultadoMw, setResultadoMw] = useState(null);
+
+  const fileInputRef = useRef(null);
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
+  useEffect(() => { localStorage.setItem('mcm_load_reg', regionSelec); }, [regionSelec]);
+  useEffect(() => { localStorage.setItem('mcm_load_cd', ciudadSelec); }, [ciudadSelec]);
+  useEffect(() => { localStorage.setItem('mcm_load_hub', hubSelec); }, [hubSelec]);
+
+  // --- FUNCIONES COMUNES ---
   const limpiarNombreSitio = (nombreRaw) => {
     if (!nombreRaw) return '';
-    return String(nombreRaw)
-      .replace(/^[0-9]+_/, '')           
-      .replace(/_[0-9]+(:[0-9]+)?$/, '') 
-      .replace(/_/g, ' ')                
-      .trim();
+    return String(nombreRaw).replace(/^[0-9]+_/, '').replace(/_[0-9]+(:[0-9]+)?$/, '').replace(/_/g, ' ').trim();
   };
 
+  const obtenerCiudadesOrdenadas = (region) => {
+    if (!region || !estructuraGeografica[region]?.ciudades) return [];
+    return Object.keys(estructuraGeografica[region].ciudades).sort((a, b) => a.localeCompare(b));
+  };
+
+  // --- LÓGICA FIBRA: CARGA MANUAL ---
   useEffect(() => {
-    if (!hubSelec) {
+    if (!hubSelec || tabActiva !== 'fibra') {
       setEquiposExistentes([]);
       setMapaIpsEquipos({});
       setTipoAccionChasis('nuevo');
@@ -60,9 +74,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     
     const fetchEquiposDelHub = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/hubs?id_hub=${hubSelec}`, {
-          headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
-        });
+        const res = await fetch(`${API_URL}/api/hubs?id_hub=${hubSelec}`, { headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' } });
         const json = await res.json();
         
         if (res.ok && json.puertos) {
@@ -79,86 +91,28 @@ export default function CargaExcel({ token, estructuraGeografica }) {
            
            if(unicos.length > 0){
                setTipoAccionChasis('existente');
-               setNuevoEquipo(prev => ({
-                   ...prev, 
-                   chasis: unicos[0], 
-                   ip_hub: mapIps[unicos[0]] || '' 
-               })); 
+               setNuevoEquipo(prev => ({ ...prev, chasis: unicos[0], ip_hub: mapIps[unicos[0]] || '' })); 
            } else {
                setTipoAccionChasis('nuevo');
                setNuevoEquipo(prev => ({...prev, chasis: '', ip_hub: ''}));
            }
         }
-      } catch (e) {
-        console.error("Error buscando equipos del hub", e);
-      }
+      } catch (e) { console.error("Error buscando equipos del hub", e); }
     };
     
     fetchEquiposDelHub();
-  }, [hubSelec, token, API_URL]);
-
-  const manejarArchivo = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setArchivo(e.target.files[0]);
-    }
-  };
-
-  const obtenerCiudadesOrdenadas = (region) => {
-    if (!region || !estructuraGeografica[region]?.ciudades) return [];
-    return Object.keys(estructuraGeografica[region].ciudades).sort((a, b) => a.localeCompare(b));
-  };
-
-  const procesarExcel = async (modo) => {
-    if (!hubSelec || !archivo) return alert("Selecciona un HUB y un archivo Excel.");
-    const formData = new FormData();
-    formData.append('file', archivo);
-
-    setCargando(true);
-    try {
-      const res = await fetch(`${API_URL}/api/hubs/upload-excel?id_hub=${encodeURIComponent(hubSelec)}&mode=${modo}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' },
-        body: formData
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.detail || "Error en el servidor");
-
-      if (modo === 'preview') {
-        setPreviewData(json.data || []);
-        setHayErrores(json.has_errors);
-        setPaso(2);
-      } else {
-        setPaso(3);
-      }
-    } catch (err) {
-      alert(`Error en la carga: ${err.message}`);
-    } finally {
-      setCargando(false);
-    }
-  };
+  }, [hubSelec, tabActiva, token, API_URL]);
 
   const handleCambioPuertoPrincipal = (e) => {
     const tipo = e.target.value;
     let prefijo = 'Gi1/0/';
     let estatus = 'DISPONIBLE GI';
 
-    if (tipo === '10G') {
-      prefijo = 'Te1/0/';
-      estatus = 'DISPONIBLE TE';
-    } else if (tipo === '25G') {
-      prefijo = 'Twe1/0/';
-      estatus = 'DISPONIBLE 25';
-    } else if (tipo === '100G') {
-      prefijo = 'Hu1/0/';
-      estatus = 'DISPONIBLE 100';
-    }
+    if (tipo === '10G') { prefijo = 'Te1/0/'; estatus = 'DISPONIBLE TE'; } 
+    else if (tipo === '25G') { prefijo = 'Twe1/0/'; estatus = 'DISPONIBLE 25'; } 
+    else if (tipo === '100G') { prefijo = 'Hu1/0/'; estatus = 'DISPONIBLE 100'; }
 
-    setNuevoEquipo({
-      ...nuevoEquipo,
-      tipo_puerto: tipo,
-      prefijo_puerto: prefijo,
-      estatus_inicial: estatus
-    });
+    setNuevoEquipo({ ...nuevoEquipo, tipo_puerto: tipo, prefijo_puerto: prefijo, estatus_inicial: estatus });
   };
 
   const handleCambioUplink = (e) => {
@@ -166,44 +120,26 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     let prefijo = 'Te1/0/';
     let estatus = 'DISPONIBLE TE';
 
-    if (tipo === '1G') {
-      prefijo = 'Gi1/0/';
-      estatus = 'DISPONIBLE GI';
-    } else if (tipo === '25G') {
-      prefijo = 'Twe1/0/';
-      estatus = 'DISPONIBLE 25';
-    } else if (tipo === '100G') {
-      prefijo = 'Hu1/0/';
-      estatus = 'DISPONIBLE 100';
-    }
+    if (tipo === '1G') { prefijo = 'Gi1/0/'; estatus = 'DISPONIBLE GI'; } 
+    else if (tipo === '25G') { prefijo = 'Twe1/0/'; estatus = 'DISPONIBLE 25'; } 
+    else if (tipo === '100G') { prefijo = 'Hu1/0/'; estatus = 'DISPONIBLE 100'; }
 
-    setNuevoEquipo({
-      ...nuevoEquipo,
-      tipo_uplink: tipo,
-      prefijo_uplink: prefijo,
-      estatus_uplink: estatus
-    });
+    setNuevoEquipo({ ...nuevoEquipo, tipo_uplink: tipo, prefijo_uplink: prefijo, estatus_uplink: estatus });
   };
 
   const generarPreviewManual = () => {
     if (!hubSelec || !nuevoEquipo.chasis) return alert("Selecciona un HUB y escribe/selecciona el nombre del Chasis.");
-    
     if (tipoAccionChasis === 'nuevo' && (!nuevoEquipo.ip_hub || nuevoEquipo.ip_hub.trim() === '')) {
       return alert("Falta información crítica: Al dar de alta un EQUIPO NUEVO, es obligatorio ingresar su IP de Gestión.");
     }
     
     const dataGenerada = [];
-    
     const limitePrincipal = nuevoEquipo.inicio_puerto + nuevoEquipo.cantidad_puertos;
     for (let i = nuevoEquipo.inicio_puerto; i < limitePrincipal; i++) {
       dataGenerada.push({
-        PUERTO: `${nuevoEquipo.prefijo_puerto}${i}`,
-        ESTATUS: nuevoEquipo.estatus_inicial,
-        EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(),
-        IP_HUB: nuevoEquipo.ip_hub,
-        SERVICIO: '',
-        _valido: true,
-        _errores: []
+        PUERTO: `${nuevoEquipo.prefijo_puerto}${i}`, ESTATUS: nuevoEquipo.estatus_inicial,
+        EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(), IP_HUB: nuevoEquipo.ip_hub,
+        SERVICIO: '', _valido: true, _errores: []
       });
     }
 
@@ -211,13 +147,9 @@ export default function CargaExcel({ token, estructuraGeografica }) {
         const limiteUplink = nuevoEquipo.inicio_uplink + nuevoEquipo.cantidad_uplinks;
         for (let i = nuevoEquipo.inicio_uplink; i < limiteUplink; i++) {
           dataGenerada.push({
-            PUERTO: `${nuevoEquipo.prefijo_uplink}${i}`,
-            ESTATUS: nuevoEquipo.estatus_uplink,
-            EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(),
-            IP_HUB: nuevoEquipo.ip_hub,
-            SERVICIO: '',
-            _valido: true,
-            _errores: []
+            PUERTO: `${nuevoEquipo.prefijo_uplink}${i}`, ESTATUS: nuevoEquipo.estatus_uplink,
+            EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(), IP_HUB: nuevoEquipo.ip_hub,
+            SERVICIO: '', _valido: true, _errores: []
           });
         }
     }
@@ -232,23 +164,79 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     try {
       const res = await fetch(`${API_URL}/api/hubs/upload-json?id_hub=${encodeURIComponent(hubSelec)}`, {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,credentials: 'include',
-          'Content-Type': 'application/json' 
-        },
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include', 'Content-Type': 'application/json' },
         body: JSON.stringify({ puertos: previewData })
       });
-      
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || "Error guardando el chasis en MT_DB");
       }
       setPaso(3);
-    } catch (err) {
-      alert(`Fallo en el aprovisionamiento: ${err.message}`);
-    } finally {
-      setCargando(false);
+    } catch (err) { alert(`Fallo en el aprovisionamiento: ${err.message}`); } finally { setCargando(false); }
+  };
+
+  // --- LÓGICA ARCHIVOS (EXCEL / MICROONDAS) ---
+  const manejarArchivo = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setArchivo(e.target.files[0]);
+      setResultadoMw(null);
     }
+  };
+
+  const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); };
+  const handleDrop = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setArchivo(e.dataTransfer.files[0]);
+      setResultadoMw(null);
+    }
+  };
+
+  const procesarExcelFibra = async (modo) => {
+    if (!archivo) return alert("Selecciona un archivo Excel.");
+    if (tipoCargaExcel === 'PUERTOS' && !hubSelec) return alert("Debes seleccionar un HUB para cargar puertos.");
+    if (tipoCargaExcel === 'CABEZALES' && !ciudadSelec) return alert("Debes seleccionar una Ciudad para cargar cabezales.");
+    
+    const formData = new FormData();
+    formData.append('file', archivo);
+
+    setCargando(true);
+    try {
+      let url = '';
+      if (tipoCargaExcel === 'PUERTOS') {
+          url = `${API_URL}/api/hubs/upload-excel?id_hub=${encodeURIComponent(hubSelec)}&mode=${modo}`;
+      } else {
+          url = `${API_URL}/api/cabezales/upload-excel?ciudad=${encodeURIComponent(ciudadSelec)}&mode=${modo}`;
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' },
+        body: formData
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.detail || "Error en el servidor");
+
+      if (modo === 'preview') {
+        // Adaptación para que funcione la vista previa con Cabezales o Puertos
+        setPreviewData(json.data || []);
+        setHayErrores(json.has_errors);
+        setPaso(2);
+      } else {
+        setPaso(3);
+      }
+    } catch (err) { alert(`Error en la carga: ${err.message}`); } finally { setCargando(false); }
+  };
+
+  const procesarExcelMicroondas = async () => {
+    if (!archivo || !ciudadSelec) return alert("Selecciona Ciudad y un archivo.");
+    setCargando(true);
+    try {
+       // El endpoint de microondas no está habilitado para subida masiva según el backend actual, pero dejamos la alerta
+       throw new Error("El endpoint de carga masiva para Microondas está en desarrollo en el backend.");
+    } catch (err) {
+       setResultadoMw({ status: 'error', detail: err.message });
+    } finally { setCargando(false); }
   };
 
   const reiniciarProceso = () => {
@@ -256,42 +244,70 @@ export default function CargaExcel({ token, estructuraGeografica }) {
     setPreviewData([]);
     setHayErrores(false);
     setPaso(1);
-    if(document.getElementById('excel-upload')) {
-        document.getElementById('excel-upload').value = "";
-    }
+    setResultadoMw(null);
+    if(fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  // --- PERMISOS ---
+  if (!puedeCargar) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-[#070b19]">
+        <div className="bg-red-950/20 border border-red-900/50 p-10 rounded-2xl text-center max-w-md">
+          <ShieldCheck className="w-16 h-16 text-red-500/50 mx-auto mb-4" />
+          <h2 className="text-xl font-black text-red-400 mb-2 uppercase tracking-widest">Acceso Denegado</h2>
+          <p className="text-slate-400 text-sm">Tu nivel de autorización no permite la ejecución de rutinas de carga masiva en MT_DB.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex-1 bg-[#070b19] overflow-y-auto p-4 md:p-8 custom-scrollbar">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="flex-1 bg-[#070b19] overflow-y-auto custom-scrollbar flex flex-col">
+      
+      {/* HEADER */}
+      <div className="bg-[#090f24] border-b border-slate-800/60 pb-4 shrink-0 px-6 py-6">
+        <h2 className="text-xl font-black text-white flex items-center gap-3 uppercase tracking-widest">
+            <UploadCloud className="w-6 h-6 text-emerald-500" /> 
+            Aprovisionamiento Masivo (Carga DML)
+        </h2>
+        <p className="text-xs text-slate-500 mt-1">Motor de ingesta de datos. Utiliza esta herramienta para crear o sobrescribir inventarios a gran escala.</p>
+      </div>
+
+      {/* PESTAÑAS TECNOLÓGICAS */}
+      <div className="bg-[#0b132b]/60 border-b border-slate-800/80 p-3 flex gap-2 shrink-0 justify-center sm:justify-start px-6">
+        <button onClick={() => { setTabActiva('fibra'); reiniciarProceso(); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${tabActiva==='fibra' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
+          <Server className="w-4 h-4"/> Nodos y Fibra Óptica
+        </button>
+        <button onClick={() => { setTabActiva('microondas'); reiniciarProceso(); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${tabActiva==='microondas' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
+          <Radio className="w-4 h-4"/> Topología Microondas
+        </button>
+      </div>
+
+      {/* CONTENIDO PRINCIPAL */}
+      <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 w-full flex-1">
         
+        {/* PANEL SUPERIOR DE CONTROLES */}
         <div className="bg-[#0b132b] p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-black text-emerald-400 flex items-center gap-3">
-                <Database className="w-7 h-7" /> Aprovisionamiento de Red
+              <h1 className={`text-2xl font-black flex items-center gap-3 ${tabActiva==='fibra' ? 'text-emerald-400' : 'text-purple-400'}`}>
+                <Database className="w-7 h-7" /> {tabActiva === 'fibra' ? 'Aprovisionamiento FO' : 'Ingesta MW Ubiquiti'}
               </h1>
-              <p className="text-slate-400 text-sm mt-1">Da de alta nuevo equipamiento, expande tarjetas existentes o inyecta datos masivos.</p>
+              <p className="text-slate-400 text-sm mt-1">Da de alta nuevo equipamiento o inyecta datos masivos desde Excel.</p>
             </div>
-            {paso === 1 && (
+            {tabActiva === 'fibra' && paso === 1 && (
               <div className="flex bg-[#050814] border border-slate-700 p-1 rounded-xl">
-                <button 
-                  onClick={() => setModoCarga('excel')} 
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoCarga === 'excel' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                >
-                  <FileSpreadsheet className="w-4 h-4" /> Carga Masiva Excel
+                <button onClick={() => setModoCarga('excel')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoCarga === 'excel' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                  <FileSpreadsheet className="w-4 h-4" /> Carga Excel
                 </button>
-                <button 
-                  onClick={() => { setModoCarga('manual'); setArchivo(null); }} 
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoCarga === 'manual' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}
-                >
-                  <Layers className="w-4 h-4" /> Alta / Expansión de Chasis
+                <button onClick={() => { setModoCarga('manual'); setArchivo(null); }} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${modoCarga === 'manual' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                  <Layers className="w-4 h-4" /> Generador de Chasis
                 </button>
               </div>
             )}
             {paso > 1 && (
               <div className="flex gap-4">
-                <div className={`h-2 w-12 rounded-full transition-all duration-500 bg-emerald-500`}></div>
+                <div className="h-2 w-12 rounded-full transition-all duration-500 bg-emerald-500"></div>
                 <div className={`h-2 w-12 rounded-full transition-all duration-500 ${paso >= 2 ? 'bg-emerald-500' : 'bg-slate-800'}`}></div>
                 <div className={`h-2 w-12 rounded-full transition-all duration-500 ${paso >= 3 ? 'bg-emerald-500' : 'bg-slate-800'}`}></div>
               </div>
@@ -299,11 +315,21 @@ export default function CargaExcel({ token, estructuraGeografica }) {
           </div>
         </div>
 
+        {/* PASO 1: CONFIGURACIÓN Y SUBIDA */}
         {paso === 1 && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in zoom-in duration-300">
             
-            <div className="xl:col-span-4 bg-[#090f24] p-6 rounded-2xl border border-slate-800 flex flex-col h-full shadow-lg">
+            {/* PANEL IZQ: SELECTORES */}
+            <div className={`xl:col-span-4 bg-[#090f24] p-6 rounded-2xl border flex flex-col h-full shadow-lg ${tabActiva === 'fibra' ? 'border-slate-800' : 'border-purple-900/50 shadow-purple-900/10'}`}>
               <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Server className="w-5 h-5 text-indigo-400"/> Destino Lógico (HUB)</h2>
+              
+              {tabActiva === 'fibra' && modoCarga === 'excel' && (
+                <div className="flex gap-2 mb-4">
+                    <button onClick={() => setTipoCargaExcel('PUERTOS')} className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${tipoCargaExcel === 'PUERTOS' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-[#050814] border-slate-800 text-slate-400 hover:border-slate-600'}`}>Puertos (FO)</button>
+                    <button onClick={() => setTipoCargaExcel('CABEZALES')} className={`flex-1 py-2 text-xs font-bold rounded-lg border transition-all cursor-pointer ${tipoCargaExcel === 'CABEZALES' ? 'bg-cyan-600 border-cyan-500 text-white' : 'bg-[#050814] border-slate-800 text-slate-400 hover:border-slate-600'}`}>Cabezales (HFC)</button>
+                </div>
+              )}
+
               <div className="space-y-4">
                 <select value={regionSelec} onChange={(e) => { setRegionSelec(e.target.value); setCiudadSelec(''); setHubSelec(''); }} className="w-full bg-[#0b132b] border border-slate-700 text-white p-3 rounded-lg outline-none focus:border-emerald-500">
                   <option value="">-- SELECCIONA REGIÓN --</option>
@@ -311,21 +337,22 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                 </select>
                 <select value={ciudadSelec} onChange={(e) => { setCiudadSelec(e.target.value); setHubSelec(''); }} disabled={!regionSelec} className="w-full bg-[#0b132b] border border-slate-700 text-white p-3 rounded-lg outline-none focus:border-emerald-500 disabled:opacity-50">
                   <option value="">-- SELECCIONA CIUDAD --</option>
-                  {regionSelec && obtenerCiudadesOrdenadas(regionSelec).map(c => <option key={c} value={c}>{c}</option>)}
+                  {regionSelec && obtenerCiudadesOrdenadas(regionSelec).map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
                 </select>
                 
-                <select value={hubSelec} onChange={(e) => setHubSelec(e.target.value)} disabled={!ciudadSelec} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 font-bold p-3 rounded-lg outline-none focus:border-emerald-500 disabled:opacity-50">
-                  <option value="">-- SELECCIONA HUB / NODO --</option>
-                  {regionSelec && ciudadSelec && (estructuraGeografica[regionSelec]?.ciudades[ciudadSelec]?.hubs || []).map(h => (
-                    <option key={h.id} value={h.id}>
-                        {limpiarNombreSitio(h.nombre)}
-                    </option>
-                  ))}
-                </select>
+                {(tabActiva === 'fibra' && (modoCarga === 'manual' || tipoCargaExcel === 'PUERTOS')) && (
+                  <select value={hubSelec} onChange={(e) => setHubSelec(e.target.value)} disabled={!ciudadSelec} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 font-bold p-3 rounded-lg outline-none focus:border-emerald-500 disabled:opacity-50">
+                    <option value="">-- SELECCIONA HUB / NODO --</option>
+                    {regionSelec && ciudadSelec && (estructuraGeografica[regionSelec]?.ciudades[ciudadSelec]?.hubs || []).map(h => (
+                      <option key={h.id} value={h.id}>{limpiarNombreSitio(h.nombre)}</option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
-            {modoCarga === 'manual' ? (
+            {/* PANEL DER: CARGA EXCEL O GENERADOR MANUAL */}
+            {tabActiva === 'fibra' && modoCarga === 'manual' ? (
               <div className="xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border border-emerald-900/50 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Settings2 className="w-5 h-5 text-emerald-400"/> Generador y Expansor de Chasis</h2>
                 
@@ -333,115 +360,49 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Tipo de Operación</label>
                     <div className="flex bg-[#1c2541] border border-slate-700 rounded-lg p-1 gap-1">
-                        <button 
-                            onClick={() => {
-                                setTipoAccionChasis('nuevo');
-                                setNuevoEquipo({...nuevoEquipo, chasis: '', ip_hub: ''});
-                            }}
-                            className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors ${tipoAccionChasis === 'nuevo' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                        >
-                            Nuevo
-                        </button>
-                        <button 
-                            onClick={() => {
-                                if(equiposExistentes.length > 0){
-                                    setTipoAccionChasis('existente');
-                                    setNuevoEquipo({
-                                        ...nuevoEquipo, 
-                                        chasis: equiposExistentes[0],
-                                        ip_hub: mapaIpsEquipos[equiposExistentes[0]] || ''
-                                    });
-                                }
-                            }}
-                            disabled={equiposExistentes.length === 0}
-                            className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${tipoAccionChasis === 'existente' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
-                        >
-                            Expandir
-                        </button>
+                        <button onClick={() => { setTipoAccionChasis('nuevo'); setNuevoEquipo({...nuevoEquipo, chasis: '', ip_hub: ''}); }} className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors ${tipoAccionChasis === 'nuevo' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>Nuevo</button>
+                        <button onClick={() => { if(equiposExistentes.length > 0){ setTipoAccionChasis('existente'); setNuevoEquipo({...nuevoEquipo, chasis: equiposExistentes[0], ip_hub: mapaIpsEquipos[equiposExistentes[0]] || '' }); } }} disabled={equiposExistentes.length === 0} className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${tipoAccionChasis === 'existente' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>Expandir</button>
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">
-                        {tipoAccionChasis === 'nuevo' ? 'Nombre del Nuevo Equipo' : 'Equipo a Expandir'}
-                    </label>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">{tipoAccionChasis === 'nuevo' ? 'Nombre del Nuevo Equipo' : 'Equipo a Expandir'}</label>
                     {tipoAccionChasis === 'nuevo' ? (
                         <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. SW-CORE-01" />
                     ) : (
-                        <select 
-                            value={nuevoEquipo.chasis} 
-                            onChange={e => {
-                                const chasisSeleccionado = e.target.value;
-                                setNuevoEquipo({
-                                    ...nuevoEquipo, 
-                                    chasis: chasisSeleccionado,
-                                    ip_hub: mapaIpsEquipos[chasisSeleccionado] || ''
-                                });
-                            }} 
-                            className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none"
-                        >
+                        <select value={nuevoEquipo.chasis} onChange={e => { const c = e.target.value; setNuevoEquipo({...nuevoEquipo, chasis: c, ip_hub: mapaIpsEquipos[c] || '' }); }} className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none">
                             {equiposExistentes.map(eq => <option key={eq} value={eq}>{eq}</option>)}
                         </select>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
-                        IP Gestión del Hub
-                        {tipoAccionChasis === 'nuevo' ? (
-                            <span className="text-red-400">* OBLIGATORIA</span>
-                        ) : (
-                            <span className="text-slate-500">(Auto-Completada)</span>
-                        )}
-                    </label>
-                    <input 
-                        type="text" 
-                        value={nuevoEquipo.ip_hub} 
-                        onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} 
-                        className={`w-full bg-[#0b132b] border text-white p-2 rounded-lg font-mono outline-none transition-colors
-                            ${tipoAccionChasis === 'nuevo' && !nuevoEquipo.ip_hub ? 'border-red-900/50 focus:border-red-500' : 'border-slate-700 focus:border-emerald-500'}
-                        `} 
-                        placeholder="10.50.0.1" 
-                    />
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">IP Gestión del Hub {tipoAccionChasis === 'nuevo' ? <span className="text-red-400">* OBLIGATORIA</span> : <span className="text-slate-500">(Auto-Completada)</span>}</label>
+                    <input type="text" value={nuevoEquipo.ip_hub} onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} className={`w-full bg-[#0b132b] border text-white p-2 rounded-lg font-mono outline-none transition-colors ${tipoAccionChasis === 'nuevo' && !nuevoEquipo.ip_hub ? 'border-red-900/50 focus:border-red-500' : 'border-slate-700 focus:border-emerald-500'}`} placeholder="10.50.0.1" />
                   </div>
                 </div>
 
                 <div className="mt-6 border-t border-slate-800 pt-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Network className="w-4 h-4 text-slate-400" />
-                        <h3 className="text-sm font-bold text-slate-200">Bloque Principal de Puertos</h3>
-                    </div>
+                    <div className="flex items-center gap-2 mb-4"><Network className="w-4 h-4 text-slate-400" /><h3 className="text-sm font-bold text-slate-200">Bloque Principal de Puertos</h3></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad / Capacidad</label>
-                            <select value={nuevoEquipo.tipo_puerto} onChange={handleCambioPuertoPrincipal} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none transition-colors">
-                                <option value="1G">Gigabit (1G)</option>
-                                <option value="10G">TenGigabit (10G)</option>
-                                <option value="25G">25 Gigabit (25G)</option>
-                                <option value="100G">100 Gigabit (100G)</option>
+                            <select value={nuevoEquipo.tipo_puerto} onChange={handleCambioPuertoPrincipal} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
+                                <option value="1G">Gigabit (1G)</option><option value="10G">TenGigabit (10G)</option><option value="25G">25 Gigabit (25G)</option><option value="100G">100 Gigabit (100G)</option>
                             </select>
                         </div>
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">
-                            Prefijo <span className="text-emerald-500 font-black">{nuevoEquipo.estatus_inicial}</span>
-                            </label>
-                            <input type="text" value={nuevoEquipo.prefijo_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_puerto: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Gi1/0/" />
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">Prefijo <span className="text-emerald-500 font-black">{nuevoEquipo.estatus_inicial}</span></label>
+                            <input type="text" value={nuevoEquipo.prefijo_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_puerto: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar a contar en #</label>
-                            <input type="number" min="1" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" placeholder="Ej. 1 o 25" />
+                            <input type="number" min="1" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a sumar</label>
                             <select value={nuevoEquipo.cantidad_puertos} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_puertos: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
-                                <option value={1}>1 Puerto</option>
-                                <option value={2}>2 Puertos</option>
-                                <option value={4}>4 Puertos</option>
-                                <option value={8}>8 Puertos</option>
-                                <option value={12}>12 Puertos</option>
-                                <option value={16}>16 Puertos</option>
-                                <option value={24}>24 Puertos</option>
-                                <option value={48}>48 Puertos</option>
+                                <option value={1}>1 Puerto</option><option value={2}>2 Puertos</option><option value={4}>4 Puertos</option><option value={8}>8 Puertos</option><option value={12}>12 Puertos</option><option value={16}>16 Puertos</option><option value={24}>24 Puertos</option><option value={48}>48 Puertos</option>
                             </select>
                         </div>
                     </div>
@@ -449,10 +410,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
 
                 <div className="mt-6 border-t border-slate-800 pt-6 bg-blue-950/10 p-4 rounded-xl border border-blue-900/30">
                     <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                            <Zap className="w-4 h-4 text-blue-400" />
-                            <h3 className="text-sm font-bold text-blue-300">Incluir Bloque Secundario (Ej. Uplinks)</h3>
-                        </div>
+                        <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-blue-400" /><h3 className="text-sm font-bold text-blue-300">Incluir Bloque Secundario (Ej. Uplinks)</h3></div>
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" className="sr-only peer" checked={nuevoEquipo.incluir_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, incluir_uplinks: e.target.checked})} />
                             <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
@@ -464,65 +422,84 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad / Capacidad</label>
                                 <select value={nuevoEquipo.tipo_uplink} onChange={handleCambioUplink} className="w-full bg-[#1c2541] border border-blue-900/50 text-blue-300 p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none transition-colors">
-                                    <option value="1G">Gigabit (1G)</option>
-                                    <option value="10G">TenGigabit (10G)</option>
-                                    <option value="25G">25 Gigabit (25G)</option>
-                                    <option value="100G">100 Gigabit (100G)</option>
+                                    <option value="1G">Gigabit (1G)</option><option value="10G">TenGigabit (10G)</option><option value="25G">25 Gigabit (25G)</option><option value="100G">100 Gigabit (100G)</option>
                                 </select>
                             </div>
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo <span className="text-blue-400">{nuevoEquipo.estatus_uplink}</span></label>
-                                <input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar a contar en #</label>
-                                <input type="number" min="1" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" />
-                            </div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo <span className="text-blue-400">{nuevoEquipo.estatus_uplink}</span></label><input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar a contar en #</label><input type="number" min="1" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a sumar</label>
                                 <select value={nuevoEquipo.cantidad_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_uplinks: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none">
-                                    <option value={1}>1 Puerto</option>
-                                    <option value={2}>2 Puertos</option>
-                                    <option value={4}>4 Puertos</option>
-                                    <option value={8}>8 Puertos</option>
-                                    <option value={12}>12 Puertos</option>
-                                    <option value={16}>16 Puertos</option>
-                                    <option value={24}>24 Puertos</option>
-                                    <option value={48}>48 Puertos</option>
+                                    <option value={1}>1 Puerto</option><option value={2}>2 Puertos</option><option value={4}>4 Puertos</option><option value={8}>8 Puertos</option><option value={12}>12 Puertos</option><option value={16}>16 Puertos</option><option value={24}>24 Puertos</option><option value={48}>48 Puertos</option>
                                 </select>
                             </div>
                         </div>
                     )}
                 </div>
 
-                <button 
-                  onClick={generarPreviewManual} 
-                  disabled={!hubSelec || !nuevoEquipo.chasis} 
-                  className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all disabled:opacity-50 flex justify-center items-center gap-2"
-                >
+                <button onClick={generarPreviewManual} disabled={!hubSelec || !nuevoEquipo.chasis} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.2)] transition-all disabled:opacity-50 flex justify-center items-center gap-2">
                   Configurar y Previsualizar Red <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             ) : (
-              <div className="xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border border-slate-800 flex flex-col justify-center items-center text-center border-dashed">
-                <input type="file" id="excel-upload" accept=".xlsx, .xls" onChange={manejarArchivo} className="hidden" />
-                <label htmlFor="excel-upload" className="cursor-pointer group flex flex-col items-center">
-                  <div className="p-4 bg-indigo-500/10 rounded-full group-hover:scale-110 transition-transform duration-300">
-                    <UploadCloud className="w-12 h-12 text-indigo-400" />
+              <div className={`xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border flex flex-col justify-center items-center text-center border-dashed ${tabActiva === 'microondas' ? 'border-purple-800/50 bg-purple-950/10' : 'border-slate-800'}`}>
+                
+                {/* --- LEYENDA DICCIONARIO DATOS --- */}
+                <div className="w-full mb-6 bg-[#0b132b] border border-slate-800 rounded-lg overflow-hidden text-left">
+                  <div className="px-4 py-2 bg-slate-900 border-b border-slate-800 flex justify-between items-center">
+                    <span className="font-bold text-[10px] text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                      <FileSpreadsheet className="w-3 h-3" /> Diccionario de Columnas
+                    </span>
+                    <button onClick={() => tabActiva === 'microondas' ? generarPlantillaMicroondas() : generarPlantillaExcel(tipoCargaExcel)} className="text-[10px] text-blue-400 hover:text-white flex items-center gap-1">
+                      <Download className="w-3 h-3" /> Descargar Plantilla .xlsx
+                    </button>
+                  </div>
+                  <div className="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-y-2 gap-x-4 text-[9px] font-mono text-slate-300 h-24 overflow-y-auto custom-scrollbar">
+                      {tabActiva === 'fibra' && tipoCargaExcel === 'PUERTOS' && (
+                          <><div className="text-emerald-400">ESTATUS</div><div>PUERTO</div><div>EQUIPO HOTEL ID</div><div>IP HUB</div><div>NOMBRE CORTO</div><div>ID MCA</div><div className="text-blue-400">SERVICIO</div><div>POTENCIA HUB</div><div>POTENCIA CPE</div><div>TIPO SERVICIO</div><div>MBPS</div><div>IP GESTION</div><div>IP CLIENTE</div><div>BDI</div><div>RUTA</div><div>BUFFER</div><div>HILOS</div><div>PARCHEO</div><div>LAMBDAS</div><div>DISTANCIA CLIENTE</div><div>MARCA CPE</div><div>MODELO CPE</div><div>SERIE CPE</div><div>FECHA DE ENTREGA</div><div>SERIE SFP HUB</div><div>SERIE SFP CLIENTE</div><div>EQUIPAMIENTO</div><div>SERIE</div><div>DIRECCION</div><div>COORDENADAS</div><div>COMENTARIOS</div><div>CONTACTO NOMBRE</div><div>CONTACTO TELEFONO</div></>
+                      )}
+                      {tabActiva === 'fibra' && tipoCargaExcel === 'CABEZALES' && (
+                          <><div className="text-cyan-400 font-bold">ID_EQUIPO</div><div>MARCA</div><div>MODELO</div><div>SERIE</div><div>SERVICIO</div><div>GESTION_QAM</div><div className="text-purple-400">PORTADORA</div><div>FORMATO</div><div>CANAL</div><div>NOMBRE CANAL</div><div>MCAST IP</div><div>SOURCE IP</div><div>UDP</div><div>SID</div></>
+                      )}
+                      {tabActiva === 'microondas' && (
+                          <><div className="text-purple-400">ESTATUS</div><div>CLIENTE</div><div className="text-emerald-400">RADIO BASE PADRE</div><div>SSID</div><div>FRECUENCIA</div><div>ANCHO CANAL</div><div>DISTANCIA KM</div><div>MODELO AP</div><div>IP GESTION AP</div><div>MAC AP</div><div>SEÑAL RX AP</div><div>MODELO ST</div><div>IP GESTION ST</div><div>MAC ST</div><div>SEÑAL RX ST</div><div>DIRECCION</div><div>COORDENADAS</div><div>COMENTARIOS</div></>
+                      )}
+                  </div>
+                </div>
+
+                {/* --- AREA DROPZONE --- */}
+                <input type="file" ref={fileInputRef} accept=".xlsx, .xls" onChange={manejarArchivo} className="hidden" id="excel-upload-main"/>
+                <label htmlFor="excel-upload-main" onDragOver={handleDragOver} onDrop={handleDrop} className="cursor-pointer group flex flex-col items-center w-full py-8 hover:bg-[#050814]/40 rounded-xl transition-all border border-transparent hover:border-slate-800">
+                  <div className={`p-4 rounded-full group-hover:scale-110 transition-transform duration-300 ${tabActiva === 'microondas' ? 'bg-purple-500/10' : 'bg-indigo-500/10'}`}>
+                    <UploadCloud className={`w-12 h-12 ${tabActiva === 'microondas' ? 'text-purple-400' : 'text-indigo-400'}`} />
                   </div>
                   <h3 className="text-white font-bold mt-4 text-lg">Selecciona tu archivo Excel</h3>
-                  <p className="text-slate-500 text-sm mt-1 max-w-xs">Peligro: Puede sobreescribir datos actuales si el archivo contiene registros preexistentes.</p>
+                  <p className="text-slate-500 text-sm mt-1 max-w-xs">Peligro: Puede sobreescribir datos si el archivo contiene llaves primarias existentes.</p>
                 </label>
 
                 {archivo && (
                   <div className="mt-6 w-full max-w-md mx-auto">
-                    <div className="bg-[#0b132b] border border-indigo-500/30 p-3 rounded-lg flex items-center justify-between text-sm text-indigo-400 font-mono">
+                    <div className={`bg-[#0b132b] border p-3 rounded-lg flex items-center justify-between text-sm font-mono mb-4 ${tabActiva === 'microondas' ? 'border-purple-500/30 text-purple-400' : 'border-indigo-500/30 text-indigo-400'}`}>
                       <span className="truncate">{archivo.name}</span>
                       <CheckCircle className="w-4 h-4 shrink-0" />
                     </div>
-                    <button onClick={() => procesarExcel('preview')} disabled={!hubSelec || cargando} className="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-[0_0_15px_rgba(79,70,229,0.2)] transition-all disabled:opacity-50 flex justify-center items-center gap-2">
-                      {cargando ? 'Escaneando Documento...' : 'Analizar Excel (Preview)'} <ArrowRight className="w-4 h-4" />
-                    </button>
+                    
+                    {tabActiva === 'fibra' ? (
+                        <button onClick={() => procesarExcelFibra('preview')} disabled={cargando || (tipoCargaExcel === 'PUERTOS' && !hubSelec) || (tipoCargaExcel === 'CABEZALES' && !ciudadSelec)} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-[0_0_15px_rgba(79,70,229,0.2)] transition-all disabled:opacity-50 flex justify-center items-center gap-2">
+                          {cargando ? 'Escaneando Documento...' : 'Analizar Excel (Preview)'} <ArrowRight className="w-4 h-4" />
+                        </button>
+                    ) : (
+                        <button onClick={procesarExcelMicroondas} disabled={cargando || !ciudadSelec} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.2)] transition-all disabled:opacity-50 flex justify-center items-center gap-2">
+                          {cargando ? 'Subiendo Masivo...' : 'Inyectar Microondas'} <ArrowRight className="w-4 h-4" />
+                        </button>
+                    )}
+
+                    {resultadoMw && tabActiva === 'microondas' && (
+                        <div className="mt-4 p-3 bg-red-950/40 border border-red-900/50 rounded flex items-start gap-2 text-left">
+                            <AlertOctagon className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                            <p className="text-red-400 text-xs">{resultadoMw.detail}</p>
+                        </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -530,7 +507,8 @@ export default function CargaExcel({ token, estructuraGeografica }) {
           </div>
         )}
 
-        {paso === 2 && (
+        {/* PASO 2: PREVISUALIZACIÓN (SÓLO PARA FIBRA POR AHORA) */}
+        {paso === 2 && tabActiva === 'fibra' && (
           <div className="bg-[#090f24] rounded-2xl border border-slate-800 overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[70vh] shadow-2xl">
             <div className={`p-4 flex items-center justify-between shrink-0 ${hayErrores ? 'bg-red-950/40 border-b border-red-900/50' : 'bg-emerald-950/40 border-b border-emerald-900/50'}`}>
               <div className="flex items-center gap-3">
@@ -539,30 +517,27 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                   <h2 className={`font-black text-lg uppercase tracking-wider ${hayErrores ? 'text-red-400' : 'text-emerald-400'}`}>
                     {hayErrores ? '⚠️ Errores en la validación' : '✅ Lote aprobado para inyección'}
                   </h2>
-                  <p className="text-xs text-slate-400">{previewData.length} puertos estructurados en memoria.</p>
+                  <p className="text-xs text-slate-400">{previewData.length} registros estructurados en memoria.</p>
                 </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={reiniciarProceso} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold transition">Descartar</button>
-                <button 
-                  onClick={modoCarga === 'manual' ? guardarChasisManual : () => procesarExcel('commit')} 
-                  disabled={hayErrores || cargando} 
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-black uppercase tracking-widest shadow-[0_0_15px_rgba(16,185,129,0.3)] transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                <button onClick={modoCarga === 'manual' ? guardarChasisManual : () => procesarExcelFibra('commit')} disabled={hayErrores || cargando} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-black uppercase tracking-widest shadow-[0_0_15px_rgba(16,185,129,0.3)] transition disabled:opacity-50 disabled:cursor-not-allowed">
                   {cargando ? 'Procesando en MT_DB...' : 'Inyectar a Red'}
                 </button>
               </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4 custom-scrollbar">
-              <table className="w-full text-left text-xs text-slate-300">
+              <table className="w-full text-left text-xs text-slate-300 whitespace-nowrap">
                 <thead className="bg-[#0b132b] text-slate-400 sticky top-0 uppercase font-bold tracking-widest z-10 shadow-sm border-b border-slate-700">
                   <tr>
                     <th className="p-3 w-10 text-center">St</th>
-                    <th className="p-3 w-40">CHASIS ID</th>
-                    <th className="p-3 w-32">INTERFAZ</th>
-                    <th className="p-3 w-40">ESTATUS INICIAL</th>
-                    <th className="p-3 w-32">IP HUB</th>
+                    {tipoCargaExcel === 'PUERTOS' || modoCarga === 'manual' ? (
+                        <><th className="p-3">CHASIS ID</th><th className="p-3">INTERFAZ</th><th className="p-3">ESTATUS</th><th className="p-3">IP HUB</th></>
+                    ) : (
+                        <><th className="p-3">CABEZAL ID</th><th className="p-3">MARCA/MOD</th><th className="p-3">SERVICIO</th><th className="p-3">PORTADORA / CANAL</th></>
+                    )}
                     <th className="p-3">VEREDICTO DE SISTEMA</th>
                   </tr>
                 </thead>
@@ -572,17 +547,23 @@ export default function CargaExcel({ token, estructuraGeografica }) {
                       <td className="p-3 text-center">
                         {!fila._valido ? <XCircle className="w-4 h-4 text-red-500 inline-block" /> : <CheckCircle className="w-4 h-4 text-emerald-500 inline-block" />}
                       </td>
-                      <td className="p-3 text-indigo-300 font-bold">{fila.EQUIPO_HOTEL_ID || '-'}</td>
-                      <td className="p-3 font-mono font-bold text-white">{fila.PUERTO}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded border text-[10px] font-bold tracking-wider uppercase
-                          ${fila.ESTATUS.includes('TE') || fila.ESTATUS.includes('100') || fila.ESTATUS.includes('25') ? 'bg-indigo-900/40 text-indigo-300 border-indigo-700' : 
-                          fila.ESTATUS.includes('GI') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800' : 
-                          'bg-blue-900/30 text-blue-400 border-blue-800'}`}>
-                          {fila.ESTATUS}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-400 font-mono">{fila.IP_HUB || '-'}</td>
+                      
+                      {tipoCargaExcel === 'PUERTOS' || modoCarga === 'manual' ? (
+                          <>
+                              <td className="p-3 text-indigo-300 font-bold">{fila.EQUIPO_HOTEL_ID || '-'}</td>
+                              <td className="p-3 font-mono font-bold text-white">{fila.PUERTO}</td>
+                              <td className="p-3 text-[10px] uppercase font-bold text-emerald-400">{fila.ESTATUS}</td>
+                              <td className="p-3 text-slate-400 font-mono">{fila.IP_HUB || '-'}</td>
+                          </>
+                      ) : (
+                          <>
+                              <td className="p-3 text-cyan-300 font-bold">{fila.ID_EQUIPO || '-'}</td>
+                              <td className="p-3 text-slate-300">{fila.MARCA || '-'} {fila.MODELO || ''}</td>
+                              <td className="p-3 text-slate-400">{fila.SERVICIO || '-'}</td>
+                              <td className="p-3 font-mono text-purple-400">{fila.PORTADORA || '-'} / CH:{fila.CANAL || '-'}</td>
+                          </>
+                      )}
+
                       <td className="p-3">
                         {!fila._valido ? (
                           <div className="flex flex-col gap-1 text-[10px] font-bold text-red-400">
@@ -600,6 +581,7 @@ export default function CargaExcel({ token, estructuraGeografica }) {
           </div>
         )}
 
+        {/* PASO 3: ÉXITO */}
         {paso === 3 && (
           <div className="bg-emerald-950/20 p-12 rounded-2xl border border-emerald-900/50 flex flex-col justify-center items-center text-center animate-in fade-in zoom-in duration-300">
             <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
@@ -614,7 +596,6 @@ export default function CargaExcel({ token, estructuraGeografica }) {
             <button onClick={reiniciarProceso} className="bg-[#0b132b] border border-slate-700 hover:border-emerald-500 text-white px-6 py-3 rounded-lg font-bold transition shadow-lg">Registrar Nuevo Movimiento</button>
           </div>
         )}
-
       </div>
     </div>
   );

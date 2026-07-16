@@ -33,3 +33,23 @@ export const formatFechaParaInput = (fechaStr) => {
   
   return '';
 };
+
+// Añadir al final de frontend/src/utils/helpers.js
+export const generarPlantillaMicroondas = () => {
+    const cabeceras = [
+        "ESTATUS", "CLIENTE", "RADIO BASE PADRE", "SSID", "FRECUENCIA", "ANCHO CANAL",
+        "DISTANCIA KM", "MODELO AP", "IP GESTION AP", "MAC AP", "SEÑAL RX AP", "MODELO ST",
+        "IP GESTION ST", "MAC ST", "SEÑAL RX ST", "DIRECCION", "COORDENADAS", "COMENTARIOS"
+    ];
+    
+    const ts = cabeceras.join("\t") + "\n";
+    const blob = new Blob([ts], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Plantilla_Carga_Microondas.xls`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
