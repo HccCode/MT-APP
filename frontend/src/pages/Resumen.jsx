@@ -20,6 +20,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   const [guardando, setGuardando] = useState(false);
 
   // --- ESTADOS MICROONDAS ---
+  const [filtroRb, setFiltroRb] = useState('TODAS'); // NUEVO FILTRO PARA LA TABLA DE RADIO BASES
   const [statsMw, setStatsMw] = useState({ rbs: 0, aps: 0, enlaces: 0, activos: 0, suspendidos: 0, fallas: 0 });
   const [datosRBs, setDatosRBs] = useState([]);
 
@@ -32,7 +33,12 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
 
   useEffect(() => { localStorage.setItem('mcm_res_reg', regionSelec); }, [regionSelec]);
   useEffect(() => { localStorage.setItem('mcm_res_cd', ciudadSelec); }, [ciudadSelec]);
-  useEffect(() => { setSitioCalorFiltro('TODOS'); }, [ciudadSelec]);
+  
+  // Limpiar los filtros secundarios al cambiar de ciudad
+  useEffect(() => { 
+      setSitioCalorFiltro('TODOS'); 
+      setFiltroRb('TODAS'); 
+  }, [ciudadSelec]);
 
   // ================= LÓGICA FIBRA ÓPTICA =================
   const limpiarNombreSitio = (nombreRaw) => {
@@ -176,7 +182,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
         const rbStats = rbsCiudad.map(rb => {
             const apsEnRb = apsCiudad.filter(ap => ap.radio_base_id === rb.id);
             const apIds = apsEnRb.map(ap => ap.id);
-            // Enlaces/Clientes que pertenecen a los APs de esta Radio Base
             const enlacesEnRb = enlacesAll.filter(e => apIds.includes(e.ap_id));
             
             let act = 0, susp = 0, fallas = 0;
@@ -240,6 +245,12 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   }
 
   const chasisFiltradosParaCalor = datosChasis.filter(c => sitioCalorFiltro === 'TODOS' || c.hub_id === sitioCalorFiltro);
+  
+  // FILTRADO DE LA TABLA DE RADIO BASES
+  const rbsFiltradasParaTabla = datosRBs.filter(rb => {
+      if (filtroRb === 'TODAS') return true;
+      return String(rb.id) === String(filtroRb);
+  });
 
   const exportarResumenExcel = async () => {
     if (datosHubs.length === 0) return;
@@ -294,10 +305,10 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
 
       {/* 2. MENÚ DE PESTAÑAS TECNOLÓGICAS */}
       <div className="bg-[#0b132b]/60 border-b border-slate-800/80 p-3 flex gap-2 shrink-0 justify-center sm:justify-start px-6">
-        <button onClick={() => setTabActiva('fibra')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all ${tabActiva==='fibra' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
+        <button onClick={() => setTabActiva('fibra')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${tabActiva==='fibra' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
           <Server className="w-4 h-4"/> Nodos y Fibra Óptica
         </button>
-        <button onClick={() => setTabActiva('microondas')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all ${tabActiva==='microondas' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
+        <button onClick={() => setTabActiva('microondas')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${tabActiva==='microondas' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
           <Radio className="w-4 h-4"/> Topología Microondas
         </button>
       </div>
@@ -548,8 +559,21 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
             </div>
 
             <div className="bg-[#0b132b]/80 border border-slate-700/50 rounded-xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 mt-6">
-              <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50">
-                <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2"><MapPin className="w-4 h-4 text-emerald-500" /> Radiografía por Radio Base (Microondas)</h3>
+              <div className="p-5 border-b border-slate-800/80 bg-[#050814]/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h3 className="text-sm font-black text-slate-200 uppercase tracking-widest flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-500" /> Radiografía por Radio Base (Microondas)
+                </h3>
+                
+                {/* --- NUEVO FILTRO EN EL ENCABEZADO --- */}
+                <div className="flex items-center gap-2 bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-lg w-full sm:w-auto">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
+                    <select value={filtroRb} onChange={(e) => setFiltroRb(e.target.value)} className="bg-transparent text-xs text-indigo-300 font-bold outline-none cursor-pointer w-full sm:w-auto">
+                        <option value="TODAS" className="bg-[#0b132b] text-white">-- TODAS LAS RADIO BASES --</option>
+                        {datosRBs.map(rb => <option key={rb.id} value={rb.id} className="bg-[#0b132b] text-white">{rb.nombre}</option>)}
+                    </select>
+                </div>
+                {/* ------------------------------------- */}
+                
               </div>
               <div className="overflow-x-auto custom-scrollbar">
                 <table className="min-w-max w-full text-left text-xs text-slate-300 whitespace-nowrap">
@@ -569,20 +593,24 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                     {datosRBs.length === 0 ? (
                       <tr><td colSpan="8" className="p-12 text-center text-slate-500 italic font-medium">No hay Radio Bases registradas en esta ciudad.</td></tr>
                     ) : (
-                      datosRBs.map((rb, i) => (
-                        <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-                          <td className="p-4"><p className="font-bold text-slate-200">{rb.nombre}</p></td>
-                          <td className="p-4 font-mono text-amber-500/80 text-[11px]">{rb.coordenadas || '-'}</td>
-                          <td className="p-4 text-slate-400 border-r border-slate-800/50">{rb.altura || '-'}</td>
-                          <td className="p-4 text-center font-bold text-blue-300 text-sm bg-blue-900/10">{rb.total_aps}</td>
-                          <td className="p-4 text-center font-black text-emerald-300 text-sm border-r border-slate-800/50 bg-emerald-900/10">{rb.total_enlaces}</td>
-                          <td className="p-4 text-center text-emerald-500/80 font-bold">{rb.activos}</td>
-                          <td className="p-4 text-center text-purple-400/80 font-bold">{rb.suspendidos}</td>
-                          <td className="p-4 text-center font-bold">
-                             {rb.fallas > 0 ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/30">{rb.fallas}</span> : <span className="text-slate-600">-</span>}
-                          </td>
-                        </tr>
-                      ))
+                      rbsFiltradasParaTabla.length === 0 ? (
+                        <tr><td colSpan="8" className="p-12 text-center text-slate-500 italic font-medium">La Radio Base seleccionada no tiene equipos asociados.</td></tr>
+                      ) : (
+                        rbsFiltradasParaTabla.map((rb, i) => (
+                          <tr key={i} className="hover:bg-slate-800/30 transition-colors">
+                            <td className="p-4"><p className="font-bold text-slate-200">{rb.nombre}</p></td>
+                            <td className="p-4 font-mono text-amber-500/80 text-[11px]">{rb.coordenadas || '-'}</td>
+                            <td className="p-4 text-slate-400 border-r border-slate-800/50">{rb.altura || '-'}</td>
+                            <td className="p-4 text-center font-bold text-blue-300 text-sm bg-blue-900/10">{rb.total_aps}</td>
+                            <td className="p-4 text-center font-black text-emerald-300 text-sm border-r border-slate-800/50 bg-emerald-900/10">{rb.total_enlaces}</td>
+                            <td className="p-4 text-center text-emerald-500/80 font-bold">{rb.activos}</td>
+                            <td className="p-4 text-center text-purple-400/80 font-bold">{rb.suspendidos}</td>
+                            <td className="p-4 text-center font-bold">
+                               {rb.fallas > 0 ? <span className="bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/30">{rb.fallas}</span> : <span className="text-slate-600">-</span>}
+                            </td>
+                          </tr>
+                        ))
+                      )
                     )}
                   </tbody>
                 </table>
