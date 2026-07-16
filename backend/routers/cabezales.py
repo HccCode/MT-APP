@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 import pandas as pd
 import io
+import traceback
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.worksheet.table import Table, TableStyleInfo
@@ -64,17 +65,25 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
 
 @router.post("/cabezales/upload-excel")
 async def upload_cabezales_excel(
-    ciudad: str = Query(...), # <-- ADICIÓN CLAVE: Recibe la ciudad desde la URL
+    ciudad: str = Query(...), 
     mode: str = Query("preview"), 
     file: UploadFile = File(...), 
     current_user: UserModel = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    if not can_upload_excel(current_user): raise HTTPException(status_code=403)
-    if not (file.content_type in ALLOWED_EXCEL_MIME_TYPES or file.filename.lower().endswith(('.xlsx', '.xls'))): 
-        return JSONResponse(status_code=400, content={"status": "error", "detail": "Excel inválido."})
-    
     try:
+        # 1. Validaciones de seguridad dentro del try
+        if not can_upload_excel(current_user): 
+            return JSONResponse(status_code=403, content={"status": "error", "detail": "Permisos insuficientes."})
+        
+        # 2. Protección contra filename/content_type nulo (Causa frecuente de error 500)
+        filename = file.filename or ""
+        content_type = file.content_type or ""
+        
+        if not (content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))): 
+            return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo no es un Excel válido."})
+        
+        # 3. Lectura del archivo
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents)).fillna("")
         column_headers = [str(col).upper().strip() for col in df.columns]
@@ -87,9 +96,8 @@ async def upload_cabezales_excel(
         idx_canal = get_idx(["# CANAL", "CANAL NUM", "CANAL"])
         idx_nombre = get_idx(["NOMBRE DE CANAL", "NOMBRE CANAL"])
 
-        # Ya no obligamos a que el Excel traiga la columna CIUDAD, usaremos la de la URL como respaldo
         if idx_id == -1 or idx_servicio == -1: 
-            return JSONResponse(status_code=400, content={"status": "error", "detail": "Columnas faltantes: Se requiere ID_EQUIPO y SERVICIO."})
+            return JSONResponse(status_code=400, content={"status": "error", "detail": f"Columnas faltantes. Encontradas: {column_headers}"})
 
         preview_data = []
         has_errors = False
@@ -100,7 +108,6 @@ async def upload_cabezales_excel(
             
             val_id = read_val(idx_id)
             val_servicio = read_val(idx_servicio)
-            # Si el Excel tiene ciudad, la usa. Si no, usa la ciudad de la URL (ej. Mexicali)
             val_ciudad = read_val(idx_ciudad) if idx_ciudad != -1 and read_val(idx_ciudad) else ciudad 
             val_canal = read_val(idx_canal)
             val_nombre = read_val(idx_nombre)
@@ -156,7 +163,10 @@ async def upload_cabezales_excel(
         
     except Exception as e:
         db.rollback()
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error procesando Excel: {str(e)}"})
+        # ESTO ES LA MAGIA: Captura el error de Python exacto y lo envía de vuelta
+        error_details = traceback.format_exc()
+        print(error_details)
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Excepción de Python: {str(e)} \n\n {error_details}"})
 
 # ================= EXPORTACIÓN EXCEL ALINEACIÓN =================
 @router.get("/cabezales/{cabezal_id}/exportar-excel")
