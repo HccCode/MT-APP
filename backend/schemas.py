@@ -101,7 +101,7 @@ class AlineacionUpdate(BaseModel):
     portadora: str = None
     formato: str = None
     canal_num: str = None
-    nombre_canal = Column(String(100), nullable=True)
+    nombre_canal: str = None # <-- ¡CORREGIDO! Ya no dice Column(...)
     mcast_ip: str = None
     source_ip: str = None
     udp: str = None
@@ -176,11 +176,8 @@ class MicroondaUbiquitiBase(BaseModel):
     frecuencia: str = None
     ancho_canal: str = None
     distancia_km: str = None
-    
-    # NUEVO: Campos añadidos al validador
     direccion: str = None
     coordenadas: str = None
-    
     modelo_ap: str = None
     ip_gestion_ap: str = None
     mac_ap: str = None
