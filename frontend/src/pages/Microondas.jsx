@@ -256,7 +256,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
             </div>
             {puedeEditar && (
               <button disabled={!mwCd} onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all ${subTab==='enlaces'?'bg-blue-600 hover:bg-blue-500':subTab==='aps'?'bg-purple-600 hover:bg-purple-500':'bg-emerald-600 hover:bg-emerald-500'}`}>
-                <Plus className="w-4 h-4" /> Nuevo en {mwCd || '...'}
+                <Plus className="w-4 h-4" /> Nuevo{'...'}
               </button>
             )}
           </div>
