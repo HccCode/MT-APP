@@ -169,7 +169,8 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
       }
   };
 
-  const generarUrlMaps = (query) => `http://googleusercontent.com/maps.google.com/?q=${encodeURIComponent(query)}`;
+  // URL CORRECTA PARA GOOGLE MAPS
+  const generarUrlMaps = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
   // --- FILTRADO DE LISTAS EN TIEMPO REAL ---
   const radioBasesFiltradas = radioBases.filter(rb => !mwCd || String(rb.ciudad).toUpperCase() === String(mwCd).toUpperCase());
@@ -251,7 +252,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
             </div>
             {puedeEditar && (
               <button disabled={!mwCd} onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all ${subTab==='enlaces'?'bg-blue-600 hover:bg-blue-500':subTab==='aps'?'bg-purple-600 hover:bg-purple-500':'bg-emerald-600 hover:bg-emerald-500'}`}>
-                <Plus className="w-4 h-4" /> Nuevo
+                <Plus className="w-4 h-4" /> Nuevo en {mwCd || '...'}
               </button>
             )}
           </div>
@@ -263,7 +264,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                   <tr><th className="p-3">Estatus</th><th className="p-3">Cliente / Servicio</th><th className="p-3">Sitio Base</th><th className="p-3">IP AP</th><th className="p-3">IP Cliente</th><th className="p-3">SSID</th></tr>
                 )}
                 {subTab === 'aps' && (
-                  // === NUEVO: Columnas añadidas al listado para visualizarlas al vuelo ===
                   <tr><th className="p-3">Estatus</th><th className="p-3">Nombre AP</th><th className="p-3">Radio Base</th><th className="p-3">Frecuencia</th><th className="p-3">Ancho Canal</th><th className="p-3">IP Gestión</th><th className="p-3">SSID</th></tr>
                 )}
                 {subTab === 'radiobases' && (
@@ -295,7 +295,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                     <td className="p-3 font-bold group-hover:text-purple-400">{ap.nombre_ap}</td>
                     <td className="p-3 text-emerald-400/80">{rbName}</td>
                     
-                    {/* === NUEVO: Renderizado de celdas RF con estilos llamativos === */}
                     <td className="p-3 font-mono text-amber-400 font-bold">{ap.frecuencia ? `${ap.frecuencia} MHz` : '-'}</td>
                     <td className="p-3 font-mono text-indigo-400">{ap.ancho_canal ? `${ap.ancho_canal} MHz` : '-'}</td>
                     
@@ -304,11 +303,26 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                   </tr>
                 )})}
 
+                {/* AQUÍ ESTÁ EL ENLACE A GOOGLE MAPS PARA LA TABLA DE RADIO BASES */}
                 {!cargando && mwCd && subTab === 'radiobases' && radioBasesFiltradas.map((rb, i) => (
                   <tr key={i} onClick={() => seleccionarItem(rb)} className={`group hover:bg-slate-800/60 cursor-pointer ${itemDetalle?.id === rb.id ? 'bg-emerald-600/10 border-l-4 border-l-emerald-500' : ''}`}>
                     <td className="p-3 font-bold group-hover:text-emerald-400">{rb.nombre}</td>
                     <td className="p-3 text-slate-300">{rb.ciudad}</td>
-                    <td className="p-3 font-mono text-amber-500/80">{rb.coordenadas || '-'}</td>
+                    <td className="p-3 font-mono text-[11px]">
+                        {rb.coordenadas ? (
+                            <a 
+                                href={generarUrlMaps(rb.coordenadas)} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 w-max"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <MapPin className="w-3 h-3" /> {rb.coordenadas}
+                            </a>
+                        ) : (
+                            <span className="text-amber-500/80">-</span>
+                        )}
+                    </td>
                     <td className="p-3 text-slate-400">{rb.altura_torre || '-'}</td>
                   </tr>
                 ))}
@@ -333,7 +347,15 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                      <div><label className="block text-slate-500 font-bold mb-1">NOMBRE RADIO BASE</label><input type="text" disabled={!puedeEditar} value={editCampos.nombre || ''} onChange={e=>setEditCampos({...editCampos, nombre: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" /></div>
                      <div><label className="block text-slate-500 font-bold mb-1">CIUDAD ASIGNADA</label><input type="text" disabled={true} value={editCampos.ciudad || ''} className="w-full bg-slate-900/50 p-2 rounded border border-slate-800 text-slate-400 cursor-not-allowed outline-none" /></div>
                      <div className="grid grid-cols-2 gap-3">
-                        <div><label className="block text-slate-500 font-bold mb-1">COORDENADAS SITE</label><input type="text" disabled={!puedeEditar} value={editCampos.coordenadas || ''} onChange={e=>setEditCampos({...editCampos, coordenadas: e.target.value})} className="w-full bg-[#050814] font-mono text-amber-500 p-2 rounded border border-slate-700 outline-none" /></div>
+                        <div>
+                            <label className="block text-slate-500 font-bold mb-1">COORDENADAS SITE</label>
+                            <div className="flex bg-[#050814] border border-slate-700 rounded overflow-hidden focus-within:border-amber-500">
+                                <input type="text" disabled={!puedeEditar} value={editCampos.coordenadas || ''} onChange={e=>setEditCampos({...editCampos, coordenadas: e.target.value})} className="w-full bg-transparent p-2 text-amber-400 font-mono outline-none" placeholder="Lat, Lng" />
+                                {editCampos.coordenadas && (
+                                   <a href={generarUrlMaps(editCampos.coordenadas)} target="_blank" rel="noreferrer" className="px-3 bg-amber-600 hover:bg-amber-500 text-white flex items-center justify-center border-l border-slate-700 transition-colors"><MapPin className="w-4 h-4" /></a>
+                                )}
+                            </div>
+                        </div>
                         <div><label className="block text-slate-500 font-bold mb-1">ALTURA TORRE</label><input type="text" disabled={!puedeEditar} value={editCampos.altura_torre || ''} onChange={e=>setEditCampos({...editCampos, altura_torre: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none" placeholder="Ej: 30 Metros" /></div>
                      </div>
                      <div><label className="block text-slate-500 font-bold mb-1">COMENTARIOS</label><textarea rows="3" disabled={!puedeEditar} value={editCampos.comentarios || ''} onChange={e=>setEditCampos({...editCampos, comentarios: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white resize-none outline-none" /></div>
@@ -351,7 +373,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                            </select>
                         </div>
                         <div><label className="block text-slate-500 font-bold mb-1">ESTATUS</label>
-                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none">
+                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none cursor-pointer">
                               <option value="ACTIVO">ACTIVO</option>
                               <option value="SUSPENDIDO">SUSPENDIDO</option>
                               <option value="FALLA">FALLA / CAÍDO</option>
@@ -377,12 +399,13 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                    </>
                 )}
 
+                {/* FORMULARIO ENLACES (CLIENTES) */}
                 {subTab === 'enlaces' && (
                    <>
                      <div className="grid grid-cols-2 gap-3 mb-2">
                         <div><label className="block text-slate-500 font-bold mb-1">CLIENTE / SERVICIO</label><input type="text" disabled={!puedeEditar} value={editCampos.cliente || ''} onChange={e=>setEditCampos({...editCampos, cliente: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none focus:border-blue-500" /></div>
                         <div><label className="block text-slate-500 font-bold mb-1">ESTATUS</label>
-                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none">
+                           <select disabled={!puedeEditar} value={editCampos.estatus || ''} onChange={e=>setEditCampos({...editCampos, estatus: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none cursor-pointer">
                               <option value="ACTIVO">ACTIVO</option>
                               <option value="SUSPENDIDO">SUSPENDIDO</option>
                               <option value="FALLA">FALLA / CAÍDO</option>
@@ -395,14 +418,14 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                         <div className="grid grid-cols-2 gap-3">
                            <div>
                               <label className="block text-blue-300/70 font-bold mb-1">1. FILTRAR POR RADIO BASE</label>
-                              <select disabled={!puedeEditar} value={formRbId} onChange={e=>setFormRbId(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-emerald-400 font-bold outline-none">
+                              <select disabled={!puedeEditar} value={formRbId} onChange={e=>setFormRbId(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-emerald-400 font-bold outline-none cursor-pointer">
                                  <option value="">-- Seleccionar Base --</option>
                                  {radioBasesFiltradas.map(rb => <option key={rb.id} value={rb.id}>{rb.nombre}</option>)}
                               </select>
                            </div>
                            <div>
                               <label className="block text-blue-300/70 font-bold mb-1">2. SELECCIONAR ACCESS POINT</label>
-                              <select disabled={!puedeEditar || (!formRbId && !editCampos.ap_id)} value={editCampos.ap_id || ''} onChange={e=>manejarCambioAP(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-purple-400 font-bold outline-none">
+                              <select disabled={!puedeEditar || (!formRbId && !editCampos.ap_id)} value={editCampos.ap_id || ''} onChange={e=>manejarCambioAP(e.target.value)} className="w-full bg-[#050814] p-2 rounded border border-blue-900 text-purple-400 font-bold outline-none cursor-pointer">
                                  <option value="">-- Seleccionar AP --</option>
                                  {accessPoints.filter(ap => !formRbId || String(ap.radio_base_id) === String(formRbId)).map(ap => <option key={ap.id} value={ap.id}>{ap.nombre_ap} ({ap.ssid})</option>)}
                               </select>
@@ -421,7 +444,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                            <div className="flex bg-[#050814] border border-slate-700 rounded overflow-hidden focus-within:border-amber-500">
                               <input type="text" disabled={!puedeEditar} value={editCampos.coordenadas || ''} onChange={e=>setEditCampos({...editCampos, coordenadas: e.target.value})} className="w-full bg-transparent p-2 text-amber-400 font-mono outline-none" placeholder="Latitud, Longitud" />
                               {editCampos.coordenadas && (
-                                 <a href={generarUrlMaps(editCampos.coordenadas)} target="_blank" rel="noreferrer" className="px-3 bg-amber-600 hover:bg-amber-500 text-white flex items-center justify-center border-l border-slate-700"><MapPin className="w-4 h-4" /></a>
+                                 <a href={generarUrlMaps(editCampos.coordenadas)} target="_blank" rel="noreferrer" className="px-3 bg-amber-600 hover:bg-amber-500 text-white flex items-center justify-center border-l border-slate-700 transition-colors"><MapPin className="w-4 h-4" /></a>
                               )}
                            </div>
                         </div>

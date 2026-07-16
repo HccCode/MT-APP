@@ -20,7 +20,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   const [guardando, setGuardando] = useState(false);
 
   // --- ESTADOS MICROONDAS ---
-  const [filtroRb, setFiltroRb] = useState('TODAS'); // NUEVO FILTRO PARA LA TABLA DE RADIO BASES
+  const [filtroRb, setFiltroRb] = useState('TODAS'); 
   const [statsMw, setStatsMw] = useState({ rbs: 0, aps: 0, enlaces: 0, activos: 0, suspendidos: 0, fallas: 0 });
   const [datosRBs, setDatosRBs] = useState([]);
 
@@ -251,6 +251,8 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
       if (filtroRb === 'TODAS') return true;
       return String(rb.id) === String(filtroRb);
   });
+
+  const generarUrlMaps = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
   const exportarResumenExcel = async () => {
     if (datosHubs.length === 0) return;
@@ -564,7 +566,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                     <MapPin className="w-4 h-4 text-emerald-500" /> Radiografía por Radio Base (Microondas)
                 </h3>
                 
-                {/* --- NUEVO FILTRO EN EL ENCABEZADO --- */}
                 <div className="flex items-center gap-2 bg-[#0b132b] border border-slate-700 px-3 py-1.5 rounded-lg w-full sm:w-auto">
                     <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
                     <select value={filtroRb} onChange={(e) => setFiltroRb(e.target.value)} className="bg-transparent text-xs text-indigo-300 font-bold outline-none cursor-pointer w-full sm:w-auto">
@@ -572,7 +573,6 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                         {datosRBs.map(rb => <option key={rb.id} value={rb.id} className="bg-[#0b132b] text-white">{rb.nombre}</option>)}
                     </select>
                 </div>
-                {/* ------------------------------------- */}
                 
               </div>
               <div className="overflow-x-auto custom-scrollbar">
@@ -599,7 +599,21 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
                         rbsFiltradasParaTabla.map((rb, i) => (
                           <tr key={i} className="hover:bg-slate-800/30 transition-colors">
                             <td className="p-4"><p className="font-bold text-slate-200">{rb.nombre}</p></td>
-                            <td className="p-4 font-mono text-amber-500/80 text-[11px]">{rb.coordenadas || '-'}</td>
+                            <td className="p-4 font-mono text-[11px]">
+                               {rb.coordenadas ? (
+                                   <a 
+                                     href={generarUrlMaps(rb.coordenadas)} 
+                                     target="_blank" 
+                                     rel="noreferrer" 
+                                     className="text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1 w-max"
+                                     onClick={(e) => e.stopPropagation()}
+                                   >
+                                       <MapPin className="w-3 h-3" /> {rb.coordenadas}
+                                   </a>
+                               ) : (
+                                   <span className="text-amber-500/80">-</span>
+                               )}
+                            </td>
                             <td className="p-4 text-slate-400 border-r border-slate-800/50">{rb.altura || '-'}</td>
                             <td className="p-4 text-center font-bold text-blue-300 text-sm bg-blue-900/10">{rb.total_aps}</td>
                             <td className="p-4 text-center font-black text-emerald-300 text-sm border-r border-slate-800/50 bg-emerald-900/10">{rb.total_enlaces}</td>
