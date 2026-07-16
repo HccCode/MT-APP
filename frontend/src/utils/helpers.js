@@ -1,8 +1,17 @@
+// =========================================================
+// ENLACES GEOGRÁFICOS Y MAPAS
+// =========================================================
+
 export const generarUrlGoogleMaps = (queryStr) => {
-  // CORRECCIÓN: Se agregó el $ que faltaba para la interpolación 
-  // y se apuntó a la URL estándar de búsqueda de Google Maps
+  if (!queryStr) return '';
+  // Se utiliza la URL oficial de búsqueda parametrizada de Google Maps
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryStr)}`;
 };
+
+
+// =========================================================
+// FORMATEADORES DE DATOS Y TIEMPO
+// =========================================================
 
 export const formatFechaParaInput = (fechaStr) => {
   if (!fechaStr) return '';
@@ -34,7 +43,46 @@ export const formatFechaParaInput = (fechaStr) => {
   return '';
 };
 
-// Añadir al final de frontend/src/utils/helpers.js
+
+// =========================================================
+// GENERADORES DE PLANTILLAS EXCEL PARA CARGA MASIVA (DML)
+// =========================================================
+
+export const generarPlantillaExcel = (tipoCarga) => {
+    let cabeceras = [];
+    let nombreArchivo = "";
+
+    if (tipoCarga === 'PUERTOS') {
+        cabeceras = [
+            "ESTATUS", "PUERTO", "EQUIPO HOTEL ID", "IP HUB", "NOMBRE CORTO", "ID MCA", 
+            "SERVICIO", "POTENCIA HUB", "POTENCIA CPE", "TIPO SERVICIO", "MBPS", "IP GESTION", 
+            "IP CLIENTE", "BDI", "RUTA", "BUFFER", "HILOS", "PARCHEO", "LAMBDAS", 
+            "DISTANCIA CLIENTE", "MARCA CPE", "MODELO CPE", "SERIE CPE", "FECHA DE ENTREGA", 
+            "SERIE SFP HUB", "SERIE SFP CLIENTE", "EQUIPAMIENTO", "SERIE", "DIRECCION", 
+            "COORDENADAS", "COMENTARIOS", "CONTACTO NOMBRE", "CONTACTO TELEFONO"
+        ];
+        nombreArchivo = "Plantilla_Carga_Puertos.xls";
+    } else if (tipoCarga === 'CABEZALES') {
+        cabeceras = [
+            "ID_EQUIPO", "MARCA", "MODELO", "SERIE", "SERVICIO", "GESTION_QAM", 
+            "PORTADORA", "FORMATO", "CANAL", "NOMBRE CANAL", "MCAST IP", "SOURCE IP", 
+            "UDP", "SID"
+        ];
+        nombreArchivo = "Plantilla_Carga_Cabezales.xls";
+    }
+
+    const ts = cabeceras.join("\t") + "\n";
+    const blob = new Blob([ts], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombreArchivo;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
+
 export const generarPlantillaMicroondas = () => {
     const cabeceras = [
         "ESTATUS", "CLIENTE", "RADIO BASE PADRE", "SSID", "FRECUENCIA", "ANCHO CANAL",
