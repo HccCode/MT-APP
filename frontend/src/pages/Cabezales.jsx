@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Search, Eye, Edit, Trash2, Check, X, FileSpreadsheet } from 'lucide-react';
+import { Search, Eye, Edit, Trash2, Check, X, FileSpreadsheet, CheckCircle, AlertTriangle } from 'lucide-react';
 
 export default function Cabezales({ token, handleLogout, puedeCargar, estructuraGeografica, esAdmin }) {
   const [cabezales, setCabezales] = useState([]);
@@ -30,11 +30,37 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   const [editandoCanalId, setEditandoCanalId] = useState(null);
   const [editCanalForm, setEditCanalForm] = useState({});
 
+  // ESTADO PARA NOTIFICACIONES (TOAST)
+  const [msgCab, setMsgCab] = useState({ text: '', type: '' });
+
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
   const abortControllerRef = useRef(null);
 
   useEffect(() => { localStorage.setItem('mcm_cab_reg', filtroReg); }, [filtroReg]);
   useEffect(() => { localStorage.setItem('mcm_cab_cd', filtroCd); }, [filtroCd]);
+
+  // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
+  useEffect(() => {
+    if (msgCab.text) {
+      const timer = setTimeout(() => {
+        setMsgCab({ text: '', type: '' });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [msgCab]);
+
+  // FUNCIÓN PARA COPIAR AL PORTAPAPELES
+  const copiarAlPortapapeles = (texto, campo) => {
+    if (!texto || texto === '---') return;
+    navigator.clipboard.writeText(texto)
+      .then(() => {
+        setMsgCab({ text: `${campo} copiado: ${texto}`, type: 'success' });
+      })
+      .catch(err => {
+        setMsgCab({ text: `Error al copiar ${campo}`, type: 'error' });
+        console.error('Error al copiar al portapapeles:', err);
+      });
+  };
 
   const ciudadesOrdenadas = useMemo(() => {
     if (!filtroReg || !estructuraGeografica || !estructuraGeografica[filtroReg]?.ciudades) return [];
@@ -150,11 +176,12 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
       if (res.ok) {
         setEditandoId(null);
         buscarCabezales();
+        setMsgCab({ text: 'Cabezal actualizado correctamente.', type: 'success' });
       } else {
-        alert("Error al actualizar el cabezal.");
+        setMsgCab({ text: 'Error al actualizar el cabezal.', type: 'error' });
       }
     } catch (e) {
-      console.error(e);
+      setMsgCab({ text: 'Fallo de conexión al servidor.', type: 'error' });
     }
   };
 
@@ -165,9 +192,12 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
       });
-      if (res.ok) buscarCabezales();
+      if (res.ok) {
+        buscarCabezales();
+        setMsgCab({ text: 'Cabezal eliminado exitosamente.', type: 'success' });
+      }
     } catch (e) {
-      console.error(e);
+      setMsgCab({ text: 'Error al intentar eliminar.', type: 'error' });
     }
   };
 
@@ -188,7 +218,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch (e) {
-      alert("Fallo al exportar los canales a Excel. Asegúrate de tener el backend actualizado.");
+      setMsgCab({ text: 'Fallo al exportar los canales a Excel.', type: 'error' });
     }
   };
 
@@ -224,11 +254,12 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
       if (res.ok) {
         setEditandoCanalId(null);
         refrescarAlineacionActual(cabezalSeleccionado.id);
+        setMsgCab({ text: 'Canal actualizado exitosamente.', type: 'success' });
       } else {
-        alert("Error al actualizar renglón de canal.");
+        setMsgCab({ text: 'Error al actualizar renglón de canal.', type: 'error' });
       }
     } catch (e) {
-      console.error(e);
+      setMsgCab({ text: 'Fallo de conexión.', type: 'error' });
     }
   };
 
@@ -239,9 +270,12 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' }
       });
-      if (res.ok) refrescarAlineacionActual(cabezalSeleccionado.id);
+      if (res.ok) {
+        refrescarAlineacionActual(cabezalSeleccionado.id);
+        setMsgCab({ text: 'Canal removido de la alineación.', type: 'success' });
+      }
     } catch (e) {
-      console.error(e);
+      setMsgCab({ text: 'Error al eliminar canal.', type: 'error' });
     }
   };
 
@@ -259,7 +293,22 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   };
 
   return (
-    <div className="p-0 flex flex-col h-full overflow-hidden bg-[#070b19]">
+    <div className="p-0 flex flex-col h-full overflow-hidden bg-[#070b19] relative">
+      
+      {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
+      {msgCab.text && (
+        <div className={`fixed top-8 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 rounded-xl border shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ${msgCab.type === 'error' ? 'bg-red-950/95 border-red-500/50 text-red-400' : 'bg-emerald-950/95 border-emerald-500/50 text-emerald-400'}`}>
+          {msgCab.type === 'error' ? <AlertTriangle className="w-6 h-6 shrink-0" /> : <CheckCircle className="w-6 h-6 shrink-0" />}
+          <div>
+            <h4 className="font-black text-sm uppercase tracking-widest">{msgCab.type === 'error' ? 'Error' : 'Operación Exitosa'}</h4>
+            <p className="text-xs text-white mt-0.5 font-medium">{msgCab.text}</p>
+          </div>
+          <button onClick={() => setMsgCab({ text: '', type: '' })} className="ml-4 p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="p-6 pb-2 flex justify-between items-center shrink-0">
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           📡 Control Central de Cabezales
@@ -373,6 +422,7 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         </table>
       </div>
 
+      {/* MODAL ALINEACIÓN */}
       {modalAbierto && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-[#0b132b] border border-slate-700 rounded-xl max-w-7xl w-full flex flex-col max-h-[85vh] shadow-2xl">
@@ -439,10 +489,37 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                         <td className="p-3 text-xs">{al.formato || '---'}</td>
                         <td className="p-3 font-bold text-white font-mono">{al.canal_num || '---'}</td>
                         <td className="p-3 text-cyan-200 font-semibold">{al.nombre_canal || '---'}</td>
-                        <td className="p-3 font-mono text-xs text-indigo-300">{al.mcast_ip || '---'}</td>
-                        <td className="p-3 font-mono text-xs text-slate-400">{al.source_ip || '---'}</td>
-                        <td className="p-3 font-mono text-xs">{al.udp || '---'}</td>
-                        <td className="p-3 font-mono text-xs text-amber-400">{al.sid || '---'}</td>
+                        
+                        {/* CELDAS COPIABLES */}
+                        <td className="p-3 font-mono text-xs text-indigo-300">
+                          {al.mcast_ip && al.mcast_ip !== '---' ? (
+                            <span onClick={() => copiarAlPortapapeles(al.mcast_ip, 'MCAST IP')} className="cursor-pointer hover:bg-indigo-900/50 hover:text-indigo-200 px-1.5 py-0.5 rounded transition-colors" title="Clic para copiar">
+                              {al.mcast_ip}
+                            </span>
+                          ) : '---'}
+                        </td>
+                        <td className="p-3 font-mono text-xs text-slate-400">
+                          {al.source_ip && al.source_ip !== '---' ? (
+                            <span onClick={() => copiarAlPortapapeles(al.source_ip, 'SOURCE IP')} className="cursor-pointer hover:bg-slate-800 hover:text-slate-200 px-1.5 py-0.5 rounded transition-colors" title="Clic para copiar">
+                              {al.source_ip}
+                            </span>
+                          ) : '---'}
+                        </td>
+                        <td className="p-3 font-mono text-xs">
+                          {al.udp && al.udp !== '---' ? (
+                            <span onClick={() => copiarAlPortapapeles(al.udp, 'UDP')} className="cursor-pointer hover:bg-slate-800 hover:text-white px-1.5 py-0.5 rounded transition-colors" title="Clic para copiar">
+                              {al.udp}
+                            </span>
+                          ) : '---'}
+                        </td>
+                        <td className="p-3 font-mono text-xs text-amber-400">
+                          {al.sid && al.sid !== '---' ? (
+                            <span onClick={() => copiarAlPortapapeles(al.sid, 'SID')} className="cursor-pointer hover:bg-amber-900/40 hover:text-amber-200 px-1.5 py-0.5 rounded transition-colors" title="Clic para copiar">
+                              {al.sid}
+                            </span>
+                          ) : '---'}
+                        </td>
+
                         {puedeCargar && (
                           <td className="p-3 text-center">
                             <div className="flex justify-center gap-3">
