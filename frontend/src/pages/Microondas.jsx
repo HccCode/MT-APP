@@ -7,6 +7,9 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
   const [mwCd, setMwCd] = useState(() => localStorage.getItem('mcm_mw_cd') || '');
   const [mwRb, setMwRb] = useState(() => localStorage.getItem('mcm_mw_rb') || 'TODOS');
 
+  // --- FILTRO DE ACCESS POINT (NUEVO) ---
+  const [filtroAP, setFiltroAP] = useState('TODOS');
+
   // --- CONTROL DE SUB-PESTAÑAS INTERNAS ---
   const [subTab, setSubTab] = useState('enlaces'); 
   
@@ -213,7 +216,8 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
       return cumpleCiudad && cumpleRb;
   });
 
-  const enlacesFiltrados = enlaces.filter(e => {
+  // 1. Pre-filtrar enlaces por ciudad y radio base
+  const enlacesPreFiltrados = enlaces.filter(e => {
       const cumpleCiudad = !mwCd || String(e.ciudad).toUpperCase() === String(mwCd).toUpperCase();
       let cumpleRb = true;
       if (mwRb !== 'TODOS') {
@@ -222,6 +226,14 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
       }
       return cumpleCiudad && cumpleRb;
   });
+
+  // 2. Extraer los Access Points disponibles de la lista pre-filtrada
+  const apsDisponibles = [...new Set(enlacesPreFiltrados.map(e => e.ssid))].filter(Boolean).sort();
+
+  // 3. Filtrar los enlaces finales sumando el filtro del AP
+  const enlacesFiltrados = enlacesPreFiltrados.filter(e => 
+      filtroAP === 'TODOS' || e.ssid === filtroAP
+  );
 
   const apSeleccionado = accessPoints.find(a => String(a.id) === String(editCampos.ap_id));
   const frecuenciaMostrar = apSeleccionado?.frecuencia || editCampos.frecuencia || '';
@@ -235,21 +247,21 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
           <span className="px-3 py-1 rounded-md text-indigo-400 border border-indigo-500/30 shadow-sm uppercase tracking-wider font-bold">ZONA RF</span>
           
-          <select value={mwReg} onChange={(e) => { setMwReg(e.target.value); setMwCd(''); setMwRb('TODOS'); setItemDetalle(null); }} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+          <select value={mwReg} onChange={(e) => { setMwReg(e.target.value); setMwCd(''); setMwRb('TODOS'); setFiltroAP('TODOS'); setItemDetalle(null); }} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
             <option value="">-- REGIÓN --</option>
             {Object.keys(estructuraGeografica).map(r => <option key={r} value={r}>{r}</option>)}
           </select>
           
           <span className="text-indigo-500/80 text-[10px]">➔</span>
           
-          <select value={mwCd} onChange={(e) => { setMwCd(e.target.value); setMwRb('TODOS'); setItemDetalle(null); }} disabled={!mwReg} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+          <select value={mwCd} onChange={(e) => { setMwCd(e.target.value); setMwRb('TODOS'); setFiltroAP('TODOS'); setItemDetalle(null); }} disabled={!mwReg} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-slate-200 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
             <option value="">-- CIUDAD --</option>
             {mwReg && obtenerCiudadesOrdenadas(mwReg).map(c => <option key={c.id} value={c.nombre}>{c.nombre}</option>)}
           </select>
           
           <span className="text-indigo-500/80 text-[10px]">➔</span>
           
-          <select value={mwRb} onChange={(e) => { setMwRb(e.target.value); setItemDetalle(null); }} disabled={!mwCd} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-blue-400 font-bold w-52 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
+          <select value={mwRb} onChange={(e) => { setMwRb(e.target.value); setFiltroAP('TODOS'); setItemDetalle(null); }} disabled={!mwCd} className="bg-[#0b132b] border border-slate-600 px-3 py-1.5 rounded-md text-blue-400 font-bold w-52 disabled:opacity-50 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer">
             <option value="TODOS">-- TODAS LAS RADIO BASES --</option>
             {radioBasesFiltradas.map(rb => (
               <option key={rb.id} value={rb.id}>{rb.nombre}</option>
@@ -260,29 +272,52 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
 
       {/* 2. MENÚ DE SUB-PESTAÑAS INTERNAS */}
       <div className="bg-[#0b132b]/60 border-b border-slate-800/80 p-4 flex gap-2 shrink-0">
-          <button onClick={() => { setSubTab('enlaces'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${subTab==='enlaces' ? 'bg-blue-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
+          <button onClick={() => { setSubTab('enlaces'); setFiltroAP('TODOS'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${subTab==='enlaces' ? 'bg-blue-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
              <Link className="w-4 h-4"/> Enlaces (Clientes) [{enlacesFiltrados.length}]
           </button>
-          <button onClick={() => { setSubTab('aps'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${subTab==='aps' ? 'bg-purple-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
+          <button onClick={() => { setSubTab('aps'); setFiltroAP('TODOS'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${subTab==='aps' ? 'bg-purple-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
              <Router className="w-4 h-4"/> Access Points [{apsFiltrados.length}]
           </button>
-          <button onClick={() => { setSubTab('radiobases'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${subTab==='radiobases' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
+          <button onClick={() => { setSubTab('radiobases'); setFiltroAP('TODOS'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${subTab==='radiobases' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
              <MapPin className="w-4 h-4"/> Radio Bases [{radioBasesFiltradas.length}]
           </button>
       </div>
 
-      {/* ÁREA DE TRABAJO PRINCIPAL: Se añade min-h-0 para que Flexbox no rompa el contenedor en pantallas pequeñas */}
+      {/* ÁREA DE TRABAJO PRINCIPAL */}
       <div className="flex-1 flex flex-col xl:flex-row gap-6 p-6 overflow-hidden min-h-0">
         
-        {/* TABLA CENTRAL: min-h-0 asegura que el overflow de la tabla funcione */}
+        {/* TABLA CENTRAL */}
         <div className="xl:flex-[2] flex-1 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg min-h-0">
-          <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex items-center justify-between gap-4 shrink-0">
-            <div className="flex items-center gap-3 w-full max-w-md relative">
-              <Search className="w-4 h-4 text-slate-500 absolute left-3" />
-              <input type="text" placeholder="Filtro de texto rápido..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-[#050814] border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 w-full rounded pl-9 py-2" />
+          
+          <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full flex-1">
+              
+              {/* Buscador de texto */}
+              <div className="flex items-center w-full max-w-md relative">
+                <Search className="w-4 h-4 text-slate-500 absolute left-3" />
+                <input type="text" placeholder="Filtro de texto rápido..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-[#050814] border border-slate-700 text-sm text-white focus:outline-none focus:border-blue-500 w-full rounded pl-9 py-2" />
+              </div>
+              
+              {/* Filtro por Access Point (Solo en pestaña Enlaces) */}
+              {subTab === 'enlaces' && (
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block shrink-0">Filtrar AP:</span>
+                  <select 
+                    value={filtroAP} 
+                    onChange={(e) => setFiltroAP(e.target.value)} 
+                    className="bg-[#050814] border border-slate-700 px-3 py-2 rounded text-sm text-purple-400 font-bold focus:outline-none focus:border-purple-500 transition-colors cursor-pointer w-full sm:w-auto min-w-[200px]"
+                  >
+                    <option value="TODOS">-- TODOS LOS APs --</option>
+                    {apsDisponibles.map((ap, index) => (
+                      <option key={index} value={ap}>{ap}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
+
             {puedeEditar && (
-              <button disabled={!mwCd} onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all ${subTab==='enlaces'?'bg-blue-600 hover:bg-blue-500':subTab==='aps'?'bg-purple-600 hover:bg-purple-500':'bg-emerald-600 hover:bg-emerald-500'}`}>
+              <button disabled={!mwCd} onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center justify-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all shrink-0 w-full sm:w-auto ${subTab==='enlaces'?'bg-blue-600 hover:bg-blue-500':subTab==='aps'?'bg-purple-600 hover:bg-purple-500':'bg-emerald-600 hover:bg-emerald-500'}`}>
                 <Plus className="w-4 h-4" /> Nuevo
               </button>
             )}
@@ -361,7 +396,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
           </div>
         </div>
 
-        {/* PANEL DETALLES LATERALES: Se agrega overflow-hidden y min-h-0 para el control absoluto */}
+        {/* PANEL DETALLES LATERALES */}
         <div className="w-full xl:w-1/3 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col shadow-xl overflow-hidden min-h-0">
           {(itemDetalle || creandoNuevo) ? (
             <div className="flex flex-col h-full overflow-hidden">
@@ -369,7 +404,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                 {creandoNuevo ? 'CREAR NUEVO REGISTRO' : 'DETALLE DE REGISTRO'}
               </h3>
               
-              {/* ÁREA INTERNA DEL FORMULARIO: Es la única parte que ahora generará barra de scroll */}
               <div className="flex-1 overflow-y-auto mt-4 pr-2 space-y-4 custom-scrollbar text-[11px] text-slate-300">
                 
                 {/* FORMULARIO DE RADIO BASES */}
@@ -513,7 +547,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                 )}
               </div>
 
-              {/* ACCIONES DEL FORMULARIO: Siempre fijas al fondo del sidebar */}
+              {/* ACCIONES DEL FORMULARIO */}
               {puedeEditar && (
                 <div className="flex gap-2 mt-4 shrink-0 border-t border-slate-800 pt-3">
                   <button onClick={guardarItem} className="flex-1 bg-[#00a86b] hover:bg-[#008f5d] text-white text-[11px] font-black py-3 rounded-lg cursor-pointer flex items-center justify-center gap-2 transition-colors shadow-lg">
