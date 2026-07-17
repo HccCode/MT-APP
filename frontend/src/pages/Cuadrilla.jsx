@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp, Clock, Smartphone, Calculator } from 'lucide-react';
+import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp, Clock, Smartphone, Calculator, Wifi, MapPin } from 'lucide-react';
 
 export default function Cuadrilla({ token, handleLogout }) {
   // ================= ESTADO DE SEGURIDAD =================
   const [esMovil, setEsMovil] = useState(true);
 
   const [busqueda, setBusqueda] = useState('');
-  const [resultados, setResultados] = useState([]);
+  
+  // ================= ESTADOS PARA MULTI-TECNOLOGÍA =================
+  const [resultadosFO, setResultadosFO] = useState([]);
+  const [resultadosMW, setResultadosMW] = useState([]);
+  const [pestanaActiva, setPestanaActiva] = useState('FO'); // 'FO' o 'MW'
+  
   const [cargando, setCargando] = useState(false);
   const [puertoActivo, setPuertoActivo] = useState(null);
 
@@ -46,7 +51,6 @@ export default function Cuadrilla({ token, handleLogout }) {
       const ipParts = ip.split('.').map(Number);
       if (ipParts.length !== 4 || ipParts.some(isNaN)) return null;
 
-      // Operaciones seguras a 32-bits sin signo
       const ipInt = ((ipParts[0] << 24) >>> 0) + ((ipParts[1] << 16) >>> 0) + ((ipParts[2] << 8) >>> 0) + ipParts[3];
       const maskInt = (0xFFFFFFFF << (32 - prefix)) >>> 0;
       const networkInt = (ipInt & maskInt) >>> 0;
@@ -64,9 +68,9 @@ export default function Cuadrilla({ token, handleLogout }) {
         lastUsable = broadcastInt - 1;
         hosts = (lastUsable - firstUsable) + 1;
       } else if (prefix === 31) {
-        hosts = 2; // Punto a punto
+        hosts = 2; 
       } else if (prefix === 32) {
-        hosts = 1; // Un solo host
+        hosts = 1; 
       }
 
       return {
@@ -85,24 +89,49 @@ export default function Cuadrilla({ token, handleLogout }) {
     
     setCargando(true);
     setPuertoActivo(null);
+    setResultadosFO([]);
+    setResultadosMW([]);
     
     try {
-      const res = await fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, {
-        headers: { 'Authorization': `Bearer ${token}` },credentials: 'include'
-      });
-      const json = await res.json();
+      // Realizamos ambas peticiones en paralelo
+      const [resFO, resMW] = await Promise.all([
+        fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
+        fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
+      ]);
+
+      let dataFO = { status: 'error', data: [] };
+      let dataMW = { data: [] };
+
+      if (resFO && resFO.ok) dataFO = await resFO.json();
+      if (resMW && resMW.ok) dataMW = await resMW.json();
       
-      if (json.status === 'success') {
-        setResultados(json.data);
-        const terminoLimpio = termino.trim();
-        const nuevaLista = [terminoLimpio, ...busquedasRecientes.filter(b => b.toLowerCase() !== terminoLimpio.toLowerCase())].slice(0, 5);
-        setBusquedasRecientes(nuevaLista);
-        localStorage.setItem('mt_busquedas_recientes', JSON.stringify(nuevaLista));
-      } else {
-        alert("Fallo interno del servidor: " + json.detail);
+      // Mapear resultados agregando el "tipo" para distinguir la ficha técnica
+      let resultsFO = [];
+      let resultsMW = [];
+
+      if (dataFO.status === 'success' || Array.isArray(dataFO.data)) {
+        resultsFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
       }
+      if (Array.isArray(dataMW.data)) {
+        resultsMW = (dataMW.data || []).map(item => ({ ...item, _tipo: 'MW' }));
+      } else if (Array.isArray(dataMW)) {
+        resultsMW = dataMW.map(item => ({ ...item, _tipo: 'MW' }));
+      }
+
+      setResultadosFO(resultsFO);
+      setResultadosMW(resultsMW);
+
+      // Auto-seleccionar la pestaña que tenga resultados si la actual está vacía
+      if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
+      if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
+
+      const terminoLimpio = termino.trim();
+      const nuevaLista = [terminoLimpio, ...busquedasRecientes.filter(b => b.toLowerCase() !== terminoLimpio.toLowerCase())].slice(0, 5);
+      setBusquedasRecientes(nuevaLista);
+      localStorage.setItem('mt_busquedas_recientes', JSON.stringify(nuevaLista));
+
     } catch (err) {
-      alert("Error de conexión con el servidor.");
+      alert("Error de conexión al consultar el espectro.");
     } finally {
       setCargando(false);
     }
@@ -132,7 +161,6 @@ export default function Cuadrilla({ token, handleLogout }) {
         </a>
       ) : (
         <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">
-          {/* El tag <a> vacío bloquea el Data Detector de iOS/Android para que no convierta números en links */}
           <a style={{color: 'inherit', textDecoration: 'none', cursor: 'text'}}>{value || '-'}</a>
         </span>
       )}
@@ -201,6 +229,8 @@ export default function Cuadrilla({ token, handleLogout }) {
     );
   };
 
+  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : resultadosMW;
+
   // ================= PANTALLA DE BLOQUEO (DESKTOP) =================
   if (!esMovil) {
     return (
@@ -245,19 +275,19 @@ export default function Cuadrilla({ token, handleLogout }) {
         </button>
       </div>
 
-      {/* BUSCADOR */}
+      {/* PANEL DE BÚSQUEDA */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
-        <div className="mb-6 mt-2 text-center shrink-0">
+        <div className="mb-4 mt-2 text-center shrink-0">
           <div className="flex justify-center mb-2">
             <span className="bg-blue-900/40 text-blue-400 text-[10px] font-black px-3 py-1 rounded-full border border-blue-800 flex items-center gap-1.5">
               <ShieldAlert className="w-3 h-3" /> MODO SOLO LECTURA
             </span>
           </div>
           <h2 className="text-xl font-black text-indigo-400">Trabajo en Campo</h2>
-          <p className="text-slate-500 text-xs mt-1">Busca el cliente o puerto a intervenir</p>
+          <p className="text-slate-500 text-xs mt-1">Busca el cliente, puerto o enlace</p>
         </div>
 
-        <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda); }} className="relative mb-6 shrink-0">
+        <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda); }} className="relative mb-4 shrink-0">
           <input 
             type="text" 
             placeholder="Ej. Banamex, Nodo Centro..." 
@@ -268,15 +298,33 @@ export default function Cuadrilla({ token, handleLogout }) {
           <Search className="absolute left-4 top-4.5 w-6 h-6 text-indigo-400" />
           
           {busqueda.length > 0 && (
-            <button type="button" onClick={() => { setBusqueda(''); setResultados([]); }} className="absolute right-4 top-4.5 text-slate-500 hover:text-slate-300 transition-colors">
+            <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-4 top-4.5 text-slate-500 hover:text-slate-300 transition-colors">
               <X className="w-6 h-6" />
             </button>
           )}
           <button type="submit" className="hidden">Buscar</button>
         </form>
 
+        {/* PESTAÑAS (TABS) DINÁMICAS */}
+        {(!cargando && (resultadosFO.length > 0 || resultadosMW.length > 0)) && (
+          <div className="flex bg-[#1c2541]/80 rounded-xl p-1.5 mb-4 shrink-0 border border-slate-700/50 shadow-inner">
+            <button
+              onClick={() => setPestanaActiva('FO')}
+              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              <Server className="w-3 h-3" /> F. Óptica ({resultadosFO.length})
+            </button>
+            <button
+              onClick={() => setPestanaActiva('MW')}
+              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              <Wifi className="w-3 h-3" /> Microondas ({resultadosMW.length})
+            </button>
+          </div>
+        )}
+
         {/* HISTORIAL */}
-        {!cargando && resultados.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
+        {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
           <div className="mb-6 animate-in fade-in shrink-0">
             <div className="flex items-center justify-center gap-2 mb-3">
               <Clock className="w-3.5 h-3.5 text-slate-500" />
@@ -299,33 +347,52 @@ export default function Cuadrilla({ token, handleLogout }) {
           </div>
         )}
 
-        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Consultando MT_DB...</p>}
+        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Sincronizando MT_DB...</p>}
 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10">
-          {resultados.length === 0 && !cargando && busqueda.length > 2 && (
-            <p className="text-center text-slate-600">No se encontraron coincidencias.</p>
+          
+          {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
+             <p className="text-center text-slate-500 text-sm italic mt-4">No hay resultados en esta pestaña.</p>
+          )}
+
+          {resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
+            <p className="text-center text-slate-500 text-sm italic mt-4">No se encontraron coincidencias en ninguna red.</p>
           )}
           
-          {resultados.map((p) => (
-            <div key={p.ID} className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform" onClick={() => abrirDetalle(p)}>
-              <div className="flex justify-between items-start mb-1.5">
-                <h3 className="font-black text-slate-100 text-lg">{p.PUERTO || '-'}</h3>
-                <span className={`px-2 py-1 rounded-md text-[9px] font-black border uppercase ${String(p.ESTATUS).includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : String(p.ESTATUS).includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : String(p.ESTATUS).includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
-                  {p.ESTATUS}
-                </span>
+          {resultadosActuales.map((p, idx) => {
+            const estatusStr = String(p.ESTATUS || p.estatus || '').toUpperCase();
+            
+            return (
+              <div key={p.ID || p.id || idx} className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform" onClick={() => abrirDetalle(p)}>
+                <div className="flex justify-between items-start mb-1.5">
+                  <h3 className="font-black text-slate-100 text-lg">{p._tipo === 'FO' ? (p.PUERTO || '-') : (p.cliente || 'Enlace MW')}</h3>
+                  <span className={`px-2 py-1 rounded-md text-[9px] font-black border uppercase ${estatusStr.includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : estatusStr.includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : estatusStr.includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
+                    {estatusStr || 'DESCONOCIDO'}
+                  </span>
+                </div>
+                
+                <p className="text-[13px] text-indigo-300 font-bold mb-2 truncate">
+                  {p._tipo === 'FO' ? (p.SERVICIO || 'Sin cliente asignado') : (p.sitio_base || 'Sitio Desconocido')}
+                </p>
+                
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                  <span className="flex items-center gap-1">
+                    {p._tipo === 'FO' ? <Server className="w-3 h-3 text-slate-500" /> : <Wifi className="w-3 h-3 text-slate-500" />}
+                    {p._tipo === 'FO' ? 'F. Óptica' : 'Microondas'}
+                  </span>
+                  {(p.IP_GESTION || p.ip_gestion_st || p.ip_gestion_ap) && (
+                    <span className="text-emerald-400 bg-emerald-900/20 px-1.5 rounded">
+                      {p.IP_GESTION || p.ip_gestion_st || p.ip_gestion_ap}
+                    </span>
+                  )}
+                </div>
               </div>
-              <p className="text-[13px] text-indigo-300 font-bold mb-2 truncate">{p.SERVICIO || 'Sin cliente asignado'}</p>
-              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                {/* ID DE EQUIPO ELIMINADO POR REGLA DE SEGURIDAD */}
-                <span className="flex items-center gap-1"><Server className="w-3 h-3 text-slate-500" /> Equipo Óptico</span>
-                {p.IP_GESTION && <span className="text-emerald-400 bg-emerald-900/20 px-1.5 rounded">{p.IP_GESTION}</span>}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 
-      {/* FICHA TÉCNICA */}
+      {/* FICHA TÉCNICA DINÁMICA */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
         {puertoActivo && (
           <>
@@ -335,80 +402,104 @@ export default function Cuadrilla({ token, handleLogout }) {
                   <X className="w-5 h-5" />
                 </button>
                 <div>
-                  <h2 className="text-indigo-400 font-black text-sm uppercase tracking-widest leading-none">Ficha Técnica</h2>
-                  <p className="text-[10px] text-slate-500 truncate max-w-[200px] mt-0.5">{puertoActivo.SERVICIO || puertoActivo.PUERTO}</p>
+                  <h2 className={`font-black text-sm uppercase tracking-widest leading-none ${puertoActivo._tipo === 'FO' ? 'text-indigo-400' : 'text-blue-400'}`}>
+                    Ficha Técnica {puertoActivo._tipo}
+                  </h2>
+                  <p className="text-[10px] text-slate-500 truncate max-w-[200px] mt-0.5">
+                    {puertoActivo._tipo === 'FO' ? (puertoActivo.SERVICIO || puertoActivo.PUERTO) : (puertoActivo.cliente || puertoActivo.sitio_base)}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3 pb-10">
               
-              <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
-                <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
-                {/* ID DE EQUIPO ELIMINADO POR REGLA DE SEGURIDAD */}
-                <p className="text-indigo-400 font-mono text-xs font-bold">Puerto Físico: {puertoActivo.PUERTO || '-'}</p>
-              </div>
-
-              <SeccionDesplegable 
-                titulo="Estado Operativo y Potencias" 
-                icono={<Zap className="w-4 h-4"/>} 
-                colorTexto="text-amber-500" 
-                bgClass="bg-amber-950/20" 
-                borderClass="border-amber-900/30"
-                abiertoPorDefecto={true}
-              >
-                <InfoRow label="Estatus Físico" value={puertoActivo.ESTATUS} />
-                <InfoRow label="Potencia HUB" value={puertoActivo.POTENCIA_HUB ? `${puertoActivo.POTENCIA_HUB} dBm` : '-'} />
-                <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
-              </SeccionDesplegable>
-
-              <SeccionDesplegable 
-                titulo="Lógica y Enrutamiento" 
-                icono={<Server className="w-4 h-4"/>} 
-                colorTexto="text-blue-400"
-              >
-                <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
-                <InfoRowIP label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
-                <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
-              </SeccionDesplegable>
-
-              <SeccionDesplegable 
-                titulo="Planta Externa" 
-                icono={<Activity className="w-4 h-4"/>} 
-                colorTexto="text-emerald-400"
-              >
-                <InfoRow label="Ruta OSP" value={puertoActivo.RUTA} />
-                <InfoRow label="Distancia" value={puertoActivo.DISTANCIA_CLIENTE} />
-                <InfoRow label="Lambdas" value={puertoActivo.LAMBDAS} />
-                <InfoRow label="Buffer" value={puertoActivo.BUFFER} />
-                <InfoRow label="Hilos" value={puertoActivo.HILOS} />
-              </SeccionDesplegable>
-
-              <SeccionDesplegable 
-                titulo="Contacto y Sitio" 
-                icono={<Users className="w-4 h-4"/>} 
-                colorTexto="text-pink-400"
-              >
-                <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
-                <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
-                
-                {puertoActivo.COORDENADAS ? (
-                  <div className="mt-3 pt-3 border-t border-slate-800/50">
-                    <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
-                    <a 
-                      href={`https://maps.google.com/?q=$${encodeURIComponent(puertoActivo.COORDENADAS)}`} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-sm"
-                    >
-                      <Navigation className="w-4 h-4 text-emerald-400"/> Abrir en Google Maps
-                    </a>
+              {/* === VISTA DETALLE FIBRA ÓPTICA === */}
+              {puertoActivo._tipo === 'FO' && (
+                <>
+                  <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
+                    <p className="text-indigo-400 font-mono text-xs font-bold flex items-center gap-1.5"><Server className="w-3.5 h-3.5"/> Puerto Físico: {puertoActivo.PUERTO || '-'}</p>
                   </div>
-                ) : (
-                  <InfoRow label="Coordenadas" value="No registradas" />
-                )}
-              </SeccionDesplegable>
-              
+
+                  <SeccionDesplegable titulo="Estado Operativo y Potencias" icono={<Zap className="w-4 h-4"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
+                    <InfoRow label="Estatus Físico" value={puertoActivo.ESTATUS} />
+                    <InfoRow label="Potencia HUB" value={puertoActivo.POTENCIA_HUB ? `${puertoActivo.POTENCIA_HUB} dBm` : '-'} />
+                    <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
+                  </SeccionDesplegable>
+
+                  <SeccionDesplegable titulo="Lógica y Enrutamiento" icono={<Server className="w-4 h-4"/>} colorTexto="text-blue-400">
+                    <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
+                    <InfoRowIP label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
+                    <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
+                  </SeccionDesplegable>
+
+                  <SeccionDesplegable titulo="Planta Externa" icono={<Activity className="w-4 h-4"/>} colorTexto="text-emerald-400">
+                    <InfoRow label="Ruta OSP" value={puertoActivo.RUTA} />
+                    <InfoRow label="Distancia" value={puertoActivo.DISTANCIA_CLIENTE} />
+                    <InfoRow label="Lambdas" value={puertoActivo.LAMBDAS} />
+                    <InfoRow label="Buffer" value={puertoActivo.BUFFER} />
+                    <InfoRow label="Hilos" value={puertoActivo.HILOS} />
+                  </SeccionDesplegable>
+
+                  <SeccionDesplegable titulo="Contacto y Sitio" icono={<Users className="w-4 h-4"/>} colorTexto="text-pink-400">
+                    <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
+                    <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
+                    {puertoActivo.COORDENADAS ? (
+                      <div className="mt-3 pt-3 border-t border-slate-800/50">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-sm">
+                          <Navigation className="w-4 h-4 text-emerald-400"/> Abrir en Google Maps
+                        </a>
+                      </div>
+                    ) : (
+                      <InfoRow label="Coordenadas" value="No registradas" />
+                    )}
+                  </SeccionDesplegable>
+                </>
+              )}
+
+              {/* === VISTA DETALLE MICROONDAS === */}
+              {puertoActivo._tipo === 'MW' && (
+                <>
+                  <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.cliente || 'Sin Cliente'}</h3>
+                    <p className="text-blue-400 font-mono text-xs font-bold flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5"/> Sitio Base: {puertoActivo.sitio_base || '-'}</p>
+                  </div>
+
+                  <SeccionDesplegable titulo="Radiofrecuencia e Interfaz" icono={<Activity className="w-4 h-4"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
+                    <InfoRow label="Estatus Enlace" value={puertoActivo.estatus} />
+                    <InfoRow label="Frecuencia AP" value={puertoActivo.frecuencia ? `${puertoActivo.frecuencia} MHz` : '-'} />
+                    <InfoRow label="SSID Torre" value={puertoActivo.ssid} />
+                    <InfoRow label="Señal RX (Torre)" value={puertoActivo.senal_rx_ap ? `${puertoActivo.senal_rx_ap} dBm` : '-'} />
+                    <InfoRow label="Señal RX (Cliente)" value={puertoActivo.senal_rx_st ? `${puertoActivo.senal_rx_st} dBm` : '-'} />
+                  </SeccionDesplegable>
+
+                  <SeccionDesplegable titulo="Lógica y Equipamiento" icono={<Server className="w-4 h-4"/>} colorTexto="text-blue-400">
+                    <InfoRowIP label="IP Gestión (AP)" value={puertoActivo.ip_gestion_ap} />
+                    <InfoRowIP label="IP Gestión (CPE)" value={puertoActivo.ip_gestion_st} />
+                    <InfoRow label="Modelo CPE" value={puertoActivo.modelo_st} />
+                    <InfoRow label="MAC CPE" value={puertoActivo.mac_st} />
+                  </SeccionDesplegable>
+
+                  <SeccionDesplegable titulo="Ubicación y Sitio" icono={<MapPin className="w-4 h-4"/>} colorTexto="text-emerald-400">
+                    <InfoRow label="Dirección" value={puertoActivo.direccion} />
+                    <InfoRow label="Distancia Torre" value={puertoActivo.distancia_km ? `${puertoActivo.distancia_km} km` : '-'} />
+                    
+                    {puertoActivo.coordenadas ? (
+                      <div className="mt-3 pt-3 border-t border-slate-800/50">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.coordenadas)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-sm">
+                          <Navigation className="w-4 h-4 text-emerald-400"/> Abrir en Google Maps
+                        </a>
+                      </div>
+                    ) : (
+                      <InfoRow label="Coordenadas" value="No registradas" />
+                    )}
+                  </SeccionDesplegable>
+                </>
+              )}
+
               <div className="text-center pt-2">
                 <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Edición de datos restringida a la plataforma de escritorio.</p>
               </div>
