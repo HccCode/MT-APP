@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, Inbox } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
@@ -50,7 +50,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       return () => clearTimeout(timer);
     }
   }, [msgInv]);
-  
+
   const cargarDatosSistemas = async () => {
     if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
     setCargando(true); setErrorApp(null);
@@ -262,8 +262,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
+      {/* AQUÍ ESTÁ LA MAGIA: Se agregó min-h-0 para que la cuadrícula y sus hijos no rompan el contenedor flex principal */}
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden min-h-0">
         
+        {/* Contenedor de la tabla con min-h-0 */}
         <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg min-h-0">
           
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
@@ -304,34 +306,24 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
-                {cargando ? (
+                {cargando ? <tr><td colSpan="6" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
+                puertosFiltrados.length === 0 ? (
                   // ==============================
-                  // SKELETON LOADER ANIMADO
+                  // EMPTY STATE GRÁFICO (TABLA)
                   // ==============================
-                  [...Array(7)].map((_, i) => (
-                    <tr key={`skel-${i}`} className="border-b border-slate-800/40 animate-pulse bg-slate-900/10">
-                      <td className="p-3 text-center border-r border-slate-800/50">
-                        <div className="w-4 h-4 bg-slate-700/50 rounded mx-auto"></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-5 rounded-full bg-slate-700/50 ${i % 2 === 0 ? 'w-16' : 'w-24'}`}></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-24' : 'w-20'}`}></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-4 rounded bg-slate-700/50 ${i % 2 === 0 ? 'w-32' : 'w-40'}`}></div>
-                      </td>
-                      <td className="p-3">
-                        <div className="w-20 h-4 bg-slate-700/50 rounded"></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-48' : 'w-32'}`}></div>
-                      </td>
-                    </tr>
-                  ))
-                ) : puertosFiltrados.length === 0 ? (
-                  <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr>
+                  <tr>
+                    <td colSpan="6" className="p-16">
+                      <div className="flex flex-col items-center justify-center text-slate-500 animate-in fade-in zoom-in duration-300">
+                        <div className="bg-[#0b132b]/80 p-5 rounded-full mb-4 border border-slate-700/50 shadow-inner">
+                          <Search className="w-10 h-10 text-slate-400 opacity-60" />
+                        </div>
+                        <h4 className="text-sm font-black text-slate-300 mb-1 uppercase tracking-widest">Sin coincidencias</h4>
+                        <p className="text-xs text-slate-500 max-w-sm text-center leading-relaxed">
+                          No se encontraron puertos que coincidan con los filtros seleccionados o la búsqueda actual. Intenta con otros parámetros.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
                 ) : (
                   puertosFiltrados.map((p, idx) => {
                     const est = String(p.ESTATUS || '').toUpperCase().trim();
@@ -373,6 +365,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           </div>
         </div>
 
+        {/* Panel lateral con min-h-0 */}
         <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl min-h-0">
           {puertoDetalle ? (
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
@@ -508,9 +501,20 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-2 shadow-lg transition">💾 Guardar Ficha</button>)}
             </div>
           ) : (
-            <div className="h-full flex flex-col justify-center items-center text-center p-4 text-slate-600">
-              <Server className="w-8 h-8 mb-2 stroke-1" />
-              <p className="text-xs">Selecciona un puerto óptico para auditar o modificar sus variables en MT_DB.</p>
+            // ==============================
+            // EMPTY STATE GRÁFICO (PANEL DERECHO)
+            // ==============================
+            <div className="h-full flex flex-col justify-center items-center text-center p-6 border-2 border-dashed border-slate-700/50 rounded-lg bg-slate-900/20">
+              <div className="bg-slate-800/80 p-6 rounded-full mb-4 shadow-inner relative flex justify-center items-center">
+                {/* Pulso animado trasero */}
+                <Server className="w-10 h-10 text-blue-500/50 absolute animate-ping opacity-30" />
+                {/* Icono fijo frontal */}
+                <Server className="w-10 h-10 text-slate-400 relative z-10" />
+              </div>
+              <h4 className="text-sm font-black text-slate-300 mb-2 tracking-widest uppercase">Panel de Ingeniería</h4>
+              <p className="text-xs text-slate-500 max-w-[250px] leading-relaxed">
+                Selecciona un puerto óptico de la tabla principal para auditar o modificar sus variables en MT_DB.
+              </p>
             </div>
           )}
         </div>
