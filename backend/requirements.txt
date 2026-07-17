@@ -9,3 +9,4 @@ openpyxl
 python-multipart
 pydantic-settings
 slowapi==0.1.9
+react-query
