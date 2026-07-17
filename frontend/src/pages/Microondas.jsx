@@ -105,11 +105,9 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
     }
   };
 
-  // === SOLUCIÓN ERROR 422: Sanitización y validación estricta ===
   const guardarItem = async () => {
     const payload = { ...editCampos };
 
-    // Validaciones de seguridad para evitar choques en Base de Datos
     if (subTab === 'aps') {
         if (!payload.radio_base_id || isNaN(parseInt(payload.radio_base_id))) {
             alert("Error: Debes seleccionar una Radio Base Padre válida para este AP.");
@@ -132,7 +130,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
             alert("Error: El nombre del Cliente / Servicio es obligatorio.");
             return;
         }
-        // Sanitizar ID del AP para que no envíe strings vacíos al Backend numérico
         if (payload.ap_id) {
             payload.ap_id = parseInt(payload.ap_id);
         } else {
@@ -207,7 +204,6 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
 
   const generarUrlMaps = (query) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 
-  // --- FILTRADO DE LISTAS EN TIEMPO REAL ---
   const radioBasesFiltradas = radioBases.filter(rb => !mwCd || String(rb.ciudad).toUpperCase() === String(mwCd).toUpperCase());
   const rbIdsDeCiudad = radioBasesFiltradas.map(r => r.id);
   
@@ -275,11 +271,11 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
           </button>
       </div>
 
-      {/* AREA DE TRABAJO */}
-      <div className="flex-1 flex flex-col xl:flex-row gap-6 p-6 overflow-hidden">
+      {/* ÁREA DE TRABAJO PRINCIPAL: Se añade min-h-0 para que Flexbox no rompa el contenedor en pantallas pequeñas */}
+      <div className="flex-1 flex flex-col xl:flex-row gap-6 p-6 overflow-hidden min-h-0">
         
-        {/* TABLA CENTRAL */}
-        <div className="xl:col-span-2 flex-1 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+        {/* TABLA CENTRAL: min-h-0 asegura que el overflow de la tabla funcione */}
+        <div className="xl:flex-[2] flex-1 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg min-h-0">
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full max-w-md relative">
               <Search className="w-4 h-4 text-slate-500 absolute left-3" />
@@ -365,14 +361,15 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
           </div>
         </div>
 
-        {/* PANEL DETALLES LATERALES */}
-        <div className="w-full xl:w-1/3 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col shadow-xl">
+        {/* PANEL DETALLES LATERALES: Se agrega overflow-hidden y min-h-0 para el control absoluto */}
+        <div className="w-full xl:w-1/3 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col shadow-xl overflow-hidden min-h-0">
           {(itemDetalle || creandoNuevo) ? (
             <div className="flex flex-col h-full overflow-hidden">
               <h3 className={`text-xs font-black tracking-widest border-b border-slate-800 pb-3 flex items-center gap-2 shrink-0 ${subTab==='enlaces'?'text-blue-400':subTab==='aps'?'text-purple-400':'text-emerald-400'}`}>
                 {creandoNuevo ? 'CREAR NUEVO REGISTRO' : 'DETALLE DE REGISTRO'}
               </h3>
               
+              {/* ÁREA INTERNA DEL FORMULARIO: Es la única parte que ahora generará barra de scroll */}
               <div className="flex-1 overflow-y-auto mt-4 pr-2 space-y-4 custom-scrollbar text-[11px] text-slate-300">
                 
                 {/* FORMULARIO DE RADIO BASES */}
@@ -468,7 +465,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                      </div>
 
                      <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
-                        <h4 className="font-bold text-emerald-400 uppercase border-b border-slate-800 pb-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Ubicación de Cliente</h4>
+                        <h4 className="font-bold text-emerald-400 uppercase border-b border-slate-800 pb-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Ubicación de Entrega</h4>
                         <div>
                            <label className="block text-slate-500 font-bold mb-1">DIRECCIÓN DEL CLIENTE</label>
                            <input type="text" disabled={!puedeEditar} value={editCampos.direccion || ''} onChange={e=>setEditCampos({...editCampos, direccion: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none focus:border-blue-500" placeholder="Calle, Número, Colonia" />
@@ -516,6 +513,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                 )}
               </div>
 
+              {/* ACCIONES DEL FORMULARIO: Siempre fijas al fondo del sidebar */}
               {puedeEditar && (
                 <div className="flex gap-2 mt-4 shrink-0 border-t border-slate-800 pt-3">
                   <button onClick={guardarItem} className="flex-1 bg-[#00a86b] hover:bg-[#008f5d] text-white text-[11px] font-black py-3 rounded-lg cursor-pointer flex items-center justify-center gap-2 transition-colors shadow-lg">
