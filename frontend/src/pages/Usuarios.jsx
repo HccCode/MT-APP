@@ -56,6 +56,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
     setIdUserEditando(null); setNewUsername(''); setNewPassword(''); setNewNombreCompleto(''); 
     setNewPlazas(['*']); setNewNumEmpleado(''); setNewCorreo(''); setNewArea(''); 
     setNewRegionUsuario(''); setNewPuesto(''); 
+    // CORRECCIÓN: Se eliminó setMsgUser aquí para que el Toast no se cierre instantáneamente
     setNewPermisos(['LECTURA']); setNewPestanas(['*']); setFiltroPlazas('');
     
     // Restaurar acordeones al cancelar
@@ -127,7 +128,6 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
 
     setNewPestanas(u.pestanas ? u.pestanas.split(',') : ['*']);
     
-    // Al editar, asegurar que los acordeones estén abiertos para ver qué hay seleccionado
     setVerPermisos(true);
     setVerPestanas(true);
     setVerGeografia(true);
@@ -152,7 +152,6 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
 
   const obtenerNombresPlazas = (plazasStr) => { if (!plazasStr || plazasStr === '*') return 'ACCESO GLOBAL'; return plazasStr.split(',').join(', '); };
   
-  // BLINDAJE DE ESTRUCTURA GEOGRAFICA
   const obtenerCiudadesOrdenadas = (region) => { 
       const safeEstructura = estructuraGeografica || {};
       if (!region || !safeEstructura[region]?.ciudades) return []; 

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Edit, Trash2, Map, ShieldAlert } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Edit, Trash2, Map, ShieldAlert, CheckCircle, AlertTriangle, X } from 'lucide-react';
 
 export default function Geografia({ token, estructuraGeografica, cargarGeographyDB, handleLogout, esAdmin }) {
   const [filtroBusquedaRegion, setFiltroBusquedaRegion] = useState('');
@@ -21,11 +21,24 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
   const [hubDireccion, setHubDireccion] = useState('');
   const [hubCoordenadas, setHubCoordenadas] = useState('');
 
+  // ESTADO PARA NOTIFICACIONES
+  const [msgGeo, setMsgGeo] = useState({ text: '', type: '' });
+
   // ESTADOS DE NAVEGACIÓN (Para explorar las listas haciendo clic)
-  const [regionVista, setRegionVista] = useState(null); // Guarda el nombre de la región seleccionada
-  const [ciudadVista, setCiudadVista] = useState(null); // Guarda el objeto de la ciudad seleccionada
+  const [regionVista, setRegionVista] = useState(null); 
+  const [ciudadVista, setCiudadVista] = useState(null); 
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+  // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
+  useEffect(() => {
+    if (msgGeo.text) {
+      const timer = setTimeout(() => {
+        setMsgGeo({ text: '', type: '' });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [msgGeo]);
 
   // ==================== 1. REGIONES ====================
   const handleCancelarEdicionRegion = () => { 
@@ -35,6 +48,8 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
 
   const procesarRegion = async (e) => {
     e.preventDefault();
+    setMsgGeo({ text: '', type: '' });
+    
     const url = idRegionEditando 
       ? `${API_URL}/api/geography/regions/${idRegionEditando}` 
       : `${API_URL}/api/geography/regions`;
@@ -49,16 +64,18 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(`⚠️ Error: ${data.detail || 'Fallo al procesar la región.'}`);
+        setMsgGeo({ text: data.detail || 'Fallo al procesar la región.', type: 'error' });
         if (res.status === 401) handleLogout();
         return;
       }
       
       setRegName(''); 
       setIdRegionEditando(null); 
-      alert(idRegionEditando ? "✅ Región actualizada." : "✅ Región creada."); 
+      setMsgGeo({ text: idRegionEditando ? "Región actualizada correctamente." : "Región creada con éxito.", type: 'success' }); 
       await cargarGeographyDB(); 
-    } catch { alert("⚠️ Error de comunicación con el servidor."); }
+    } catch { 
+      setMsgGeo({ text: "Error de comunicación con el servidor.", type: 'error' }); 
+    }
   };
 
   const handleActivarModoEdicionRegion = (rId, rNombre) => { 
@@ -68,13 +85,20 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
 
   const handleEliminarRegion = async (id, nombre) => {
     if (!window.confirm(`ATENCIÓN: ¿Borrar la región '${nombre}' y todo su contenido permanentemente?`)) return;
-    const res = await fetch(`${API_URL}/api/geography/regions/${id}`, { 
-      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include',
-    });
-    if (res.status === 401) { handleLogout(); return; }
-    if (res.ok) {
-      if (regionVista === nombre) { setRegionVista(null); setCiudadVista(null); }
-      await cargarGeographyDB();
+    try {
+        const res = await fetch(`${API_URL}/api/geography/regions/${id}`, { 
+        method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include',
+        });
+        if (res.status === 401) { handleLogout(); return; }
+        if (res.ok) {
+        if (regionVista === nombre) { setRegionVista(null); setCiudadVista(null); }
+        setMsgGeo({ text: "Región eliminada permanentemente.", type: 'success' });
+        await cargarGeographyDB();
+        } else {
+            setMsgGeo({ text: "Error al eliminar la región.", type: 'error' });
+        }
+    } catch {
+        setMsgGeo({ text: "Error de conexión al eliminar.", type: 'error' });
     }
   };
 
@@ -87,7 +111,9 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
 
   const crearCiudad = async (e) => {
     e.preventDefault();
-    if (!citCode) { alert("Especifica un ID."); return; }
+    setMsgGeo({ text: '', type: '' });
+    
+    if (!citCode) { setMsgGeo({ text: "Especifica un ID para la ciudad.", type: 'error' }); return; }
     
     try {
       const method = idCiudadEditando ? 'PUT' : 'POST';
@@ -109,7 +135,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(`⚠️ Error: ${data.detail || 'Fallo al registrar la ciudad. Verifica que el identificador no esté duplicado.'}`);
+        setMsgGeo({ text: data.detail || 'Fallo al registrar la ciudad. Verifica que el identificador no esté duplicado.', type: 'error' });
         if (res.status === 401) handleLogout();
         return;
       }
@@ -118,24 +144,32 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       setCitName(''); 
       setIdCiudadEditando(null); 
       
-      // Auto-seleccionar la región donde se inyectó para ver la ciudad de inmediato
       const regionDelSelect = Object.keys(estructuraGeografica).find(r => estructuraGeografica[r].id === parseInt(citRegId));
       if (regionDelSelect) setRegionVista(regionDelSelect);
       
-      alert("✅ Ciudad guardada con éxito."); 
+      setMsgGeo({ text: "Ciudad guardada con éxito.", type: 'success' }); 
       await cargarGeographyDB(); 
-    } catch { alert("⚠️ Error de comunicación con el servidor."); }
+    } catch { 
+        setMsgGeo({ text: "Error de comunicación con el servidor.", type: 'error' }); 
+    }
   };
 
   const handleEliminarCiudad = async (id, nombre) => {
     if (!window.confirm(`¿Borrar la ciudad '${nombre}'?`)) return;
-    const res = await fetch(`${API_URL}/api/geography/cities/${id}`, { 
-      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include',
-    });
-    if (res.status === 401) { handleLogout(); return; }
-    if (res.ok) {
-      if (ciudadVista?.id === id) setCiudadVista(null);
-      await cargarGeographyDB();
+    try {
+        const res = await fetch(`${API_URL}/api/geography/cities/${id}`, { 
+        method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include',
+        });
+        if (res.status === 401) { handleLogout(); return; }
+        if (res.ok) {
+        if (ciudadVista?.id === id) setCiudadVista(null);
+        setMsgGeo({ text: "Ciudad eliminada correctamente.", type: 'success' });
+        await cargarGeographyDB();
+        } else {
+            setMsgGeo({ text: "Error al eliminar la ciudad.", type: 'error' });
+        }
+    } catch {
+        setMsgGeo({ text: "Error de red al eliminar la ciudad.", type: 'error' });
     }
   };
 
@@ -149,7 +183,9 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
 
   const asignarHub = async (e) => {
     e.preventDefault();
-    if (!hubCitId) { alert("Selecciona Ciudad."); return; }
+    setMsgGeo({ text: '', type: '' });
+    
+    if (!hubCitId) { setMsgGeo({ text: "Selecciona una Ciudad destino.", type: 'error' }); return; }
     
     const nombreLimpio = hubName.trim().replace(/[^A-Za-z0-9]/g, '_').toUpperCase();
     const idParaGuardar = idHubEditando 
@@ -168,7 +204,7 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(`⚠️ Error: ${data.detail || 'Fallo al intentar registrar el HUB.'}`);
+        setMsgGeo({ text: data.detail || 'Fallo al intentar registrar el HUB.', type: 'error' });
         if (res.status === 401) handleLogout();
         return;
       }
@@ -177,9 +213,11 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
       setHubDireccion(''); 
       setHubCoordenadas(''); 
       setIdHubEditando(null);
-      alert("✅ HUB guardado con éxito."); 
+      setMsgGeo({ text: "HUB configurado exitosamente.", type: 'success' }); 
       await cargarGeographyDB(); 
-    } catch { alert("⚠️ Error de comunicación con el servidor."); }
+    } catch { 
+        setMsgGeo({ text: "Error de comunicación con el servidor.", type: 'error' }); 
+    }
   };
 
   const handleActivarModoEdicionHub = (h, ciudadId) => { 
@@ -192,11 +230,20 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
 
   const handleEliminarHub = async (id, nombre) => {
     if (!window.confirm(`¿Borrar el Hub '${nombre}'?`)) return;
-    const res = await fetch(`${API_URL}/api/geography/hubs/${id}`, { 
-      method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include'
-    });
-    if (res.status === 401) { handleLogout(); return; }
-    if (res.ok) await cargarGeographyDB();
+    try {
+        const res = await fetch(`${API_URL}/api/geography/hubs/${id}`, { 
+        method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } ,credentials: 'include'
+        });
+        if (res.status === 401) { handleLogout(); return; }
+        if (res.ok) {
+            setMsgGeo({ text: "HUB eliminado correctamente.", type: 'success' });
+            await cargarGeographyDB();
+        } else {
+            setMsgGeo({ text: "Error al eliminar el HUB.", type: 'error' });
+        }
+    } catch {
+        setMsgGeo({ text: "Error de red al eliminar el HUB.", type: 'error' });
+    }
   };
 
   let todosLosHubsGlobal = [];
@@ -210,7 +257,22 @@ export default function Geografia({ token, estructuraGeografica, cargarGeography
   });
 
   return (
-    <main className="flex-1 p-6 space-y-6 overflow-hidden flex flex-col h-full bg-[#070b19]">
+    <main className="flex-1 p-6 space-y-6 overflow-hidden flex flex-col h-full bg-[#070b19] relative">
+      
+      {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
+      {msgGeo.text && (
+        <div className={`fixed top-8 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 rounded-xl border shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ${msgGeo.type === 'error' ? 'bg-red-950/95 border-red-500/50 text-red-400' : 'bg-emerald-950/95 border-emerald-500/50 text-emerald-400'}`}>
+          {msgGeo.type === 'error' ? <AlertTriangle className="w-6 h-6 shrink-0" /> : <CheckCircle className="w-6 h-6 shrink-0" />}
+          <div>
+            <h4 className="font-black text-sm uppercase tracking-widest">{msgGeo.type === 'error' ? 'Error de Operación' : 'Operación Exitosa'}</h4>
+            <p className="text-xs text-white mt-0.5 font-medium">{msgGeo.text}</p>
+          </div>
+          <button onClick={() => setMsgGeo({ text: '', type: '' })} className="ml-4 p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="border-b border-slate-800 pb-2 shrink-0">
         <h2 className="text-base font-bold text-white flex items-center gap-2">
           <Map className="w-5 h-5 text-indigo-400" /> Configuración de Red Geográfica
