@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
@@ -37,6 +37,19 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
+
+  // ESTADO PARA NOTIFICACIONES (TOAST)
+  const [msgInv, setMsgInv] = useState({ text: '', type: '' });
+
+  // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
+  useEffect(() => {
+    if (msgInv.text) {
+      const timer = setTimeout(() => {
+        setMsgInv({ text: '', type: '' });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [msgInv]);
   
   const cargarDatosSistemas = async () => {
     if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
@@ -113,7 +126,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       a.remove();
       window.URL.revokeObjectURL(downloadUrl);
     } catch (e) {
-      alert("Fallo al generar el reporte Excel.");
+      setMsgInv({ text: "Fallo al generar el reporte Excel.", type: 'error' });
     } finally {
       setCargando(false);
     }
@@ -122,6 +135,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const handleGuardarCambios = async () => {
     if (!puertoDetalle?.ID) return;
     setGuardando(true);
+    setMsgInv({ text: '', type: '' });
 
     const camposPermitidos = [
       "ESTATUS", "PUERTO", "EQUIPO_HOTEL_ID", "IP_HUB", "NOMBRE_CORTO",
@@ -152,12 +166,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       if (res.ok) { 
         setPuertoDetalle({...puertoDetalle, ...editCampos}); 
         await cargarDatosSistemas(); 
-        alert("Modificación física guardada exitosamente en MT_DB."); 
+        setMsgInv({ text: "Modificación física guardada exitosamente en MT_DB.", type: 'success' });
       } else { 
-        alert("Fallo de validación: No se pudo guardar la información."); 
+        setMsgInv({ text: "Fallo de validación: No se pudo guardar la información.", type: 'error' });
       }
     } catch (err) { 
-      alert("Fallo de red al intentar actualizar el puerto."); 
+      setMsgInv({ text: "Fallo de red al intentar actualizar el puerto.", type: 'error' });
     } finally { setGuardando(false); }
   };
 
@@ -191,7 +205,22 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   }) || [];
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden relative">
+      
+      {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
+      {msgInv.text && (
+        <div className={`fixed top-8 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 rounded-xl border shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ${msgInv.type === 'error' ? 'bg-red-950/95 border-red-500/50 text-red-400' : 'bg-emerald-950/95 border-emerald-500/50 text-emerald-400'}`}>
+          {msgInv.type === 'error' ? <AlertTriangle className="w-6 h-6 shrink-0" /> : <CheckCircle className="w-6 h-6 shrink-0" />}
+          <div>
+            <h4 className="font-black text-sm uppercase tracking-widest">{msgInv.type === 'error' ? 'Error' : 'Operación Exitosa'}</h4>
+            <p className="text-xs text-white mt-0.5 font-medium">{msgInv.text}</p>
+          </div>
+          <button onClick={() => setMsgInv({ text: '', type: '' })} className="ml-4 p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-3 shrink-0">
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
           <span className="px-3 py-1 rounded-md text-blue-500 border border-blue-600/60 shadow-sm uppercase tracking-wider font-bold">FILTROS LISTADO</span>
@@ -233,10 +262,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
-      {/* AQUÍ ESTÁ LA MAGIA: Se agregó min-h-0 para que la cuadrícula y sus hijos no rompan el contenedor flex principal */}
       <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden min-h-0">
         
-        {/* Contenedor de la tabla con min-h-0 */}
         <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg min-h-0">
           
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
@@ -277,48 +304,75 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
-                {cargando ? <tr><td colSpan="6" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
-                puertosFiltrados.length === 0 ? <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr> :
-                puertosFiltrados.map((p, idx) => {
-                  const est = String(p.ESTATUS || '').toUpperCase().trim();
-                  const isDisponible = est.includes('DISPONIBLE');
-                  return (
-                    <tr key={idx} onClick={() => seleccionarPuerto(p)} className={`group hover:bg-slate-800/60 transition-colors duration-200 ease-in-out cursor-pointer ${puertoDetalle?.ID === p.ID ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
-                      <td className="p-3 text-center border-r border-slate-800/50" onClick={(e) => e.stopPropagation()}>
-                        <input 
-                          type="checkbox" 
-                          className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
-                          checked={puertosSeleccionados.includes(p.ID)}
-                          onChange={() => {
-                            setPuertosSeleccionados(prev => prev.includes(p.ID) ? prev.filter(id => id !== p.ID) : [...prev, p.ID]);
-                          }}
-                        />
+                {cargando ? (
+                  // ==============================
+                  // SKELETON LOADER ANIMADO
+                  // ==============================
+                  [...Array(7)].map((_, i) => (
+                    <tr key={`skel-${i}`} className="border-b border-slate-800/40 animate-pulse bg-slate-900/10">
+                      <td className="p-3 text-center border-r border-slate-800/50">
+                        <div className="w-4 h-4 bg-slate-700/50 rounded mx-auto"></div>
                       </td>
                       <td className="p-3">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
-                          isDisponible ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
-                          est === 'ACTIVO' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
-                          est === 'SUSPENDIDO' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 
-                          'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                        }`}>
-                          {p.ESTATUS}
-                        </span>
+                        <div className={`h-5 rounded-full bg-slate-700/50 ${i % 2 === 0 ? 'w-16' : 'w-24'}`}></div>
                       </td>
-                      <td className="p-3 font-mono text-white truncate group-hover:text-blue-400 transition-colors">{p.PUERTO}</td>
-                      <td className="p-3 text-slate-400 font-mono truncate group-hover:text-slate-200 transition-colors">
-                        {inventarioHub === 'TODOS' ? (p.HUB_PERTENENCIA || '-') : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs?.find(h => h.id === inventarioHub)?.nombre || '-')}
+                      <td className="p-3">
+                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-24' : 'w-20'}`}></div>
                       </td>
-                      <td className="p-3 font-mono text-emerald-400/80 truncate group-hover:text-emerald-300 transition-colors">{p.IP_GESTION || '-'}</td>
-                      <td className="p-3 text-slate-300 truncate font-medium group-hover:text-white transition-colors">{p.SERVICIO || '-'}</td>
+                      <td className="p-3">
+                        <div className={`h-4 rounded bg-slate-700/50 ${i % 2 === 0 ? 'w-32' : 'w-40'}`}></div>
+                      </td>
+                      <td className="p-3">
+                        <div className="w-20 h-4 bg-slate-700/50 rounded"></div>
+                      </td>
+                      <td className="p-3">
+                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-48' : 'w-32'}`}></div>
+                      </td>
                     </tr>
-                  );
-                })}
+                  ))
+                ) : puertosFiltrados.length === 0 ? (
+                  <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr>
+                ) : (
+                  puertosFiltrados.map((p, idx) => {
+                    const est = String(p.ESTATUS || '').toUpperCase().trim();
+                    const isDisponible = est.includes('DISPONIBLE');
+                    return (
+                      <tr key={idx} onClick={() => seleccionarPuerto(p)} className={`group hover:bg-slate-800/60 transition-colors duration-200 ease-in-out cursor-pointer ${puertoDetalle?.ID === p.ID ? 'bg-blue-600/10 border-l-4 border-l-blue-500' : ''}`}>
+                        <td className="p-3 text-center border-r border-slate-800/50" onClick={(e) => e.stopPropagation()}>
+                          <input 
+                            type="checkbox" 
+                            className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
+                            checked={puertosSeleccionados.includes(p.ID)}
+                            onChange={() => {
+                              setPuertosSeleccionados(prev => prev.includes(p.ID) ? prev.filter(id => id !== p.ID) : [...prev, p.ID]);
+                            }}
+                          />
+                        </td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                            isDisponible ? 'bg-green-500/10 text-green-400 border-green-500/20' : 
+                            est === 'ACTIVO' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 
+                            est === 'SUSPENDIDO' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 
+                            'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}>
+                            {p.ESTATUS}
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono text-white truncate group-hover:text-blue-400 transition-colors">{p.PUERTO}</td>
+                        <td className="p-3 text-slate-400 font-mono truncate group-hover:text-slate-200 transition-colors">
+                          {inventarioHub === 'TODOS' ? (p.HUB_PERTENENCIA || '-') : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs?.find(h => h.id === inventarioHub)?.nombre || '-')}
+                        </td>
+                        <td className="p-3 font-mono text-emerald-400/80 truncate group-hover:text-emerald-300 transition-colors">{p.IP_GESTION || '-'}</td>
+                        <td className="p-3 text-slate-300 truncate font-medium group-hover:text-white transition-colors">{p.SERVICIO || '-'}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Panel lateral con min-h-0 */}
         <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl min-h-0">
           {puertoDetalle ? (
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
