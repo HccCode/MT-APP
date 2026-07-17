@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Search, Edit, Trash2, ShieldCheck, UserPlus, Key, Mail, MapPin, Briefcase, Lock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Search, Edit, Trash2, ShieldCheck, UserPlus, Key, Mail, MapPin, Briefcase, Lock, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, X } from 'lucide-react';
 
 export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica, handleLogout }) {
   const [listaUsuarios, setListaUsuarios] = useState([]);
@@ -42,10 +42,20 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
 
   useEffect(() => { cargarUsuariosDB(); }, [token, esAdmin]);
 
+  // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
+  useEffect(() => {
+    if (msgUser.text) {
+      const timer = setTimeout(() => {
+        setMsgUser({ text: '', type: '' });
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [msgUser]);
+
   const cancelarEdicionUser = () => { 
     setIdUserEditando(null); setNewUsername(''); setNewPassword(''); setNewNombreCompleto(''); 
     setNewPlazas(['*']); setNewNumEmpleado(''); setNewCorreo(''); setNewArea(''); 
-    setNewRegionUsuario(''); setNewPuesto(''); setMsgUser({ text: '', type: '' }); 
+    setNewRegionUsuario(''); setNewPuesto(''); 
     setNewPermisos(['LECTURA']); setNewPestanas(['*']); setFiltroPlazas('');
     
     // Restaurar acordeones al cancelar
@@ -55,7 +65,9 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
   };
 
   const handleProcesarUsuario = async (e) => {
-    e.preventDefault(); setMsgUser({ text: '', type: '' });
+    e.preventDefault(); 
+    setMsgUser({ text: '', type: '' });
+    
     const url = idUserEditando ? `${API_URL}/api/users/${idUserEditando}` : `${API_URL}/api/auth/register`;
     const plazasString = newPlazas.length === 0 ? "" : newPlazas.includes('*') ? '*' : newPlazas.join(',');
     const roleString = newPermisos.join(',');
@@ -73,11 +85,11 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
       });
       if (res.status === 401) { handleLogout(); return; }
       if (res.ok) { 
-        setMsgUser({ text: 'Operación táctica exitosa.', type: 'success' }); 
+        setMsgUser({ text: idUserEditando ? 'El usuario ha sido actualizado correctamente.' : 'La nueva identidad ha sido creada con éxito.', type: 'success' }); 
         cancelarEdicionUser(); 
         await cargarUsuariosDB(); 
       } else { 
-        setMsgUser({ text: 'Error de validación al procesar.', type: 'error' }); 
+        setMsgUser({ text: 'Ocurrió un error de validación al procesar la solicitud. Revisa los datos.', type: 'error' }); 
       }
     } catch { 
       setMsgUser({ text: 'Fallo de conexión con el servidor.', type: 'error' }); 
@@ -89,8 +101,15 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
     try {
         const res = await fetch(`${API_URL}/api/users/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` },credentials: 'include' });
         if (res.status === 401) { handleLogout(); return; }
-        if (res.ok) await cargarUsuariosDB();
-    } catch (e) { console.error(e); }
+        if (res.ok) {
+            setMsgUser({ text: 'Los accesos han sido revocados y el usuario fue eliminado.', type: 'success' });
+            await cargarUsuariosDB();
+        } else {
+            setMsgUser({ text: 'Error al intentar eliminar el usuario.', type: 'error' });
+        }
+    } catch (e) { 
+        setMsgUser({ text: 'Error de red al intentar eliminar.', type: 'error' });
+    }
   };
 
   const handleActivarModoEdicionUser = (u) => { 
@@ -166,8 +185,22 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
   const safeEstructura = estructuraGeografica || {};
 
   return (
-    <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto custom-scrollbar bg-[#070b19]">
+    <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto custom-scrollbar bg-[#070b19] relative">
       
+      {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
+      {msgUser.text && (
+        <div className={`fixed top-8 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 rounded-xl border shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ${msgUser.type === 'error' ? 'bg-red-950/95 border-red-500/50 text-red-400' : 'bg-emerald-950/95 border-emerald-500/50 text-emerald-400'}`}>
+          {msgUser.type === 'error' ? <AlertTriangle className="w-6 h-6 shrink-0" /> : <CheckCircle className="w-6 h-6 shrink-0" />}
+          <div>
+            <h4 className="font-black text-sm uppercase tracking-widest">{msgUser.type === 'error' ? 'Error de Operación' : 'Operación Exitosa'}</h4>
+            <p className="text-xs text-white mt-0.5 font-medium">{msgUser.text}</p>
+          </div>
+          <button onClick={() => setMsgUser({ text: '', type: '' })} className="ml-4 p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="bg-[#090f24] border-b border-slate-800/60 pb-4 shrink-0">
         <h2 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-widest">
             <ShieldCheck className="w-6 h-6 text-purple-500" /> 
@@ -188,13 +221,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
                 {idUserEditando ? <><Edit className="w-4 h-4"/> Editando Identidad</> : <><UserPlus className="w-4 h-4"/> Nueva Identidad</>}
             </h3>
             
-            {msgUser.text && (
-                <div className={`text-[11px] font-bold p-2.5 rounded-lg border text-center uppercase tracking-wider shadow-inner ${msgUser.type === 'error' ? 'bg-red-950/30 text-red-400 border-red-900/50' : 'bg-emerald-950/30 text-emerald-400 border-emerald-900/50'}`}>
-                    {msgUser.text}
-                </div>
-            )}
-            
-            <div className="space-y-3">
+            <div className="space-y-3 pt-2">
                 <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Nombre Completo *</label>
                     <div className="relative">
