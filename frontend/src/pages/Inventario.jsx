@@ -233,9 +233,11 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
-      <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden">
+      {/* AQUÍ ESTÁ LA MAGIA: Se agregó min-h-0 para que la cuadrícula y sus hijos no rompan el contenedor flex principal */}
+      <div className="flex-1 grid grid-cols-1 xl:grid-cols-3 gap-6 p-6 overflow-hidden min-h-0">
         
-        <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+        {/* Contenedor de la tabla con min-h-0 */}
+        <div className="xl:col-span-2 flex flex-col bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg min-h-0">
           
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full sm:max-w-md">
@@ -316,7 +318,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           </div>
         </div>
 
-        <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl">
+        {/* Panel lateral con min-h-0 */}
+        <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl min-h-0">
           {puertoDetalle ? (
             <div className="flex flex-col h-full space-y-4 overflow-hidden">
               <div className="shrink-0 flex justify-between items-center border-b border-slate-800 pb-3">
