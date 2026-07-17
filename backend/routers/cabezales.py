@@ -207,7 +207,7 @@ def exportar_alineacion_excel(cabezal_id: int, current_user: UserModel = Depends
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
             headers={
                 "Content-Disposition": f"attachment; filename=Alineacion_{cabezal.servicio}.xlsx", 
-                "Access-Control-Expose-Headers": "Content-Disposition"D
+                "Access-Control-Expose-Headers": "Content-Disposition"
             }
         )
     except Exception as e: 
