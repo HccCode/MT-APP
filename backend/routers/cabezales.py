@@ -73,32 +73,41 @@ async def upload_cabezales_excel(
     db: Session = Depends(get_db)
 ):
     try:
-        # 1. Validaciones de seguridad dentro del try
+        # 1. Validaciones de seguridad
         if not can_upload_excel(current_user): 
             return JSONResponse(status_code=403, content={"status": "error", "detail": "Permisos insuficientes."})
         
-        # 2. Protección contra filename/content_type nulo (Causa frecuente de error 500)
         filename = file.filename or ""
         content_type = file.content_type or ""
         
         if not (content_type in ALLOWED_EXCEL_MIME_TYPES or filename.lower().endswith(('.xlsx', '.xls'))): 
             return JSONResponse(status_code=400, content={"status": "error", "detail": "El archivo no es un Excel válido."})
         
-        # 3. Lectura del archivo
+        # 2. Lectura del archivo
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents)).fillna("")
         column_headers = [str(col).upper().strip() for col in df.columns]
 
         def get_idx(targets): return next((column_headers.index(t) for t in targets if t in column_headers), -1)
 
+        # Buscar columnas principales
         idx_ciudad = get_idx(["CIUDAD"])
-        idx_id = get_idx(["ID", "ID EQUIPO", "ID_EQUIPO"])
+        idx_id = get_idx(["ID", "ID EQUIPO", "ID_EQUIPO", "CABEZAL ID"])
         idx_servicio = get_idx(["SERVICIO", "CLIENTE", "CLIENTE / SERVICIO"])
+        
+        # Buscar columnas de Hardware e IP
+        idx_marca = get_idx(["MARCA", "MARCA/MOD"])
+        idx_modelo = get_idx(["MODELO"])
+        idx_serie = get_idx(["SERIE", "NO. SERIE", "NUMERO DE SERIE"])
+        idx_ip = get_idx(["GESTION QAM", "IP", "IP GESTION", "GESTION"])
+        
+        # Buscar columnas de Alineación
+        idx_portadora = get_idx(["PORTADORA", "PORTADORA / CANAL"])
         idx_canal = get_idx(["# CANAL", "CANAL NUM", "CANAL"])
         idx_nombre = get_idx(["NOMBRE DE CANAL", "NOMBRE CANAL"])
 
         if idx_id == -1 or idx_servicio == -1: 
-            return JSONResponse(status_code=400, content={"status": "error", "detail": f"Columnas faltantes. Encontradas: {column_headers}"})
+            return JSONResponse(status_code=400, content={"status": "error", "detail": f"Columnas faltantes (Se requiere ID y Servicio). Encontradas: {column_headers}"})
 
         preview_data = []
         has_errors = False
@@ -110,15 +119,22 @@ async def upload_cabezales_excel(
             val_id = read_val(idx_id)
             val_servicio = read_val(idx_servicio)
             val_ciudad = read_val(idx_ciudad) if idx_ciudad != -1 and read_val(idx_ciudad) else (ciudad or "Sin Ciudad") 
+            
+            # Datos de Hardware
+            val_marca = read_val(idx_marca)
+            val_modelo = read_val(idx_modelo)
+            val_serie = read_val(idx_serie)
+            val_ip = read_val(idx_ip)
+            
+            # Datos de Alineación
+            val_portadora = read_val(idx_portadora)
             val_canal = read_val(idx_canal)
             val_nombre = read_val(idx_nombre)
             
-            # Omitir filas completamente vacías
             if not val_id and not val_servicio and not val_canal: continue
             
             errores_fila = []
             if not val_id: errores_fila.append("Falta ID de Equipo.")
-            if not val_servicio: errores_fila.append("Falta Servicio.")
             
             valido = len(errores_fila) == 0
             if not valido: has_errors = True
@@ -126,12 +142,77 @@ async def upload_cabezales_excel(
             preview_data.append({
                 "ID_EQUIPO": val_id, 
                 "CIUDAD": val_ciudad, 
-                "SERVICIO": val_servicio, 
+                "SERVICIO": val_servicio,
+                "MARCA": val_marca,
+                "MODELO": val_modelo,
+                "SERIE": val_serie,
+                "GESTION_QAM": val_ip,
+                "PORTADORA": val_portadora,
                 "CANAL": val_canal, 
                 "NOMBRE_CANAL": val_nombre, 
                 "_errores": errores_fila, 
                 "_valido": valido
             })
+
+        # === 1. MODO PREVISUALIZACIÓN ===
+        if mode == "preview": 
+            return {"status": "success", "data": preview_data, "has_errors": has_errors}
+
+        # === 2. MODO INYECCIÓN A BASE DE DATOS ===
+        for row in preview_data:
+            if not row["_valido"]: continue
+            
+            # A) GESTIÓN DEL CABEZAL
+            cab_db = db.query(CabezalModel).filter(
+                CabezalModel.ciudad == row["CIUDAD"], 
+                CabezalModel.id_equipo == row["ID_EQUIPO"]
+            ).first()
+            
+            if not cab_db:
+                cab_db = CabezalModel(ciudad=row["CIUDAD"], id_equipo=row["ID_EQUIPO"])
+                db.add(cab_db)
+            
+            # Asignación segura de propiedades (evita crasheos si la columna no existe en tu Models)
+            cab_db.servicio = row["SERVICIO"]
+            if row["MARCA"] and hasattr(cab_db, 'marca'): cab_db.marca = row["MARCA"]
+            if row["MODELO"] and hasattr(cab_db, 'modelo'): cab_db.modelo = row["MODELO"]
+            if row["SERIE"] and hasattr(cab_db, 'serie'): cab_db.serie = row["SERIE"]
+            
+            # Busca la propiedad de IP (diferentes nombres posibles en modelos)
+            if row["GESTION_QAM"]:
+                if hasattr(cab_db, 'gestion_qam'): cab_db.gestion_qam = row["GESTION_QAM"]
+                elif hasattr(cab_db, 'ip_gestion'): cab_db.ip_gestion = row["GESTION_QAM"]
+                elif hasattr(cab_db, 'ip'): cab_db.ip = row["GESTION_QAM"]
+
+            # Forzar guardado para obtener el ID real del cabezal (necesario para la alineación)
+            db.flush() 
+            
+            # B) GESTIÓN DE LA ALINEACIÓN
+            if row["CANAL"] or row["PORTADORA"] or row["NOMBRE_CANAL"]:
+                al_db = db.query(AlineacionCabezalModel).filter(
+                    AlineacionCabezalModel.cabezal_id == cab_db.id,
+                    AlineacionCabezalModel.canal_num == row["CANAL"]
+                ).first()
+                
+                if not al_db:
+                    al_db = AlineacionCabezalModel(cabezal_id=cab_db.id, canal_num=row["CANAL"])
+                    db.add(al_db)
+                
+                if row["PORTADORA"] and hasattr(al_db, 'portadora'): al_db.portadora = row["PORTADORA"]
+                if row["NOMBRE_CANAL"] and hasattr(al_db, 'nombre_canal'): al_db.nombre_canal = row["NOMBRE_CANAL"]
+                
+        db.commit()
+        
+        ciudad_audit = ciudad if ciudad else "Múltiples Ciudades"
+        registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", f"Excel procesado en {ciudad_audit}.")
+        
+        return {"status": "success", "detail": f"Proceso completado. Se inyectaron {len(preview_data)} registros de equipos y alineación."}
+        
+    except Exception as e:
+        db.rollback()
+        error_details = traceback.format_exc()
+        print(error_details)
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}\n{error_details}"})
 
         # === 1. MODO PREVISUALIZACIÓN ===
         if mode == "preview": 
