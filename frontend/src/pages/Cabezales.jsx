@@ -357,7 +357,8 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
               <th className="p-4 border-b border-slate-700">MARCA</th>
               <th className="p-4 border-b border-slate-700">MODELO</th>
               <th className="p-4 border-b border-slate-700">SERIE</th>
-              {puedeCargar && <th className="p-4 border-b border-slate-700 text-center">ACCIONES</th>}
+              {/* LA COLUMNA DE ACCIONES AHORA SIEMPRE ES VISIBLE */}
+              <th className="p-4 border-b border-slate-700 text-center">ACCIONES</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 bg-[#050814]">
@@ -397,21 +398,30 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                   <td className="p-4">{cab.marca || '---'}</td>
                   <td className="p-4">{cab.modelo || '---'}</td>
                   <td className="p-4 font-mono text-xs">{cab.serie || '---'}</td>
-                  {puedeCargar && (
-                    <td className="p-4 text-center">
-                      <div className="flex justify-center gap-4">
-                        <button onClick={() => exportarAlineacionExcel(cab)} className="text-emerald-400 hover:text-emerald-300 transition" title="Exportar Canales a Excel"><FileSpreadsheet className="w-4 h-4"/></button>
-                        <button onClick={() => iniciarEdicion(cab)} className="text-blue-400 hover:text-blue-300 transition" title="Editar"><Edit className="w-4 h-4"/></button>
-                        <button onClick={() => eliminarCabezal(cab.id)} className="text-red-400 hover:text-red-300 transition" title="Eliminar"><Trash2 className="w-4 h-4"/></button>
-                      </div>
-                    </td>
-                  )}
+                  
+                  {/* CELDAS DE ACCIONES: El botón Excel es para todos */}
+                  <td className="p-4 text-center">
+                    <div className="flex justify-center gap-4">
+                      <button onClick={() => exportarAlineacionExcel(cab)} className="text-emerald-400 hover:text-emerald-300 transition" title="Exportar Canales a Excel">
+                        <FileSpreadsheet className="w-4 h-4"/>
+                      </button>
+                      
+                      {/* Editar y Eliminar solo visibles si tiene permisos de escritura/carga */}
+                      {puedeCargar && (
+                        <>
+                          <button onClick={() => iniciarEdicion(cab)} className="text-blue-400 hover:text-blue-300 transition" title="Editar"><Edit className="w-4 h-4"/></button>
+                          <button onClick={() => eliminarCabezal(cab.id)} className="text-red-400 hover:text-red-300 transition" title="Eliminar"><Trash2 className="w-4 h-4"/></button>
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               )
             ))}
             {cabezalesFiltrados.length === 0 && (
               <tr>
-                <td colSpan={puedeCargar ? "9" : "8"} className="p-8 text-center text-slate-500 italic">
+                {/* Ajustamos el colSpan a 9 (siempre están las 9 columnas) */}
+                <td colSpan="9" className="p-8 text-center text-slate-500 italic">
                   {!filtroReg || !filtroCd 
                     ? "⚠️ Por favor, seleccione una Región y Ciudad para desplegar el inventario." 
                     : "Ningún cabezal coincide con los criterios de búsqueda o filtros."}
