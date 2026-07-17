@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
@@ -41,6 +41,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   // ESTADO PARA NOTIFICACIONES (TOAST)
   const [msgInv, setMsgInv] = useState({ text: '', type: '' });
 
+  // ESTADOS PARA PAGINACIÓN
+  const [paginaActual, setPaginaActual] = useState(1);
+  const [elementosPorPagina, setElementosPorPagina] = useState(50);
+
   // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
   useEffect(() => {
     if (msgInv.text) {
@@ -51,6 +55,11 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     }
   }, [msgInv]);
   
+  // RESETEAR PÁGINA CUANDO CAMBIAN LOS FILTROS
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [filtroTexto, filtroEstatus, inventarioHub]);
+
   const cargarDatosSistemas = async () => {
     if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
     setCargando(true); setErrorApp(null);
@@ -185,6 +194,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
   const seleccionarPuerto = (p) => { setPuertoDetalle(p); setEditCampos(p); };
 
+  // ================= LÓGICA DE FILTRADO =================
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
     const est = String(p.ESTATUS || '').toUpperCase().trim();
     
@@ -203,6 +213,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       String(p.BDI || '').toLowerCase().includes(filtroTexto.toLowerCase())
     );
   }) || [];
+
+  // ================= LÓGICA DE PAGINACIÓN =================
+  const totalPaginas = Math.ceil(puertosFiltrados.length / elementosPorPagina) || 1;
+  const indiceUltimoElemento = paginaActual * elementosPorPagina;
+  const indicePrimerElemento = indiceUltimoElemento - elementosPorPagina;
+  const puertosPaginados = puertosFiltrados.slice(indicePrimerElemento, indiceUltimoElemento);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -289,10 +305,15 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     <input 
                       type="checkbox" 
                       className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
-                      checked={puertosFiltrados.length > 0 && puertosSeleccionados.length === puertosFiltrados.length}
+                      checked={puertosPaginados.length > 0 && puertosPaginados.every(p => puertosSeleccionados.includes(p.ID))}
                       onChange={(e) => {
-                        if (e.target.checked) setPuertosSeleccionados(puertosFiltrados.map(p => p.ID));
-                        else setPuertosSeleccionados([]);
+                        if (e.target.checked) {
+                          const nuevosIds = puertosPaginados.map(p => p.ID).filter(id => !puertosSeleccionados.includes(id));
+                          setPuertosSeleccionados(prev => [...prev, ...nuevosIds]);
+                        } else {
+                          const idsPagina = puertosPaginados.map(p => p.ID);
+                          setPuertosSeleccionados(prev => prev.filter(id => !idsPagina.includes(id)));
+                        }
                       }}
                     />
                   </th>
@@ -305,35 +326,21 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               </thead>
               <tbody className="divide-y divide-slate-800/40">
                 {cargando ? (
-                  // ==============================
                   // SKELETON LOADER ANIMADO
-                  // ==============================
                   [...Array(7)].map((_, i) => (
                     <tr key={`skel-${i}`} className="border-b border-slate-800/40 animate-pulse bg-slate-900/10">
-                      <td className="p-3 text-center border-r border-slate-800/50">
-                        <div className="w-4 h-4 bg-slate-700/50 rounded mx-auto"></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-5 rounded-full bg-slate-700/50 ${i % 2 === 0 ? 'w-16' : 'w-24'}`}></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-24' : 'w-20'}`}></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-4 rounded bg-slate-700/50 ${i % 2 === 0 ? 'w-32' : 'w-40'}`}></div>
-                      </td>
-                      <td className="p-3">
-                        <div className="w-20 h-4 bg-slate-700/50 rounded"></div>
-                      </td>
-                      <td className="p-3">
-                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-48' : 'w-32'}`}></div>
-                      </td>
+                      <td className="p-3 text-center border-r border-slate-800/50"><div className="w-4 h-4 bg-slate-700/50 rounded mx-auto"></div></td>
+                      <td className="p-3"><div className={`h-5 rounded-full bg-slate-700/50 ${i % 2 === 0 ? 'w-16' : 'w-24'}`}></div></td>
+                      <td className="p-3"><div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-24' : 'w-20'}`}></div></td>
+                      <td className="p-3"><div className={`h-4 rounded bg-slate-700/50 ${i % 2 === 0 ? 'w-32' : 'w-40'}`}></div></td>
+                      <td className="p-3"><div className="w-20 h-4 bg-slate-700/50 rounded"></div></td>
+                      <td className="p-3"><div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-48' : 'w-32'}`}></div></td>
                     </tr>
                   ))
-                ) : puertosFiltrados.length === 0 ? (
-                  <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr>
+                ) : puertosPaginados.length === 0 ? (
+                  <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros.</td></tr>
                 ) : (
-                  puertosFiltrados.map((p, idx) => {
+                  puertosPaginados.map((p, idx) => {
                     const est = String(p.ESTATUS || '').toUpperCase().trim();
                     const isDisponible = est.includes('DISPONIBLE');
                     return (
@@ -371,6 +378,46 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               </tbody>
             </table>
           </div>
+
+          {/* CONTROLES DE PAGINACIÓN */}
+          <div className="bg-[#0b132b]/80 border-t border-slate-800 p-3 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
+            <div className="text-xs text-slate-400">
+              Mostrando <span className="font-bold text-white">{puertosFiltrados.length === 0 ? 0 : indicePrimerElemento + 1}</span> a <span className="font-bold text-white">{Math.min(indiceUltimoElemento, puertosFiltrados.length)}</span> de <span className="font-bold text-white">{puertosFiltrados.length}</span> resultados
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <select 
+                value={elementosPorPagina} 
+                onChange={(e) => { setElementosPorPagina(Number(e.target.value)); setPaginaActual(1); }} 
+                className="bg-[#050814] text-xs text-slate-300 p-1.5 rounded border border-slate-700 outline-none focus:border-blue-500 cursor-pointer"
+              >
+                <option value={50}>50 por página</option>
+                <option value={100}>100 por página</option>
+                <option value={500}>500 por página</option>
+              </select>
+
+              <div className="flex items-center gap-1 bg-[#050814] border border-slate-700 rounded-lg overflow-hidden p-0.5">
+                <button 
+                  onClick={() => setPaginaActual(p => Math.max(1, p - 1))} 
+                  disabled={paginaActual === 1 || puertosFiltrados.length === 0} 
+                  className="p-1 rounded bg-slate-800/50 hover:bg-blue-600 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs text-white font-bold px-3">
+                  {paginaActual} <span className="text-slate-500 font-normal">/ {totalPaginas}</span>
+                </span>
+                <button 
+                  onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} 
+                  disabled={paginaActual === totalPaginas || puertosFiltrados.length === 0} 
+                  className="p-1 rounded bg-slate-800/50 hover:bg-blue-600 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl min-h-0">
