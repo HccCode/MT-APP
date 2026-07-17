@@ -1,15 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
 
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
-  const queryClient = useQueryClient();
-  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-
   const [inventarioReg, setInventarioReg] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_reg') || '') : '');
   const [inventarioCd, setInventarioCd] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_cd') || '') : '');
   const [inventarioHub, setInventarioHub] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_hub') || 'TODOS') : 'TODOS');
@@ -21,17 +17,23 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     }
   }, [esAdmin, estructuraGeografica, inventarioReg]);
 
+  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
   useEffect(() => { localStorage.setItem('mcm_inv_reg', inventarioReg); }, [inventarioReg]);
   useEffect(() => { localStorage.setItem('mcm_inv_cd', inventarioCd); }, [inventarioCd]);
   useEffect(() => { localStorage.setItem('mcm_inv_hub', inventarioHub); }, [inventarioHub]);
 
+  const [datosHub, setDatosHub] = useState(null);
   const [puertoDetalle, setPuertoDetalle] = useState(null);
+  const [cargando, setCargando] = useState(false);
+  const [errorApp, setErrorApp] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroEstatus, setFiltroEstatus] = useState('TODOS');
   
+  const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});
+
   const [puertosSeleccionados, setPuertosSeleccionados] = useState([]);
-  
   const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
@@ -39,129 +41,73 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   // ESTADO PARA NOTIFICACIONES (TOAST)
   const [msgInv, setMsgInv] = useState({ text: '', type: '' });
 
-  // ESTADOS PARA PAGINACIÓN
-  const [paginaActual, setPaginaActual] = useState(1);
-  const [elementosPorPagina, setElementosPorPagina] = useState(50);
-
-  // Limpieza de estados al cambiar de HUB/Filtros
-  useEffect(() => {
-    setPaginaActual(1);
-    setPuertosSeleccionados([]);
-  }, [filtroTexto, filtroEstatus, inventarioHub, inventarioCd]);
-
-  // Limpieza del Toast
+  // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
   useEffect(() => {
     if (msgInv.text) {
-      const timer = setTimeout(() => setMsgInv({ text: '', type: '' }), 4000);
+      const timer = setTimeout(() => {
+        setMsgInv({ text: '', type: '' });
+      }, 4000);
       return () => clearTimeout(timer);
     }
   }, [msgInv]);
-
-  // ================= REACT QUERY: OBTENCIÓN DE DATOS (USEQUERY) =================
-  const fetchInventario = async () => {
-    if (!token || !inventarioCd || !inventarioHub) return null;
-    
-    if (inventarioHub === 'TODOS') {
-      const hubs = estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || [];
-      if (hubs.length === 0) return { resumen: { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 }, puertos: [] };
-      
-      const promesas = hubs.map(h => 
-        fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, { headers: { 'Authorization': `Bearer ${token}` }})
-        .then(res => res.json())
-      );
-      const resultados = await Promise.all(promesas);
-      
-      let todosPuertos = [];
-      let resumenGlobal = { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 };
-      
-      resultados.forEach(data => {
-        if (data.puertos) {
-          const puertosMarcados = data.puertos.map(p => ({...p, HUB_PERTENENCIA: data.hub}));
-          todosPuertos = [...todosPuertos, ...puertosMarcados];
+  
+  const cargarDatosSistemas = async () => {
+    if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
+    setCargando(true); setErrorApp(null);
+    try {
+      if (inventarioHub === 'TODOS') {
+        const hubs = estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || [];
+        if (hubs.length === 0) {
+          setDatosHub({ resumen: { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 }, puertos: [] });
+          return;
         }
-        if (data.resumen) {
-          resumenGlobal.total += data.resumen.total || 0;
-          resumenGlobal.activos += data.resumen.activos || 0;
-          resumenGlobal.suspendidos += data.resumen.suspendidos || 0;
-          resumenGlobal.troncales += data.resumen.troncales || 0;
-        }
-      });
+        
+        const promesas = hubs.map(h => fetch(`${API_URL}/api/hubs?id_hub=${h.id}`).then(res => res.json()));
+        const resultados = await Promise.all(promesas);
+        
+        let todosPuertos = [];
+        let resumenGlobal = { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 };
+        
+        resultados.forEach(data => {
+          if (data.puertos) {
+            const puertosMarcados = data.puertos.map(p => ({...p, HUB_PERTENENCIA: data.hub}));
+            todosPuertos = [...todosPuertos, ...puertosMarcados];
+          }
+          if (data.resumen) {
+            resumenGlobal.total += data.resumen.total || 0;
+            resumenGlobal.activos += data.resumen.activos || 0;
+            resumenGlobal.suspendidos += data.resumen.suspendidos || 0;
+            resumenGlobal.troncales += data.resumen.troncales || 0;
+          }
+        });
 
-      resumenGlobal.disponibles = todosPuertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
-      return { resumen: resumenGlobal, puertos: todosPuertos };
-    } else {
-      const respuesta = await fetch(`${API_URL}/api/hubs?id_hub=${inventarioHub}`, { headers: { 'Authorization': `Bearer ${token}` }});
-      if (respuesta.status === 401) { handleLogout(); throw new Error('No Autorizado'); }
-      
-      const data = await respuesta.json();
-      if(data.puertos && data.resumen) {
-        data.resumen.disponibles = data.puertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
+        resumenGlobal.disponibles = todosPuertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
+        setDatosHub({ resumen: resumenGlobal, puertos: todosPuertos });
+      } else {
+        const respuesta = await fetch(`${API_URL}/api/hubs?id_hub=${inventarioHub}`);
+        if (respuesta.status === 401) { handleLogout(); return; }
+        
+        const data = await respuesta.json();
+        if(data.puertos && data.resumen) {
+          data.resumen.disponibles = data.puertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
+        }
+        setDatosHub(data);
       }
-      return data;
+    } catch { 
+      setErrorApp("Error"); 
+    } finally { 
+      setCargando(false); 
+      setPuertosSeleccionados([]); 
     }
   };
 
-  const { data: datosHub, isLoading, isFetching } = useQuery({
-    queryKey: ['inventario', inventarioReg, inventarioCd, inventarioHub], // El caché se guarda bajo esta llave
-    queryFn: fetchInventario,
-    enabled: !!token && !!inventarioCd && !!inventarioHub, // Solo ejecuta si hay datos
-    staleTime: 1000 * 60 * 5, // La data se considera "fresca" por 5 minutos (evita recargas innecesarias al cambiar rápido de pestaña)
-  });
-
-  const cargando = isLoading || isFetching; // Para mostrar los Skeletons
-
-  // ================= REACT QUERY: GUARDAR CAMBIOS (USEMUTATION) =================
-  const mutacionGuardar = useMutation({
-    mutationFn: async (payloadSanitizado) => {
-      const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
-        method: 'PUT', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, credentials: 'include' }, 
-        body: JSON.stringify(payloadSanitizado) 
-      });
-      if (res.status === 401) { handleLogout(); throw new Error("No Autorizado"); }
-      if (!res.ok) throw new Error("Fallo de validación al guardar.");
-      return payloadSanitizado;
-    },
-    onSuccess: (dataGuardada) => {
-      setPuertoDetalle({...puertoDetalle, ...dataGuardada}); 
-      // Invalidamos el caché actual para forzar a que React Query descargue la tabla actualizada en segundo plano
-      queryClient.invalidateQueries(['inventario', inventarioReg, inventarioCd, inventarioHub]);
-      setMsgInv({ text: "Modificación física guardada exitosamente en MT_DB.", type: 'success' });
-    },
-    onError: (error) => {
-      if (error.message !== "No Autorizado") {
-        setMsgInv({ text: error.message || "Fallo de red al intentar actualizar el puerto.", type: 'error' });
-      }
-    }
-  });
-
-  const handleGuardarCambios = () => {
-    if (!puertoDetalle?.ID) return;
-    setMsgInv({ text: '', type: '' });
-
-    const camposPermitidos = [
-      "ESTATUS", "PUERTO", "EQUIPO_HOTEL_ID", "IP_HUB", "NOMBRE_CORTO",
-      "ID_MCA", "SERVICIO", "POTENCIA_HUB", "POTENCIA_CPE", "TIPO_SERVICIO",
-      "MBPS", "IP_GESTION", "IP_CLIENTE", "BDI", "RUTA", "BUFFER", "HILOS",
-      "PARCHEO", "LAMBDAS", "DISTANCIA_CLIENTE", "MARCA_CPE", "MODELO_CPE",
-      "SERIE_CPE", "FECHA_DE_ENTREGA", "SERIE_SFP_HUB", "SERIE_SFP_CLIENTE",
-      "EQUIPAMIENTO", "SERIE", "DIRECCION", "COORDENADAS", "COMENTARIOS",
-      "CONTACTO_NOMBRE", "CONTACTO_TELEFONO"
-    ];
-
-    const payloadSanitizado = {};
-    camposPermitidos.forEach(key => {
-      let val = editCampos[key];
-      if (val !== null && val !== undefined) {
-        payloadSanitizado[key] = String(val);
-      }
-    });
-
-    mutacionGuardar.mutate(payloadSanitizado);
-  };
+  useEffect(() => { 
+    cargarDatosSistemas(); 
+  }, [inventarioHub, estructuraGeografica, inventarioReg, inventarioCd]);
 
   const handleExportarExcel = async () => {
     try {
+      setCargando(true);
       let url = `${API_URL}/api/hubs/exportar-excel?`;
       if (inventarioReg) url += `region=${encodeURIComponent(inventarioReg)}&`;
       if (inventarioCd) url += `ciudad=${encodeURIComponent(inventarioCd)}&`;
@@ -181,7 +127,52 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       window.URL.revokeObjectURL(downloadUrl);
     } catch (e) {
       setMsgInv({ text: "Fallo al generar el reporte Excel.", type: 'error' });
+    } finally {
+      setCargando(false);
     }
+  };
+
+  const handleGuardarCambios = async () => {
+    if (!puertoDetalle?.ID) return;
+    setGuardando(true);
+    setMsgInv({ text: '', type: '' });
+
+    const camposPermitidos = [
+      "ESTATUS", "PUERTO", "EQUIPO_HOTEL_ID", "IP_HUB", "NOMBRE_CORTO",
+      "ID_MCA", "SERVICIO", "POTENCIA_HUB", "POTENCIA_CPE", "TIPO_SERVICIO",
+      "MBPS", "IP_GESTION", "IP_CLIENTE", "BDI", "RUTA", "BUFFER", "HILOS",
+      "PARCHEO", "LAMBDAS", "DISTANCIA_CLIENTE", "MARCA_CPE", "MODELO_CPE",
+      "SERIE_CPE", "FECHA_DE_ENTREGA", "SERIE_SFP_HUB", "SERIE_SFP_CLIENTE",
+      "EQUIPAMIENTO", "SERIE", "DIRECCION", "COORDENADAS", "COMENTARIOS",
+      "CONTACTO_NOMBRE", "CONTACTO_TELEFONO"
+    ];
+
+    const payloadSanitizado = {};
+
+    camposPermitidos.forEach(key => {
+      let val = editCampos[key];
+      if (val !== null && val !== undefined) {
+        payloadSanitizado[key] = String(val);
+      }
+    });
+
+    try {
+      const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' }, 
+        body: JSON.stringify(payloadSanitizado) 
+      });
+      if (res.status === 401) { handleLogout(); return; }
+      if (res.ok) { 
+        setPuertoDetalle({...puertoDetalle, ...editCampos}); 
+        await cargarDatosSistemas(); 
+        setMsgInv({ text: "Modificación física guardada exitosamente en MT_DB.", type: 'success' });
+      } else { 
+        setMsgInv({ text: "Fallo de validación: No se pudo guardar la información.", type: 'error' });
+      }
+    } catch (err) { 
+      setMsgInv({ text: "Fallo de red al intentar actualizar el puerto.", type: 'error' });
+    } finally { setGuardando(false); }
   };
 
   const obtenerCiudadesOrdenadas = (region) => {
@@ -194,15 +185,16 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
   const seleccionarPuerto = (p) => { setPuertoDetalle(p); setEditCampos(p); };
 
-  // ================= LÓGICA DE FILTRADO =================
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
     const est = String(p.ESTATUS || '').toUpperCase().trim();
+    
     if (filtroEstatus !== 'TODOS') {
       if (filtroEstatus === 'DISPONIBLE' && !est.includes('DISPONIBLE')) return false;
       if (filtroEstatus === 'ACTIVO' && est !== 'ACTIVO') return false;
       if (filtroEstatus === 'SUSPENDIDO' && est !== 'SUSPENDIDO') return false;
       if (filtroEstatus === 'TRONCAL' && !est.includes('TRONCAL')) return false;
     }
+    
     return (
       String(p.PUERTO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.SERVICIO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
@@ -211,12 +203,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       String(p.BDI || '').toLowerCase().includes(filtroTexto.toLowerCase())
     );
   }) || [];
-
-  // ================= LÓGICA DE PAGINACIÓN =================
-  const totalPaginas = Math.ceil(puertosFiltrados.length / elementosPorPagina) || 1;
-  const indiceUltimoElemento = paginaActual * elementosPorPagina;
-  const indicePrimerElemento = indiceUltimoElemento - elementosPorPagina;
-  const puertosPaginados = puertosFiltrados.slice(indicePrimerElemento, indiceUltimoElemento);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -303,15 +289,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     <input 
                       type="checkbox" 
                       className="w-4 h-4 cursor-pointer accent-blue-500 rounded"
-                      checked={puertosPaginados.length > 0 && puertosPaginados.every(p => puertosSeleccionados.includes(p.ID))}
+                      checked={puertosFiltrados.length > 0 && puertosSeleccionados.length === puertosFiltrados.length}
                       onChange={(e) => {
-                        if (e.target.checked) {
-                          const nuevosIds = puertosPaginados.map(p => p.ID).filter(id => !puertosSeleccionados.includes(id));
-                          setPuertosSeleccionados(prev => [...prev, ...nuevosIds]);
-                        } else {
-                          const idsPagina = puertosPaginados.map(p => p.ID);
-                          setPuertosSeleccionados(prev => prev.filter(id => !idsPagina.includes(id)));
-                        }
+                        if (e.target.checked) setPuertosSeleccionados(puertosFiltrados.map(p => p.ID));
+                        else setPuertosSeleccionados([]);
                       }}
                     />
                   </th>
@@ -324,21 +305,35 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               </thead>
               <tbody className="divide-y divide-slate-800/40">
                 {cargando ? (
-                  // SKELETON LOADER ANIMADO (Vinculado a React Query isFetching/isLoading)
+                  // ==============================
+                  // SKELETON LOADER ANIMADO
+                  // ==============================
                   [...Array(7)].map((_, i) => (
                     <tr key={`skel-${i}`} className="border-b border-slate-800/40 animate-pulse bg-slate-900/10">
-                      <td className="p-3 text-center border-r border-slate-800/50"><div className="w-4 h-4 bg-slate-700/50 rounded mx-auto"></div></td>
-                      <td className="p-3"><div className={`h-5 rounded-full bg-slate-700/50 ${i % 2 === 0 ? 'w-16' : 'w-24'}`}></div></td>
-                      <td className="p-3"><div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-24' : 'w-20'}`}></div></td>
-                      <td className="p-3"><div className={`h-4 rounded bg-slate-700/50 ${i % 2 === 0 ? 'w-32' : 'w-40'}`}></div></td>
-                      <td className="p-3"><div className="w-20 h-4 bg-slate-700/50 rounded"></div></td>
-                      <td className="p-3"><div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-48' : 'w-32'}`}></div></td>
+                      <td className="p-3 text-center border-r border-slate-800/50">
+                        <div className="w-4 h-4 bg-slate-700/50 rounded mx-auto"></div>
+                      </td>
+                      <td className="p-3">
+                        <div className={`h-5 rounded-full bg-slate-700/50 ${i % 2 === 0 ? 'w-16' : 'w-24'}`}></div>
+                      </td>
+                      <td className="p-3">
+                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-24' : 'w-20'}`}></div>
+                      </td>
+                      <td className="p-3">
+                        <div className={`h-4 rounded bg-slate-700/50 ${i % 2 === 0 ? 'w-32' : 'w-40'}`}></div>
+                      </td>
+                      <td className="p-3">
+                        <div className="w-20 h-4 bg-slate-700/50 rounded"></div>
+                      </td>
+                      <td className="p-3">
+                        <div className={`h-4 rounded bg-slate-700/50 ${i % 3 === 0 ? 'w-48' : 'w-32'}`}></div>
+                      </td>
                     </tr>
                   ))
-                ) : puertosPaginados.length === 0 ? (
-                  <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros.</td></tr>
+                ) : puertosFiltrados.length === 0 ? (
+                  <tr><td colSpan="6" className="p-12 text-center text-slate-500 italic">No se encontraron puertos que coincidan con los filtros seleccionados.</td></tr>
                 ) : (
-                  puertosPaginados.map((p, idx) => {
+                  puertosFiltrados.map((p, idx) => {
                     const est = String(p.ESTATUS || '').toUpperCase().trim();
                     const isDisponible = est.includes('DISPONIBLE');
                     return (
@@ -376,46 +371,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               </tbody>
             </table>
           </div>
-
-          {/* CONTROLES DE PAGINACIÓN */}
-          <div className="bg-[#0b132b]/80 border-t border-slate-800 p-3 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-20">
-            <div className="text-xs text-slate-400">
-              Mostrando <span className="font-bold text-white">{puertosFiltrados.length === 0 ? 0 : indicePrimerElemento + 1}</span> a <span className="font-bold text-white">{Math.min(indiceUltimoElemento, puertosFiltrados.length)}</span> de <span className="font-bold text-white">{puertosFiltrados.length}</span> resultados
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <select 
-                value={elementosPorPagina} 
-                onChange={(e) => { setElementosPorPagina(Number(e.target.value)); setPaginaActual(1); }} 
-                className="bg-[#050814] text-xs text-slate-300 p-1.5 rounded border border-slate-700 outline-none focus:border-blue-500 cursor-pointer"
-              >
-                <option value={50}>50 por página</option>
-                <option value={100}>100 por página</option>
-                <option value={500}>500 por página</option>
-              </select>
-
-              <div className="flex items-center gap-1 bg-[#050814] border border-slate-700 rounded-lg overflow-hidden p-0.5">
-                <button 
-                  onClick={() => setPaginaActual(p => Math.max(1, p - 1))} 
-                  disabled={paginaActual === 1 || puertosFiltrados.length === 0} 
-                  className="p-1 rounded bg-slate-800/50 hover:bg-blue-600 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-xs text-white font-bold px-3">
-                  {paginaActual} <span className="text-slate-500 font-normal">/ {totalPaginas}</span>
-                </span>
-                <button 
-                  onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} 
-                  disabled={paginaActual === totalPaginas || puertosFiltrados.length === 0} 
-                  className="p-1 rounded bg-slate-800/50 hover:bg-blue-600 text-slate-300 hover:text-white disabled:opacity-30 disabled:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-
         </div>
 
         <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl min-h-0">
@@ -550,7 +505,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 </div>
               </div>
               
-              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={mutacionGuardar.isPending} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-2 shadow-lg transition">💾 Guardar Ficha</button>)}
+              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-2 shadow-lg transition">💾 Guardar Ficha</button>)}
             </div>
           ) : (
             <div className="h-full flex flex-col justify-center items-center text-center p-4 text-slate-600">
@@ -569,6 +524,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           puertosIds={puertosSeleccionados} 
           token={token}
           cerrarModal={() => setMostrarModalMasivo(false)}
+          recargarDatos={cargarDatosSistemas}
         />
       )}
     </div>
