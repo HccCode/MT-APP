@@ -93,7 +93,6 @@ export default function Cuadrilla({ token, handleLogout }) {
     setResultadosMW([]);
     
     try {
-      // Realizamos ambas peticiones en paralelo
       const [resFO, resMW] = await Promise.all([
         fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
         fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
@@ -105,7 +104,6 @@ export default function Cuadrilla({ token, handleLogout }) {
       if (resFO && resFO.ok) dataFO = await resFO.json();
       if (resMW && resMW.ok) dataMW = await resMW.json();
       
-      // Mapear resultados agregando el "tipo" para distinguir la ficha técnica
       let resultsFO = [];
       let resultsMW = [];
 
@@ -263,13 +261,18 @@ export default function Cuadrilla({ token, handleLogout }) {
       `}</style>
 
       {/* BARRA SUPERIOR */}
-      <div className="bg-[#0b132b] border-b border-slate-800 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex justify-between items-center shrink-0 shadow-md relative z-20">
-        <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2">
-          MT<span className="text-indigo-500">_MANAGER</span>
-        </h1>
+      <div className="bg-[#0b132b] border-b border-slate-800 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex justify-between items-start shrink-0 shadow-md relative z-20">
+        <div className="flex flex-col gap-1.5">
+            <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2 leading-none">
+            MT<span className="text-indigo-500">_MANAGER</span>
+            </h1>
+            <span className="bg-blue-900/40 text-blue-400 text-[9px] font-black px-2.5 py-0.5 rounded-full border border-blue-800 flex items-center gap-1 w-max">
+            <ShieldAlert className="w-3 h-3" /> MODO SOLO LECTURA
+            </span>
+        </div>
         <button 
           onClick={cerrarSesion} 
-          className="flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all shadow-sm"
+          className="flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all shadow-sm mt-0.5"
         >
           <LogOut className="w-3.5 h-3.5 text-red-400" /> Salir
         </button>
@@ -278,11 +281,6 @@ export default function Cuadrilla({ token, handleLogout }) {
       {/* PANEL DE BÚSQUEDA */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         <div className="mb-4 mt-2 text-center shrink-0">
-          <div className="flex justify-center mb-2">
-            <span className="bg-blue-900/40 text-blue-400 text-[10px] font-black px-3 py-1 rounded-full border border-blue-800 flex items-center gap-1.5">
-              <ShieldAlert className="w-3 h-3" /> MODO SOLO LECTURA
-            </span>
-          </div>
           <h2 className="text-xl font-black text-indigo-400">Trabajo en Campo</h2>
           <p className="text-slate-500 text-xs mt-1">Busca el cliente, puerto o enlace</p>
         </div>
@@ -305,23 +303,21 @@ export default function Cuadrilla({ token, handleLogout }) {
           <button type="submit" className="hidden">Buscar</button>
         </form>
 
-        {/* PESTAÑAS (TABS) DINÁMICAS */}
-        {(!cargando && (resultadosFO.length > 0 || resultadosMW.length > 0)) && (
-          <div className="flex bg-[#1c2541]/80 rounded-xl p-1.5 mb-4 shrink-0 border border-slate-700/50 shadow-inner">
+        {/* PESTAÑAS (TABS) PERMANENTES */}
+        <div className="flex bg-[#1c2541]/80 rounded-xl p-1.5 mb-4 shrink-0 border border-slate-700/50 shadow-inner">
             <button
-              onClick={() => setPestanaActiva('FO')}
-              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+            onClick={() => setPestanaActiva('FO')}
+            className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              <Server className="w-3 h-3" /> F. Óptica ({resultadosFO.length})
+            <Server className="w-3 h-3" /> F. Óptica {resultadosFO.length > 0 && `(${resultadosFO.length})`}
             </button>
             <button
-              onClick={() => setPestanaActiva('MW')}
-              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+            onClick={() => setPestanaActiva('MW')}
+            className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
             >
-              <Wifi className="w-3 h-3" /> Microondas ({resultadosMW.length})
+            <Wifi className="w-3 h-3" /> Microondas {resultadosMW.length > 0 && `(${resultadosMW.length})`}
             </button>
-          </div>
-        )}
+        </div>
 
         {/* HISTORIAL */}
         {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
