@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
@@ -6,6 +7,9 @@ import ModalVisualizar from '../components/modals/ModalVisualizar';
 import ModalEdicionMasiva from '../components/modals/ModalEdicionMasiva';
 
 export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmNoc, esAdmin, estructuraGeografica, handleLogout }) {
+  const queryClient = useQueryClient();
+  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
   const [inventarioReg, setInventarioReg] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_reg') || '') : '');
   const [inventarioCd, setInventarioCd] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_cd') || '') : '');
   const [inventarioHub, setInventarioHub] = useState(() => esAdmin ? (localStorage.getItem('mcm_inv_hub') || 'TODOS') : 'TODOS');
@@ -17,23 +21,17 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     }
   }, [esAdmin, estructuraGeografica, inventarioReg]);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
-
   useEffect(() => { localStorage.setItem('mcm_inv_reg', inventarioReg); }, [inventarioReg]);
   useEffect(() => { localStorage.setItem('mcm_inv_cd', inventarioCd); }, [inventarioCd]);
   useEffect(() => { localStorage.setItem('mcm_inv_hub', inventarioHub); }, [inventarioHub]);
 
-  const [datosHub, setDatosHub] = useState(null);
   const [puertoDetalle, setPuertoDetalle] = useState(null);
-  const [cargando, setCargando] = useState(false);
-  const [errorApp, setErrorApp] = useState(null);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroEstatus, setFiltroEstatus] = useState('TODOS');
   
-  const [guardando, setGuardando] = useState(false);
   const [editCampos, setEditCampos] = useState({});
-
   const [puertosSeleccionados, setPuertosSeleccionados] = useState([]);
+  
   const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
@@ -45,78 +43,125 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [paginaActual, setPaginaActual] = useState(1);
   const [elementosPorPagina, setElementosPorPagina] = useState(50);
 
-  // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
+  // Limpieza de estados al cambiar de HUB/Filtros
+  useEffect(() => {
+    setPaginaActual(1);
+    setPuertosSeleccionados([]);
+  }, [filtroTexto, filtroEstatus, inventarioHub, inventarioCd]);
+
+  // Limpieza del Toast
   useEffect(() => {
     if (msgInv.text) {
-      const timer = setTimeout(() => {
-        setMsgInv({ text: '', type: '' });
-      }, 4000);
+      const timer = setTimeout(() => setMsgInv({ text: '', type: '' }), 4000);
       return () => clearTimeout(timer);
     }
   }, [msgInv]);
-  
-  // RESETEAR PÁGINA CUANDO CAMBIAN LOS FILTROS
-  useEffect(() => {
-    setPaginaActual(1);
-  }, [filtroTexto, filtroEstatus, inventarioHub]);
 
-  const cargarDatosSistemas = async () => {
-    if (!token || !inventarioCd || !inventarioHub) { setDatosHub(null); return; }
-    setCargando(true); setErrorApp(null);
-    try {
-      if (inventarioHub === 'TODOS') {
-        const hubs = estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || [];
-        if (hubs.length === 0) {
-          setDatosHub({ resumen: { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 }, puertos: [] });
-          return;
+  // ================= REACT QUERY: OBTENCIÓN DE DATOS (USEQUERY) =================
+  const fetchInventario = async () => {
+    if (!token || !inventarioCd || !inventarioHub) return null;
+    
+    if (inventarioHub === 'TODOS') {
+      const hubs = estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || [];
+      if (hubs.length === 0) return { resumen: { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 }, puertos: [] };
+      
+      const promesas = hubs.map(h => 
+        fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, { headers: { 'Authorization': `Bearer ${token}` }})
+        .then(res => res.json())
+      );
+      const resultados = await Promise.all(promesas);
+      
+      let todosPuertos = [];
+      let resumenGlobal = { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 };
+      
+      resultados.forEach(data => {
+        if (data.puertos) {
+          const puertosMarcados = data.puertos.map(p => ({...p, HUB_PERTENENCIA: data.hub}));
+          todosPuertos = [...todosPuertos, ...puertosMarcados];
         }
-        
-        const promesas = hubs.map(h => fetch(`${API_URL}/api/hubs?id_hub=${h.id}`).then(res => res.json()));
-        const resultados = await Promise.all(promesas);
-        
-        let todosPuertos = [];
-        let resumenGlobal = { total: 0, disponibles: 0, activos: 0, suspendidos: 0, troncales: 0 };
-        
-        resultados.forEach(data => {
-          if (data.puertos) {
-            const puertosMarcados = data.puertos.map(p => ({...p, HUB_PERTENENCIA: data.hub}));
-            todosPuertos = [...todosPuertos, ...puertosMarcados];
-          }
-          if (data.resumen) {
-            resumenGlobal.total += data.resumen.total || 0;
-            resumenGlobal.activos += data.resumen.activos || 0;
-            resumenGlobal.suspendidos += data.resumen.suspendidos || 0;
-            resumenGlobal.troncales += data.resumen.troncales || 0;
-          }
-        });
+        if (data.resumen) {
+          resumenGlobal.total += data.resumen.total || 0;
+          resumenGlobal.activos += data.resumen.activos || 0;
+          resumenGlobal.suspendidos += data.resumen.suspendidos || 0;
+          resumenGlobal.troncales += data.resumen.troncales || 0;
+        }
+      });
 
-        resumenGlobal.disponibles = todosPuertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
-        setDatosHub({ resumen: resumenGlobal, puertos: todosPuertos });
-      } else {
-        const respuesta = await fetch(`${API_URL}/api/hubs?id_hub=${inventarioHub}`);
-        if (respuesta.status === 401) { handleLogout(); return; }
-        
-        const data = await respuesta.json();
-        if(data.puertos && data.resumen) {
-          data.resumen.disponibles = data.puertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
-        }
-        setDatosHub(data);
+      resumenGlobal.disponibles = todosPuertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
+      return { resumen: resumenGlobal, puertos: todosPuertos };
+    } else {
+      const respuesta = await fetch(`${API_URL}/api/hubs?id_hub=${inventarioHub}`, { headers: { 'Authorization': `Bearer ${token}` }});
+      if (respuesta.status === 401) { handleLogout(); throw new Error('No Autorizado'); }
+      
+      const data = await respuesta.json();
+      if(data.puertos && data.resumen) {
+        data.resumen.disponibles = data.puertos.filter(p => String(p.ESTATUS || '').toUpperCase().includes('DISPONIBLE')).length;
       }
-    } catch { 
-      setErrorApp("Error"); 
-    } finally { 
-      setCargando(false); 
-      setPuertosSeleccionados([]); 
+      return data;
     }
   };
 
-  useEffect(() => { 
-    cargarDatosSistemas(); 
-  }, [inventarioHub, estructuraGeografica, inventarioReg, inventarioCd]);
+  const { data: datosHub, isLoading, isFetching } = useQuery({
+    queryKey: ['inventario', inventarioReg, inventarioCd, inventarioHub], // El caché se guarda bajo esta llave
+    queryFn: fetchInventario,
+    enabled: !!token && !!inventarioCd && !!inventarioHub, // Solo ejecuta si hay datos
+    staleTime: 1000 * 60 * 5, // La data se considera "fresca" por 5 minutos (evita recargas innecesarias al cambiar rápido de pestaña)
+  });
+
+  const cargando = isLoading || isFetching; // Para mostrar los Skeletons
+
+  // ================= REACT QUERY: GUARDAR CAMBIOS (USEMUTATION) =================
+  const mutacionGuardar = useMutation({
+    mutationFn: async (payloadSanitizado) => {
+      const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, credentials: 'include' }, 
+        body: JSON.stringify(payloadSanitizado) 
+      });
+      if (res.status === 401) { handleLogout(); throw new Error("No Autorizado"); }
+      if (!res.ok) throw new Error("Fallo de validación al guardar.");
+      return payloadSanitizado;
+    },
+    onSuccess: (dataGuardada) => {
+      setPuertoDetalle({...puertoDetalle, ...dataGuardada}); 
+      // Invalidamos el caché actual para forzar a que React Query descargue la tabla actualizada en segundo plano
+      queryClient.invalidateQueries(['inventario', inventarioReg, inventarioCd, inventarioHub]);
+      setMsgInv({ text: "Modificación física guardada exitosamente en MT_DB.", type: 'success' });
+    },
+    onError: (error) => {
+      if (error.message !== "No Autorizado") {
+        setMsgInv({ text: error.message || "Fallo de red al intentar actualizar el puerto.", type: 'error' });
+      }
+    }
+  });
+
+  const handleGuardarCambios = () => {
+    if (!puertoDetalle?.ID) return;
+    setMsgInv({ text: '', type: '' });
+
+    const camposPermitidos = [
+      "ESTATUS", "PUERTO", "EQUIPO_HOTEL_ID", "IP_HUB", "NOMBRE_CORTO",
+      "ID_MCA", "SERVICIO", "POTENCIA_HUB", "POTENCIA_CPE", "TIPO_SERVICIO",
+      "MBPS", "IP_GESTION", "IP_CLIENTE", "BDI", "RUTA", "BUFFER", "HILOS",
+      "PARCHEO", "LAMBDAS", "DISTANCIA_CLIENTE", "MARCA_CPE", "MODELO_CPE",
+      "SERIE_CPE", "FECHA_DE_ENTREGA", "SERIE_SFP_HUB", "SERIE_SFP_CLIENTE",
+      "EQUIPAMIENTO", "SERIE", "DIRECCION", "COORDENADAS", "COMENTARIOS",
+      "CONTACTO_NOMBRE", "CONTACTO_TELEFONO"
+    ];
+
+    const payloadSanitizado = {};
+    camposPermitidos.forEach(key => {
+      let val = editCampos[key];
+      if (val !== null && val !== undefined) {
+        payloadSanitizado[key] = String(val);
+      }
+    });
+
+    mutacionGuardar.mutate(payloadSanitizado);
+  };
 
   const handleExportarExcel = async () => {
     try {
-      setCargando(true);
       let url = `${API_URL}/api/hubs/exportar-excel?`;
       if (inventarioReg) url += `region=${encodeURIComponent(inventarioReg)}&`;
       if (inventarioCd) url += `ciudad=${encodeURIComponent(inventarioCd)}&`;
@@ -136,52 +181,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       window.URL.revokeObjectURL(downloadUrl);
     } catch (e) {
       setMsgInv({ text: "Fallo al generar el reporte Excel.", type: 'error' });
-    } finally {
-      setCargando(false);
     }
-  };
-
-  const handleGuardarCambios = async () => {
-    if (!puertoDetalle?.ID) return;
-    setGuardando(true);
-    setMsgInv({ text: '', type: '' });
-
-    const camposPermitidos = [
-      "ESTATUS", "PUERTO", "EQUIPO_HOTEL_ID", "IP_HUB", "NOMBRE_CORTO",
-      "ID_MCA", "SERVICIO", "POTENCIA_HUB", "POTENCIA_CPE", "TIPO_SERVICIO",
-      "MBPS", "IP_GESTION", "IP_CLIENTE", "BDI", "RUTA", "BUFFER", "HILOS",
-      "PARCHEO", "LAMBDAS", "DISTANCIA_CLIENTE", "MARCA_CPE", "MODELO_CPE",
-      "SERIE_CPE", "FECHA_DE_ENTREGA", "SERIE_SFP_HUB", "SERIE_SFP_CLIENTE",
-      "EQUIPAMIENTO", "SERIE", "DIRECCION", "COORDENADAS", "COMENTARIOS",
-      "CONTACTO_NOMBRE", "CONTACTO_TELEFONO"
-    ];
-
-    const payloadSanitizado = {};
-
-    camposPermitidos.forEach(key => {
-      let val = editCampos[key];
-      if (val !== null && val !== undefined) {
-        payloadSanitizado[key] = String(val);
-      }
-    });
-
-    try {
-      const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
-        method: 'PUT', 
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' }, 
-        body: JSON.stringify(payloadSanitizado) 
-      });
-      if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) { 
-        setPuertoDetalle({...puertoDetalle, ...editCampos}); 
-        await cargarDatosSistemas(); 
-        setMsgInv({ text: "Modificación física guardada exitosamente en MT_DB.", type: 'success' });
-      } else { 
-        setMsgInv({ text: "Fallo de validación: No se pudo guardar la información.", type: 'error' });
-      }
-    } catch (err) { 
-      setMsgInv({ text: "Fallo de red al intentar actualizar el puerto.", type: 'error' });
-    } finally { setGuardando(false); }
   };
 
   const obtenerCiudadesOrdenadas = (region) => {
@@ -197,14 +197,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   // ================= LÓGICA DE FILTRADO =================
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
     const est = String(p.ESTATUS || '').toUpperCase().trim();
-    
     if (filtroEstatus !== 'TODOS') {
       if (filtroEstatus === 'DISPONIBLE' && !est.includes('DISPONIBLE')) return false;
       if (filtroEstatus === 'ACTIVO' && est !== 'ACTIVO') return false;
       if (filtroEstatus === 'SUSPENDIDO' && est !== 'SUSPENDIDO') return false;
       if (filtroEstatus === 'TRONCAL' && !est.includes('TRONCAL')) return false;
     }
-    
     return (
       String(p.PUERTO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.SERVICIO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
@@ -326,7 +324,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               </thead>
               <tbody className="divide-y divide-slate-800/40">
                 {cargando ? (
-                  // SKELETON LOADER ANIMADO
+                  // SKELETON LOADER ANIMADO (Vinculado a React Query isFetching/isLoading)
                   [...Array(7)].map((_, i) => (
                     <tr key={`skel-${i}`} className="border-b border-slate-800/40 animate-pulse bg-slate-900/10">
                       <td className="p-3 text-center border-r border-slate-800/50"><div className="w-4 h-4 bg-slate-700/50 rounded mx-auto"></div></td>
@@ -552,7 +550,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 </div>
               </div>
               
-              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-2 shadow-lg transition">💾 Guardar Ficha</button>)}
+              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={mutacionGuardar.isPending} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-2 shadow-lg transition">💾 Guardar Ficha</button>)}
             </div>
           ) : (
             <div className="h-full flex flex-col justify-center items-center text-center p-4 text-slate-600">
@@ -571,7 +569,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           puertosIds={puertosSeleccionados} 
           token={token}
           cerrarModal={() => setMostrarModalMasivo(false)}
-          recargarDatos={cargarDatosSistemas}
         />
       )}
     </div>
