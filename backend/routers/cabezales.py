@@ -103,8 +103,13 @@ async def upload_cabezales_excel(
         
         # Buscar columnas de Alineación
         idx_portadora = get_idx(["PORTADORA", "PORTADORA / CANAL"])
+        idx_formato = get_idx(["FORMATO"])
         idx_canal = get_idx(["# CANAL", "CANAL NUM", "CANAL"])
         idx_nombre = get_idx(["NOMBRE DE CANAL", "NOMBRE CANAL"])
+        idx_mcast = get_idx(["MCAST IP", "MCAST_IP"])
+        idx_source = get_idx(["SOURCE IP", "SOURCE_IP"])
+        idx_udp = get_idx(["UDP"])
+        idx_sid = get_idx(["SID"])
 
         if idx_id == -1 or idx_servicio == -1: 
             return JSONResponse(status_code=400, content={"status": "error", "detail": f"Columnas faltantes (Se requiere ID y Servicio). Encontradas: {column_headers}"})
@@ -126,10 +131,15 @@ async def upload_cabezales_excel(
             val_serie = read_val(idx_serie)
             val_ip = read_val(idx_ip)
             
-            # Datos de Alineación
+            # Datos de Alineación completos
             val_portadora = read_val(idx_portadora)
+            val_formato = read_val(idx_formato)
             val_canal = read_val(idx_canal)
             val_nombre = read_val(idx_nombre)
+            val_mcast = read_val(idx_mcast)
+            val_source = read_val(idx_source)
+            val_udp = read_val(idx_udp)
+            val_sid = read_val(idx_sid)
             
             if not val_id and not val_servicio and not val_canal: continue
             
@@ -148,8 +158,13 @@ async def upload_cabezales_excel(
                 "SERIE": val_serie,
                 "GESTION_QAM": val_ip,
                 "PORTADORA": val_portadora,
+                "FORMATO": val_formato,
                 "CANAL": val_canal, 
                 "NOMBRE_CANAL": val_nombre, 
+                "MCAST_IP": val_mcast,
+                "SOURCE_IP": val_source,
+                "UDP": val_udp,
+                "SID": val_sid,
                 "_errores": errores_fila, 
                 "_valido": valido
             })
@@ -172,19 +187,18 @@ async def upload_cabezales_excel(
                 cab_db = CabezalModel(ciudad=row["CIUDAD"], id_equipo=row["ID_EQUIPO"])
                 db.add(cab_db)
             
-            # Asignación segura de propiedades (evita crasheos si la columna no existe en tu Models)
+            # Asignación de hardware
             cab_db.servicio = row["SERVICIO"]
             if row["MARCA"] and hasattr(cab_db, 'marca'): cab_db.marca = row["MARCA"]
             if row["MODELO"] and hasattr(cab_db, 'modelo'): cab_db.modelo = row["MODELO"]
             if row["SERIE"] and hasattr(cab_db, 'serie'): cab_db.serie = row["SERIE"]
             
-            # Busca la propiedad de IP (diferentes nombres posibles en modelos)
             if row["GESTION_QAM"]:
                 if hasattr(cab_db, 'gestion_qam'): cab_db.gestion_qam = row["GESTION_QAM"]
                 elif hasattr(cab_db, 'ip_gestion'): cab_db.ip_gestion = row["GESTION_QAM"]
                 elif hasattr(cab_db, 'ip'): cab_db.ip = row["GESTION_QAM"]
 
-            # Forzar guardado para obtener el ID real del cabezal (necesario para la alineación)
+            # Forzar guardado para obtener el ID real del cabezal
             db.flush() 
             
             # B) GESTIÓN DE LA ALINEACIÓN
@@ -198,8 +212,14 @@ async def upload_cabezales_excel(
                     al_db = AlineacionCabezalModel(cabezal_id=cab_db.id, canal_num=row["CANAL"])
                     db.add(al_db)
                 
+                # Guardado de todos los datos extra de la alineación
                 if row["PORTADORA"] and hasattr(al_db, 'portadora'): al_db.portadora = row["PORTADORA"]
+                if row["FORMATO"] and hasattr(al_db, 'formato'): al_db.formato = row["FORMATO"]
                 if row["NOMBRE_CANAL"] and hasattr(al_db, 'nombre_canal'): al_db.nombre_canal = row["NOMBRE_CANAL"]
+                if row["MCAST_IP"] and hasattr(al_db, 'mcast_ip'): al_db.mcast_ip = row["MCAST_IP"]
+                if row["SOURCE_IP"] and hasattr(al_db, 'source_ip'): al_db.source_ip = row["SOURCE_IP"]
+                if row["UDP"] and hasattr(al_db, 'udp'): al_db.udp = row["UDP"]
+                if row["SID"] and hasattr(al_db, 'sid'): al_db.sid = row["SID"]
                 
         db.commit()
         
@@ -213,46 +233,6 @@ async def upload_cabezales_excel(
         error_details = traceback.format_exc()
         print(error_details)
         return JSONResponse(status_code=500, content={"status": "error", "detail": f"Error: {str(e)}\n{error_details}"})
-
-        # === 1. MODO PREVISUALIZACIÓN ===
-        if mode == "preview": 
-            return {"status": "success", "data": preview_data, "has_errors": has_errors}
-
-        # === 2. MODO INYECCIÓN A BASE DE DATOS ===
-        for row in preview_data:
-            if not row["_valido"]: continue
-            
-            cab_db = db.query(CabezalModel).filter(
-                CabezalModel.ciudad == row["CIUDAD"], 
-                CabezalModel.id_equipo == row["ID_EQUIPO"]
-            ).first()
-            
-            if cab_db:
-                # Si existe, lo actualiza
-                cab_db.servicio = row["SERVICIO"]
-            else:
-                # Si no existe, lo crea
-                nuevo_cab = CabezalModel(
-                    ciudad=row["CIUDAD"],
-                    id_equipo=row["ID_EQUIPO"],
-                    servicio=row["SERVICIO"]
-                )
-                db.add(nuevo_cab)
-                
-        db.commit()
-        
-        # Auditoría con manejo por si no hay ciudad
-        ciudad_audit = ciudad if ciudad else "Múltiples Ciudades (desde archivo)"
-        registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", f"Se actualizaron cabezales en {ciudad_audit} mediante Excel.")
-        
-        return {"status": "success", "detail": f"Proceso completado. Se inyectaron/actualizaron {len(preview_data)} equipos."}
-        
-    except Exception as e:
-        db.rollback()
-        # ESTO ES LA MAGIA: Captura el error de Python exacto y lo envía de vuelta
-        error_details = traceback.format_exc()
-        print(error_details)
-        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Excepción de Python: {str(e)} \n\n {error_details}"})
 
 # ================= EXPORTACIÓN EXCEL ALINEACIÓN =================
 @router.get("/cabezales/{cabezal_id}/exportar-excel")
