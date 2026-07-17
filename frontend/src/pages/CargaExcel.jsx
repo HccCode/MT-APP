@@ -26,13 +26,11 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
   const [nuevoEquipo, setNuevoEquipo] = useState({
     chasis: '',
     ip_hub: '',
-    // Bloque Principal
     tipo_puerto: '1G',
     cantidad_puertos: 24,
     prefijo_puerto: 'Gi1/0/',
     inicio_puerto: 1, 
     estatus_inicial: 'DISPONIBLE GI',
-    // Bloque Secundario (Ej. Uplinks)
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
@@ -110,11 +108,9 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     const tipo = e.target.value;
     let prefijo = 'Gi1/0/';
     let estatus = 'DISPONIBLE GI';
-
     if (tipo === '10G') { prefijo = 'Te1/0/'; estatus = 'DISPONIBLE TE'; } 
     else if (tipo === '25G') { prefijo = 'Twe1/0/'; estatus = 'DISPONIBLE 25'; } 
     else if (tipo === '100G') { prefijo = 'Hu1/0/'; estatus = 'DISPONIBLE 100'; }
-
     setNuevoEquipo({ ...nuevoEquipo, tipo_puerto: tipo, prefijo_puerto: prefijo, estatus_inicial: estatus });
   };
 
@@ -122,11 +118,9 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     const tipo = e.target.value;
     let prefijo = 'Te1/0/';
     let estatus = 'DISPONIBLE TE';
-
     if (tipo === '1G') { prefijo = 'Gi1/0/'; estatus = 'DISPONIBLE GI'; } 
     else if (tipo === '25G') { prefijo = 'Twe1/0/'; estatus = 'DISPONIBLE 25'; } 
     else if (tipo === '100G') { prefijo = 'Hu1/0/'; estatus = 'DISPONIBLE 100'; }
-
     setNuevoEquipo({ ...nuevoEquipo, tipo_uplink: tipo, prefijo_uplink: prefijo, estatus_uplink: estatus });
   };
 
@@ -178,7 +172,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     } catch (err) { alert(`Fallo en el aprovisionamiento: ${err.message}`); } finally { setCargando(false); }
   };
 
-  // --- LÓGICA ARCHIVOS (EXCEL / MICROONDAS) ---
+  // --- LÓGICA ARCHIVOS ---
   const manejarArchivo = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       setArchivo(e.target.files[0]);
@@ -197,6 +191,8 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
 
   const procesarExcelFibra = async (modo) => {
     if (!archivo) return alert("Selecciona un archivo Excel.");
+    
+    // Validación más estricta para evitar URLs rotas
     if (tipoCargaExcel === 'PUERTOS' && !hubSelec) return alert("Debes seleccionar un HUB para cargar puertos.");
     if (tipoCargaExcel === 'CABEZALES' && !ciudadSelec) return alert("Debes seleccionar una Ciudad para cargar cabezales.");
     
@@ -209,6 +205,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
       if (tipoCargaExcel === 'PUERTOS') {
           url = `${API_URL}/api/hubs/upload-excel?id_hub=${encodeURIComponent(hubSelec)}&mode=${modo}`;
       } else {
+          // Se asegura que la ciudad siempre vaya en la URL
           url = `${API_URL}/api/cabezales/upload-excel?ciudad=${encodeURIComponent(ciudadSelec)}&mode=${modo}`;
       }
 
@@ -217,8 +214,9 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         headers: { 'Authorization': `Bearer ${token}`,credentials: 'include' },
         body: formData
       });
+      
       const json = await res.json();
-      if (!res.ok) throw new Error(json.detail || "Error en el servidor");
+      if (!res.ok) throw new Error(json.detail || "Error 422 - Verifica que los campos de ciudad o hub estén seleccionados.");
 
       if (modo === 'preview') {
         setPreviewData(json.data || []);
@@ -249,7 +247,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     if(fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // --- PERMISOS ---
   if (!puedeCargar) {
     return (
       <div className="flex-1 flex items-center justify-center bg-[#070b19]">
@@ -264,8 +261,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
 
   return (
     <div className="flex-1 bg-[#070b19] overflow-y-auto custom-scrollbar flex flex-col">
-      
-      {/* HEADER */}
       <div className="bg-[#090f24] border-b border-slate-800/60 pb-4 shrink-0 px-6 py-6">
         <h2 className="text-xl font-black text-white flex items-center gap-3 uppercase tracking-widest">
             <UploadCloud className="w-6 h-6 text-emerald-500" /> 
@@ -274,7 +269,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         <p className="text-xs text-slate-500 mt-1">Motor de ingesta de datos. Utiliza esta herramienta para crear o sobrescribir inventarios a gran escala.</p>
       </div>
 
-      {/* PESTAÑAS TECNOLÓGICAS */}
       <div className="bg-[#0b132b]/60 border-b border-slate-800/80 p-3 flex gap-2 shrink-0 justify-center sm:justify-start px-6">
         <button onClick={() => { setTabActiva('fibra'); reiniciarProceso(); }} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${tabActiva==='fibra' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
           <Server className="w-4 h-4"/> Nodos y Fibra Óptica
@@ -284,10 +278,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         </button>
       </div>
 
-      {/* CONTENIDO PRINCIPAL */}
       <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 w-full flex-1">
-        
-        {/* PANEL SUPERIOR DE CONTROLES */}
         <div className="bg-[#0b132b] p-6 rounded-2xl border border-slate-800 shadow-xl flex flex-col gap-6">
           <div className="flex items-center justify-between">
             <div>
@@ -316,11 +307,8 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
           </div>
         </div>
 
-        {/* PASO 1: CONFIGURACIÓN Y SUBIDA */}
         {paso === 1 && (
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in zoom-in duration-300">
-            
-            {/* PANEL IZQ: SELECTORES */}
             <div className={`xl:col-span-4 bg-[#090f24] p-6 rounded-2xl border flex flex-col h-full shadow-lg ${tabActiva === 'fibra' ? 'border-slate-800' : 'border-purple-900/50 shadow-purple-900/10'}`}>
               <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Server className="w-5 h-5 text-indigo-400"/> Destino Lógico (HUB)</h2>
               
@@ -352,7 +340,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
               </div>
             </div>
 
-            {/* PANEL DER: CARGA EXCEL O GENERADOR MANUAL */}
             {tabActiva === 'fibra' && modoCarga === 'manual' ? (
               <div className="xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border border-emerald-900/50 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
                 <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4"><Settings2 className="w-5 h-5 text-emerald-400"/> Generador y Expansor de Chasis</h2>
@@ -365,7 +352,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                         <button onClick={() => { if(equiposExistentes.length > 0){ setTipoAccionChasis('existente'); setNuevoEquipo({...nuevoEquipo, chasis: equiposExistentes[0], ip_hub: mapaIpsEquipos[equiposExistentes[0]] || '' }); } }} disabled={equiposExistentes.length === 0} className={`flex-1 py-1.5 rounded text-[10px] font-bold uppercase transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${tipoAccionChasis === 'existente' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}>Expandir</button>
                     </div>
                   </div>
-
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">{tipoAccionChasis === 'nuevo' ? 'Nombre del Nuevo Equipo' : 'Equipo a Expandir'}</label>
                     {tipoAccionChasis === 'nuevo' ? (
@@ -376,9 +362,8 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                         </select>
                     )}
                   </div>
-
                   <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">IP Gestión del Hub {tipoAccionChasis === 'nuevo' ? <span className="text-red-400">* OBLIGATORIA</span> : <span className="text-slate-500">(Auto-Completada)</span>}</label>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">IP Gestión {tipoAccionChasis === 'nuevo' ? <span className="text-red-400">* OBLIGATORIA</span> : <span className="text-slate-500">(Auto-Completada)</span>}</label>
                     <input type="text" value={nuevoEquipo.ip_hub} onChange={e=>setNuevoEquipo({...nuevoEquipo, ip_hub: e.target.value})} className={`w-full bg-[#0b132b] border text-white p-2 rounded-lg font-mono outline-none transition-colors ${tipoAccionChasis === 'nuevo' && !nuevoEquipo.ip_hub ? 'border-red-900/50 focus:border-red-500' : 'border-slate-700 focus:border-emerald-500'}`} placeholder="10.50.0.1" />
                   </div>
                 </div>
@@ -387,23 +372,23 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                     <div className="flex items-center gap-2 mb-4"><Network className="w-4 h-4 text-slate-400" /><h3 className="text-sm font-bold text-slate-200">Bloque Principal de Puertos</h3></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad / Capacidad</label>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad</label>
                             <select value={nuevoEquipo.tipo_puerto} onChange={handleCambioPuertoPrincipal} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
                                 <option value="1G">Gigabit (1G)</option><option value="10G">TenGigabit (10G)</option><option value="25G">25 Gigabit (25G)</option><option value="100G">100 Gigabit (100G)</option>
                             </select>
                         </div>
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">Prefijo <span className="text-emerald-500 font-black">{nuevoEquipo.estatus_inicial}</span></label>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 flex justify-between">Prefijo</label>
                             <input type="text" value={nuevoEquipo.prefijo_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_puerto: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
                         </div>
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar a contar en #</label>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label>
                             <input type="number" min="1" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
                         </div>
                         <div>
-                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a sumar</label>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
                             <select value={nuevoEquipo.cantidad_puertos} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_puertos: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-emerald-500 outline-none">
-                                <option value={1}>1 Puerto</option><option value={2}>2 Puertos</option><option value={4}>4 Puertos</option><option value={8}>8 Puertos</option><option value={12}>12 Puertos</option><option value={16}>16 Puertos</option><option value={24}>24 Puertos</option><option value={48}>48 Puertos</option>
+                                <option value={1}>1</option><option value={2}>2</option><option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={16}>16</option><option value={24}>24</option><option value={48}>48</option>
                             </select>
                         </div>
                     </div>
@@ -421,17 +406,17 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                     {nuevoEquipo.incluir_uplinks && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2">
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad / Capacidad</label>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad</label>
                                 <select value={nuevoEquipo.tipo_uplink} onChange={handleCambioUplink} className="w-full bg-[#1c2541] border border-blue-900/50 text-blue-300 p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none transition-colors">
                                     <option value="1G">Gigabit (1G)</option><option value="10G">TenGigabit (10G)</option><option value="25G">25 Gigabit (25G)</option><option value="100G">100 Gigabit (100G)</option>
                                 </select>
                             </div>
-                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo <span className="text-blue-400">{nuevoEquipo.estatus_uplink}</span></label><input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
-                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar a contar en #</label><input type="number" min="1" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo</label><input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="1" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
                             <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad a sumar</label>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
                                 <select value={nuevoEquipo.cantidad_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_uplinks: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none">
-                                    <option value={1}>1 Puerto</option><option value={2}>2 Puertos</option><option value={4}>4 Puertos</option><option value={8}>8 Puertos</option><option value={12}>12 Puertos</option><option value={16}>16 Puertos</option><option value={24}>24 Puertos</option><option value={48}>48 Puertos</option>
+                                    <option value={1}>1</option><option value={2}>2</option><option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={16}>16</option><option value={24}>24</option><option value={48}>48</option>
                                 </select>
                             </div>
                         </div>
@@ -445,7 +430,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
             ) : (
               <div className={`xl:col-span-8 bg-[#090f24] p-6 rounded-2xl border flex flex-col justify-center items-center text-center border-dashed ${tabActiva === 'microondas' ? 'border-purple-800/50 bg-purple-950/10' : 'border-slate-800'}`}>
                 
-                {/* --- BOTÓN DESCARGAR PLANTILLA --- */}
                 <div className="w-full mb-6 flex justify-center">
                     <button 
                         onClick={() => tabActiva === 'microondas' ? generarPlantillaMicroondas() : generarPlantillaExcel(tipoCargaExcel)} 
@@ -460,7 +444,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                     </button>
                 </div>
 
-                {/* --- AREA DROPZONE --- */}
                 <input type="file" ref={fileInputRef} accept=".xlsx, .xls" onChange={manejarArchivo} className="hidden" id="excel-upload-main"/>
                 <label htmlFor="excel-upload-main" onDragOver={handleDragOver} onDrop={handleDrop} className="cursor-pointer group flex flex-col items-center w-full py-8 hover:bg-[#050814]/40 rounded-xl transition-all border border-transparent hover:border-slate-800">
                   <div className={`p-4 rounded-full group-hover:scale-110 transition-transform duration-300 ${tabActiva === 'microondas' ? 'bg-purple-500/10' : 'bg-indigo-500/10'}`}>
@@ -500,7 +483,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
           </div>
         )}
 
-        {/* PASO 2: PREVISUALIZACIÓN (SÓLO PARA FIBRA POR AHORA) */}
         {paso === 2 && tabActiva === 'fibra' && (
           <div className="bg-[#090f24] rounded-2xl border border-slate-800 overflow-hidden animate-in fade-in zoom-in duration-300 flex flex-col max-h-[70vh] shadow-2xl">
             <div className={`p-4 flex items-center justify-between shrink-0 ${hayErrores ? 'bg-red-950/40 border-b border-red-900/50' : 'bg-emerald-950/40 border-b border-emerald-900/50'}`}>
@@ -574,7 +556,6 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
           </div>
         )}
 
-        {/* PASO 3: ÉXITO */}
         {paso === 3 && (
           <div className="bg-emerald-950/20 p-12 rounded-2xl border border-emerald-900/50 flex flex-col justify-center items-center text-center animate-in fade-in zoom-in duration-300">
             <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.3)]">

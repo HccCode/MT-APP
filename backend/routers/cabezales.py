@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from typing import Optional
 import pandas as pd
 import io
 import traceback
@@ -65,9 +66,9 @@ def delete_alineacion(alineacion_id: int, current_user: UserModel = Depends(get_
 
 @router.post("/cabezales/upload-excel")
 async def upload_cabezales_excel(
-    ciudad: str = Query(...), 
-    mode: str = Query("preview"), 
     file: UploadFile = File(...), 
+    mode: str = Query("preview"), 
+    ciudad: Optional[str] = Query(None), 
     current_user: UserModel = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
@@ -108,7 +109,7 @@ async def upload_cabezales_excel(
             
             val_id = read_val(idx_id)
             val_servicio = read_val(idx_servicio)
-            val_ciudad = read_val(idx_ciudad) if idx_ciudad != -1 and read_val(idx_ciudad) else ciudad 
+            val_ciudad = read_val(idx_ciudad) if idx_ciudad != -1 and read_val(idx_ciudad) else (ciudad or "Sin Ciudad") 
             val_canal = read_val(idx_canal)
             val_nombre = read_val(idx_nombre)
             
@@ -158,7 +159,11 @@ async def upload_cabezales_excel(
                 db.add(nuevo_cab)
                 
         db.commit()
-        registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", f"Se actualizaron cabezales en {ciudad} mediante Excel.")
+        
+        # Auditoría con manejo por si no hay ciudad
+        ciudad_audit = ciudad if ciudad else "Múltiples Ciudades (desde archivo)"
+        registrar_auditoria(db, current_user.username, "CARGA CABEZALES", "CABEZALES", f"Se actualizaron cabezales en {ciudad_audit} mediante Excel.")
+        
         return {"status": "success", "detail": f"Proceso completado. Se inyectaron/actualizaron {len(preview_data)} equipos."}
         
     except Exception as e:
