@@ -287,7 +287,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
             </div>
             {puedeEditar && (
               <button disabled={!mwCd} onClick={prepararNuevo} className={`text-white text-xs font-bold px-4 py-2 rounded flex items-center gap-2 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all ${subTab==='enlaces'?'bg-blue-600 hover:bg-blue-500':subTab==='aps'?'bg-purple-600 hover:bg-purple-500':'bg-emerald-600 hover:bg-emerald-500'}`}>
-                <Plus className="w-4 h-4" /> Nuevo en {mwCd || '...'}
+                <Plus className="w-4 h-4" /> Nuevo
               </button>
             )}
           </div>
@@ -468,7 +468,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
                      </div>
 
                      <div className="p-3 border border-slate-700/50 rounded-lg bg-slate-800/10 space-y-3">
-                        <h4 className="font-bold text-emerald-400 uppercase border-b border-slate-800 pb-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Ubicación de Entrega</h4>
+                        <h4 className="font-bold text-emerald-400 uppercase border-b border-slate-800 pb-1 flex items-center gap-1"><MapPin className="w-3 h-3"/> Ubicación de Cliente</h4>
                         <div>
                            <label className="block text-slate-500 font-bold mb-1">DIRECCIÓN DEL CLIENTE</label>
                            <input type="text" disabled={!puedeEditar} value={editCampos.direccion || ''} onChange={e=>setEditCampos({...editCampos, direccion: e.target.value})} className="w-full bg-[#050814] p-2 rounded border border-slate-700 text-white outline-none focus:border-blue-500" placeholder="Calle, Número, Colonia" />
