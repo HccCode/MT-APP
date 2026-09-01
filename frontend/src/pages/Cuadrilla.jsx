@@ -5,14 +5,13 @@ import {
   MapPin, Map, Scissors, Layers 
 } from 'lucide-react';
 
-export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {} }) {
+export default function Cuadrilla({ token, handleLogout }) {
   // ================= ESTADO DE SEGURIDAD =================
   const [esMovil, setEsMovil] = useState(true);
 
   // ================= ESTADOS DE BÚSQUEDA Y FLUJO =================
   const [pestanaActiva, setPestanaActiva] = useState('FO'); 
-  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); 
-  const [hubSeleccionado, setHubSeleccionado] = useState('');
+  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); // 'CLIENTE' o 'RUTA'
   const [busqueda, setBusqueda] = useState('');
   const [filtroRuta, setFiltroRuta] = useState('');
   
@@ -32,32 +31,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
   const normalizarTexto = (texto) => {
     return String(texto || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   };
-
-  // ================= EXTRACCIÓN DE DATOS GLOBALES =================
-  const hubsDisponibles = useMemo(() => {
-    const hubs = [];
-    if (!estructuraGeografica) return hubs;
-    Object.entries(estructuraGeografica).forEach(([region, dataReg]) => {
-      if (dataReg.ciudades) {
-        Object.entries(dataReg.ciudades).forEach(([ciudad, dataCd]) => {
-          if (dataCd.hubs && Array.isArray(dataCd.hubs)) {
-            dataCd.hubs.forEach(hub => hubs.push({ ...hub, ciudad, region }));
-          }
-        });
-      }
-    });
-    return hubs.sort((a, b) => a.nombre.localeCompare(b.nombre));
-  }, [estructuraGeografica]);
-
-  const ciudadesDisponibles = useMemo(() => {
-    const ciudades = new Set();
-    if (estructuraGeografica) {
-        Object.values(estructuraGeografica).forEach(reg => {
-            if (reg.ciudades) Object.keys(reg.ciudades).forEach(c => ciudades.add(c));
-        });
-    }
-    return [...ciudades].sort();
-  }, [estructuraGeografica]);
 
   // ================= HELPER: CÓDIGO DE COLORES TIA-598-C =================
   const obtenerColorFibra = (valor) => {
@@ -118,7 +91,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
   // ================= BÚSQUEDA Y FILTRADO ESTRICTO MULTI-COLUMNA =================
   const ejecutarBusqueda = async (termino, criterioActivo) => {
     if (!termino || termino.length < 3) return alert("Ingresa un término válido para buscar (mínimo 3 letras)");
-    if (!hubSeleccionado) return alert("Por favor selecciona un HUB / Nodo primero");
     
     setCargando(true);
     setPuertoActivo(null);
@@ -130,43 +102,40 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       let resultsMW = [];
       const termNorm = normalizarTexto(termino);
 
-      // ================= LÓGICA FIBRA ÓPTICA (FILTRADO LOCAL EN MEMORIA) =================
-      if (pestanaActiva === 'FO') {
-          // Descargamos el HUB completo y filtramos localmente para garantizar velocidad y precisión
-          const resHub = await fetch(`${API_URL}/api/hubs?id_hub=${hubSeleccionado}`, { headers: { 'Authorization': `Bearer ${token}` } });
-          
-          if (resHub.ok) {
-              const jsonHub = await resHub.json();
-              const puertosHub = jsonHub.puertos || [];
-              
-              if (criterioActivo === 'RUTA') {
-                  resultsFO = puertosHub.filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termNorm));
-              } else if (criterioActivo === 'CIUDAD') {
-                  resultsFO = puertosHub.filter(p => normalizarTexto(p.CIUDAD || p.ciudad || p.HUB_PERTENENCIA).includes(termNorm));
-              } else {
-                  // Búsqueda Multi-Columna: Busca en Cliente, Puerto Físico o IP de Gestión
-                  resultsFO = puertosHub.filter(p => 
-                      normalizarTexto(p.SERVICIO).includes(termNorm) || 
-                      normalizarTexto(p.PUERTO).includes(termNorm) || 
-                      normalizarTexto(p.IP_GESTION).includes(termNorm)
-                  );
-              }
-              resultsFO = resultsFO.map(item => ({ ...item, _tipo: 'FO' }));
+      const [resFO, resMW] = await Promise.all([
+        fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
+        fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
+      ]);
+
+      // ================= LÓGICA FIBRA ÓPTICA =================
+      if (resFO?.ok) {
+          const dataFO = await resFO.json();
+          let rawFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
+
+          if (criterioActivo === 'RUTA') {
+              resultsFO = rawFO.filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termNorm));
+          } else {
+              // Búsqueda Multi-Columna: Busca en Cliente, Puerto Físico o IP de Gestión
+              resultsFO = rawFO.filter(p => 
+                  normalizarTexto(p.SERVICIO).includes(termNorm) || 
+                  normalizarTexto(p.PUERTO).includes(termNorm) || 
+                  normalizarTexto(p.IP_GESTION).includes(termNorm)
+              );
           }
       }
 
-      // ================= LÓGICA MICROONDAS (MANTIENE BÚSQUEDA BACKEND POR SER GLOBAL) =================
-      if (pestanaActiva === 'MW') {
-          const resMW = await fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } });
-          if (resMW.ok) {
-              const dataMW = await resMW.json();
-              const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
-              resultsMW = rawMW.map(item => ({ ...item, _tipo: 'MW' }));
-          }
+      // ================= LÓGICA MICROONDAS =================
+      if (resMW?.ok) {
+          const dataMW = await resMW.json();
+          const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
+          resultsMW = rawMW.map(item => ({ ...item, _tipo: 'MW' }));
       }
 
       setResultadosFO(resultsFO);
       setResultadosMW(resultsMW);
+
+      if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
+      if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
       const terminoLimpio = termino.trim();
       const nuevaLista = [terminoLimpio, ...busquedasRecientes.filter(b => b.toLowerCase() !== terminoLimpio.toLowerCase())].slice(0, 5);
@@ -192,7 +161,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     return Object.entries(rutasMap).map(([nombre, cantidad]) => ({ nombre, cantidad }));
   }, [resultadosFO]);
 
-  // Actualizado para usar la función de normalización al filtrar con los chips de ruta
   const resultadosFOFiltrados = useMemo(() => {
     if (!filtroRuta.trim()) return resultadosFO;
     const termRuta = normalizarTexto(filtroRuta);
@@ -304,94 +272,49 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         {/* 1. SELECCIÓN DE TECNOLOGÍA */}
         <div className="flex gap-3 mb-6 shrink-0">
             <button
-              onClick={() => { setPestanaActiva('FO'); setHubSeleccionado(''); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
+              onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
               className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
             >
               <Server className="w-4 h-4" /> F. Óptica
             </button>
             <button
-              onClick={() => { setPestanaActiva('MW'); setHubSeleccionado(''); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
+              onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
               className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
             >
               <Wifi className="w-4 h-4" /> Microondas
             </button>
         </div>
 
-        {/* 2. SELECCIÓN DE HUB / NODO */}
-        <div className="mb-6 animate-in fade-in slide-in-from-top-2 shrink-0">
-            <div className="relative">
-                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
-                <select
-                  value={hubSeleccionado}
-                  onChange={(e) => { 
-                    setHubSeleccionado(e.target.value); 
-                    setBusqueda(''); 
-                    setResultadosFO([]); 
-                    setResultadosMW([]); 
-                    setFiltroRuta('');
-                  }}
-                  className="w-full bg-[#0b132b] text-white text-base pl-12 pr-10 py-4 rounded-2xl border border-slate-700 shadow-sm outline-none focus:border-indigo-400 transition-colors appearance-none cursor-pointer font-medium"
-                >
-                  <option value="">-- Selecciona el HUB / Red --</option>
-                  {pestanaActiva === 'FO' ? (
-                    hubsDisponibles.map(h => (
-                      <option key={h.id} value={h.id}>{h.ciudad} - {h.nombre}</option>
-                    ))
-                  ) : (
-                    <option value="MW_GLOBAL">Red Global de Microondas</option>
-                  )}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+        {/* 2. BUSCADOR GLOBAL MULTICRITERIO */}
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
+          
+          {/* TABS DE CRITERIO */}
+          {pestanaActiva === 'FO' && (
+            <div className="flex gap-1 mb-2 bg-[#050814] p-1 rounded-xl border border-slate-800">
+              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-2 rounded-lg transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Cliente / ID</button>
+              <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-2 rounded-lg transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Ruta FO</button>
             </div>
-        </div>
+          )}
 
-        {/* 3. BUSCADOR INTELIGENTE MULTICRITERIO */}
-        {hubSeleccionado && (
-          <div className="animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
+          <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative mb-6">
+            <input 
+              type="text" 
+              placeholder={criterioBusqueda === 'RUTA' ? "Ej. RUTA-NORTE-04..." : "Buscar nombre, IP o puerto..."} 
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
+            />
             
-            {/* TABS DE CRITERIO */}
-            {pestanaActiva === 'FO' && (
-              <div className="flex gap-1 mb-2 bg-[#050814] p-1 rounded-xl border border-slate-800">
-                <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-2 rounded-lg transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Cliente / ID</button>
-                <button onClick={() => { setCriterioBusqueda('CIUDAD'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-2 rounded-lg transition-colors ${criterioBusqueda === 'CIUDAD' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Ciudad</button>
-                <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-2 rounded-lg transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Ruta FO</button>
-              </div>
+            <Search className="absolute left-4 top-[18px] w-6 h-6 text-indigo-400 pointer-events-none" />
+            
+            {busqueda.length > 0 && (
+              <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }} className="absolute right-4 top-[18px] text-slate-500 hover:text-slate-300 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
             )}
-
-            <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative mb-6">
-              {criterioBusqueda === 'CIUDAD' ? (
-                <select 
-                  value={busqueda}
-                  onChange={(e) => {
-                     setBusqueda(e.target.value);
-                     if(e.target.value) ejecutarBusqueda(e.target.value, 'CIUDAD');
-                  }}
-                  className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 appearance-none cursor-pointer font-bold"
-                >
-                  <option value="">Selecciona una ciudad...</option>
-                  {ciudadesDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              ) : (
-                <input 
-                  type="text" 
-                  placeholder={criterioBusqueda === 'RUTA' ? "Ej. RUTA-NORTE-04..." : "Buscar nombre, IP o puerto..."} 
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
-                />
-              )}
-              
-              {criterioBusqueda === 'CIUDAD' ? <MapPin className="absolute left-4 top-[18px] w-6 h-6 text-indigo-400 pointer-events-none" /> : <Search className="absolute left-4 top-[18px] w-6 h-6 text-indigo-400 pointer-events-none" />}
-              
-              {busqueda.length > 0 && criterioBusqueda !== 'CIUDAD' && (
-                <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }} className="absolute right-4 top-[18px] text-slate-500 hover:text-slate-300 transition-colors">
-                  <X className="w-6 h-6" />
-                </button>
-              )}
-              <button type="submit" className="hidden">Buscar</button>
-            </form>
-          </div>
-        )}
+            <button type="submit" className="hidden">Buscar</button>
+          </form>
+        </div>
 
         {/* FILTRO ESPECÍFICO DE CHIPS (SUB-RUTAS) */}
         {pestanaActiva === 'FO' && resultadosFO.length > 0 && criterioBusqueda !== 'RUTA' && (
@@ -429,7 +352,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         )}
 
         {/* HISTORIAL RECIENTE */}
-        {hubSeleccionado && !cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
+        {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
           <div className="mb-6 animate-in fade-in shrink-0">
             <div className="flex items-center justify-center gap-2 mb-3">
               <Clock className="w-3.5 h-3.5 text-slate-500" />
