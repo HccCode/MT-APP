@@ -156,7 +156,7 @@ export default function Cuadrilla({ token, handleLogout }) {
 
     } catch (err) {
       alert("Error de conexión al consultar el espectro.");
-    } font-bold {
+    } finally {
       setCargando(false);
     }
   };
