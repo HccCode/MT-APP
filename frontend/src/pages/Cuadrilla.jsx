@@ -118,7 +118,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       let resultsMW = [];
       const termNorm = normalizarBusqueda(termino);
 
-      if (pestanaActiva === 'FO' && criterioActivo === 'RUTA') {
+      if (criterioActivo === 'RUTA') {
           if (hubsDisponibles.length === 0) {
               alert("Aún no se han sincronizado los nodos. Recarga la aplicación.");
               setCargando(false);
@@ -149,8 +149,8 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       } else {
           const [resFO, resMW] = await Promise.all([
-            pestanaActiva === 'FO' ? fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null) : null,
-            pestanaActiva === 'MW' ? fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null) : null
+            fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
+            fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
           ]);
 
           if (resFO?.ok) {
@@ -172,6 +172,9 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       setResultadosFO(resultsFO);
       setResultadosMW(resultsMW);
+
+      if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
+      if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
       const terminoLimpio = termino.trim();
       const nuevaLista = [terminoLimpio, ...busquedasRecientes.filter(b => b.toLowerCase() !== terminoLimpio.toLowerCase())].slice(0, 5);
@@ -238,7 +241,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     );
   };
 
-  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : (pestanaActiva === 'MW' ? resultadosMW : []);
+  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : resultadosMW;
 
   if (!esMovil) {
     return (
@@ -266,23 +269,26 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-2.5 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         
-        {/* SELECTORES ESTILO PANEL GRID (OPCIÓN 3) */}
-        <div className="flex flex-col gap-2 mb-3 shrink-0 mt-1">
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex flex-col justify-center items-center gap-1 border ${pestanaActiva === 'FO' ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300 shadow-sm' : 'bg-[#050814] border-slate-800 text-slate-500'}`}><Server className="w-4 h-4" /> F. Óptica</button>
-            <button onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex flex-col justify-center items-center gap-1 border ${pestanaActiva === 'MW' ? 'bg-blue-600/20 border-blue-500 text-blue-300 shadow-sm' : 'bg-[#050814] border-slate-800 text-slate-500'}`}><Wifi className="w-4 h-4" /> Microondas</button>
-
-            {pestanaActiva === 'FO' && (
-              <>
-                <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); setHubSeleccionado(''); }} className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-colors border ${criterioBusqueda === 'CLIENTE' ? 'bg-slate-800 border-slate-600 text-white' : 'bg-[#050814] border-transparent text-slate-600'}`}>ID/Cte</button>
-                <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`py-1.5 rounded-lg text-[9px] font-black uppercase transition-colors border ${criterioBusqueda === 'RUTA' ? 'bg-slate-800 border-slate-600 text-white' : 'bg-[#050814] border-transparent text-slate-600'}`}>Ruta FO</button>
-              </>
-            )}
+        {/* SELECTORES EN FILAS APILADAS */}
+        <div className="flex flex-col gap-1.5 mb-2 shrink-0 mt-1">
+          
+          {/* 1. TECNOLOGÍA */}
+          <div className="flex bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner transition-all duration-300 w-full">
+            <button onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Server className="w-3 h-3" /> FO</button>
+            <button onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Wifi className="w-3 h-3" /> MW</button>
           </div>
+
+          {/* 2. CRITERIO (SOLO FO) */}
+          {pestanaActiva === 'FO' && (
+            <div className="flex w-full bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner animate-in fade-in zoom-in duration-200">
+              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); setHubSeleccionado(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
+              <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta</button>
+            </div>
+          )}
 
           {/* 3. SELECTOR HUB (SOLO RUTA FO) */}
           {pestanaActiva === 'FO' && criterioBusqueda === 'RUTA' && (
-            <div className="relative animate-in fade-in slide-in-from-top-1 duration-200 mt-1">
+            <div className="relative animate-in fade-in slide-in-from-top-1 duration-200">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400" />
                 <select
                   value={hubSeleccionado}
@@ -341,13 +347,13 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-1.5 mt-2 text-[10px]"><Activity className="w-3.5 h-3.5"/> Consultando...</p>}
 
         {/* LISTADO DE RESULTADOS */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-6 mt-1">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-6">
           
-          {pestanaActiva && resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
+          {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
              <p className="text-center text-slate-500 text-[10px] italic mt-4">No hay resultados en la pestaña seleccionada.</p>
           )}
 
-          {pestanaActiva && resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
+          {resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
             <p className="text-center text-slate-500 text-[10px] italic mt-4">No se encontraron coincidencias.</p>
           )}
           
