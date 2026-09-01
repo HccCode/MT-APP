@@ -11,7 +11,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
   // ================= ESTADOS DE BÚSQUEDA Y FLUJO =================
   const [pestanaActiva, setPestanaActiva] = useState('FO'); 
-  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); // 'CLIENTE' o 'RUTA'
+  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); 
   const [busqueda, setBusqueda] = useState('');
   
   const [resultadosFO, setResultadosFO] = useState([]);
@@ -26,7 +26,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // ================= NORMALIZADOR DE TEXTO (IGNORA GUIONES, ACENTOS Y MAYÚSCULAS) =================
+  // ================= NORMALIZADOR DE TEXTO =================
   const normalizarBusqueda = (texto) => {
     return String(texto || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-\s_]/g, "").toLowerCase();
   };
@@ -66,7 +66,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     return 'bg-indigo-950 text-indigo-300 border border-indigo-700/50';
   };
 
-  // ================= EFECTO: FINGERPRINT DE DISPOSITIVO =================
+  // ================= EFECTO: FINGERPRINT =================
   useEffect(() => {
     const verificarDispositivo = () => {
       const anchoFisico = window.innerWidth < 1024;
@@ -118,48 +118,38 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       const termNorm = normalizarBusqueda(termino);
 
       if (criterioActivo === 'RUTA') {
-          // Búsqueda profunda en RAM para solventar limitación del backend en la columna RUTA
           if (hubsDisponibles.length === 0) {
               alert("Aún no se han sincronizado los nodos. Recarga la aplicación.");
               setCargando(false);
               return;
           }
-
           const promesasHubs = hubsDisponibles.map(h => 
               fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
               .then(res => res.ok ? res.json() : null)
               .catch(() => null)
           );
-          
           const respuestasHubs = await Promise.all(promesasHubs);
           let puertosGlobales = [];
-          
           respuestasHubs.forEach(hubData => {
               if (hubData && hubData.puertos) puertosGlobales = [...puertosGlobales, ...hubData.puertos];
           });
-
           resultsFO = puertosGlobales
               .filter(p => normalizarBusqueda(p.RUTA || p.ruta).includes(termNorm))
               .map(item => ({ ...item, _tipo: 'FO' }));
-
       } else {
-          // Búsqueda estándar optimizada
           const [resFO, resMW] = await Promise.all([
             fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
             fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
           ]);
-
           if (resFO?.ok) {
               const dataFO = await resFO.json();
               let rawFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
-
               resultsFO = rawFO.filter(p => 
                   normalizarBusqueda(p.SERVICIO).includes(termNorm) || 
                   normalizarBusqueda(p.PUERTO).includes(termNorm) || 
                   normalizarBusqueda(p.IP_GESTION).includes(termNorm)
               );
           }
-
           if (resMW?.ok) {
               const dataMW = await resMW.json();
               const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
@@ -169,7 +159,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       setResultadosFO(resultsFO);
       setResultadosMW(resultsMW);
-
       if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
       if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
@@ -193,20 +182,12 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
   // ================= COMPONENTES VISUALES =================
   const InfoRow = ({ label, value, isPhone }) => (
-    <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50 last:border-0">
-      <span className="text-[11px] text-slate-400 font-medium">{label}</span>
+    <div className="flex justify-between items-center py-2 border-b border-slate-800/50 last:border-0">
+      <span className="text-[10px] text-slate-400 font-medium">{label}</span>
       {isPhone && value && value !== '-' ? (
-        <a 
-          href={`tel:${value.replace(/[^0-9+]/g, '')}`} 
-          className="text-[11px] text-emerald-400 font-mono font-bold text-right w-1/2 truncate flex justify-end items-center gap-1.5 active:scale-95 transition-transform"
-          onClick={(e) => e.stopPropagation()}
-        >
-          📞 {value}
-        </a>
+        <a href={`tel:${value.replace(/[^0-9+]/g, '')}`} className="text-[10px] text-emerald-400 font-mono font-bold text-right w-1/2 truncate flex justify-end items-center gap-1 active:scale-95 transition-transform" onClick={(e) => e.stopPropagation()}>📞 {value}</a>
       ) : (
-        <span className="text-[11px] text-slate-100 font-mono font-bold text-right w-1/2 truncate">
-          <a style={{color: 'inherit', textDecoration: 'none', cursor: 'text'}}>{value || '-'}</a>
-        </span>
+        <span className="text-[10px] text-slate-100 font-mono font-bold text-right w-1/2 truncate"><a style={{color: 'inherit', textDecoration: 'none', cursor: 'text'}}>{value || '-'}</a></span>
       )}
     </div>
   );
@@ -214,23 +195,19 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
   const InfoRowIP = ({ label, value }) => {
     const [abierto, setAbierto] = useState(false);
     const detallesSubred = calcularSubred(value);
-
     if (!value || value === '-') return <InfoRow label={label} value="-" />;
     if (!detallesSubred) return <InfoRow label={label} value={value} />;
-
     return (
-      <div className="py-2.5 border-b border-slate-800/50 last:border-0 flex flex-col">
+      <div className="py-2 border-b border-slate-800/50 last:border-0 flex flex-col">
         <div className="flex justify-between items-center cursor-pointer active:bg-slate-800/50 rounded -mx-1 px-1 transition-colors" onClick={() => setAbierto(!abierto)}>
-          <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">{label} <Calculator className="w-3 h-3 text-indigo-400" /></span>
-          <span className="text-[11px] text-blue-400 font-mono font-black text-right border-b border-dashed border-blue-400/50 pb-0.5">
-            <a style={{color: 'inherit', textDecoration: 'none', cursor: 'pointer'}}>{value}</a>
-          </span>
+          <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">{label} <Calculator className="w-2.5 h-2.5 text-indigo-400" /></span>
+          <span className="text-[10px] text-blue-400 font-mono font-black text-right border-b border-dashed border-blue-400/50 pb-0.5"><a style={{color: 'inherit', textDecoration: 'none', cursor: 'pointer'}}>{value}</a></span>
         </div>
         {abierto && (
-          <div className="mt-3 bg-[#1c2541]/40 rounded-lg p-3 border border-indigo-500/20 grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 shadow-inner">
-            <div><p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Máscara</p><p className="text-[11px] text-slate-200 font-mono font-bold">{detallesSubred.mask}</p></div>
-            <div><p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Hosts Útiles</p><p className="text-[11px] text-slate-200 font-mono font-bold">{detallesSubred.hosts} IPs</p></div>
-            <div className="col-span-2 pt-1 mt-1 border-t border-slate-800"><p className="text-[9px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Rango Asignable</p><p className="text-[11px] text-emerald-400 font-mono font-black">{detallesSubred.rango}</p></div>
+          <div className="mt-2 bg-[#1c2541]/40 rounded-lg p-2 border border-indigo-500/20 grid grid-cols-2 gap-2 animate-in fade-in slide-in-from-top-1 shadow-inner">
+            <div><p className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Máscara</p><p className="text-[10px] text-slate-200 font-mono font-bold">{detallesSubred.mask}</p></div>
+            <div><p className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Hosts Útiles</p><p className="text-[10px] text-slate-200 font-mono font-bold">{detallesSubred.hosts} IPs</p></div>
+            <div className="col-span-2 pt-1 mt-1 border-t border-slate-800"><p className="text-[8px] text-slate-500 uppercase font-bold tracking-wider mb-0.5">Rango Asignable</p><p className="text-[10px] text-emerald-400 font-mono font-black">{detallesSubred.rango}</p></div>
           </div>
         )}
       </div>
@@ -241,18 +218,17 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     const [abierto, setAbierto] = useState(abiertoPorDefecto);
     return (
       <div className={`${bgClass} border ${borderClass} rounded-xl shadow-sm overflow-hidden transition-all duration-300`}>
-        <button onClick={() => setAbierto(!abierto)} className={`w-full p-4 flex justify-between items-center transition-colors outline-none active:bg-slate-800/50 ${abierto ? `border-b ${borderClass}` : ''}`}>
-          <h3 className={`${colorTexto} font-black text-[11px] uppercase tracking-widest flex items-center gap-2`}>{icono} {titulo}</h3>
-          {abierto ? <ChevronUp className={`w-4 h-4 ${colorTexto}`} /> : <ChevronDown className={`w-4 h-4 text-slate-500`} />}
+        <button onClick={() => setAbierto(!abierto)} className={`w-full p-3 flex justify-between items-center transition-colors outline-none active:bg-slate-800/50 ${abierto ? `border-b ${borderClass}` : ''}`}>
+          <h3 className={`${colorTexto} font-black text-[10px] uppercase tracking-widest flex items-center gap-1.5`}>{icono} {titulo}</h3>
+          {abierto ? <ChevronUp className={`w-3.5 h-3.5 ${colorTexto}`} /> : <ChevronDown className={`w-3.5 h-3.5 text-slate-500`} />}
         </button>
-        {abierto && <div className="p-4 pt-2 animate-in fade-in slide-in-from-top-2 duration-200">{children}</div>}
+        {abierto && <div className="p-3 pt-1.5 animate-in fade-in slide-in-from-top-2 duration-200">{children}</div>}
       </div>
     );
   };
 
   const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : resultadosMW;
 
-  // ================= PANTALLA DE BLOQUEO (DESKTOP) =================
   if (!esMovil) {
     return (
       <div className="flex flex-col items-center justify-center h-screen w-full bg-[#050814] text-white p-6 text-center">
@@ -264,67 +240,48 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     );
   }
 
-  // ================= PANTALLA PRINCIPAL (MÓVIL) =================
   return (
     <div className="fixed top-0 left-0 w-full h-[100dvh] z-[9999] bg-[#050814] flex flex-col overflow-hidden">
-      
       <style>{`header, nav, aside { display: none !important; } body { overflow: hidden !important; }`}</style>
 
       {/* BARRA SUPERIOR ULTRA COMPACTA */}
       <div className="bg-[#0b132b] border-b border-slate-800 p-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex justify-between items-center shrink-0 shadow-md relative z-20">
-        <div className="flex items-center gap-2.5">
-            <h1 className="text-slate-100 font-black text-base tracking-widest flex items-center gap-1 leading-none">MT<span className="text-indigo-500">_MANAGER</span></h1>
-            <span className="bg-blue-900/40 text-blue-400 text-[8px] font-black px-1.5 py-0.5 rounded border border-blue-800 flex items-center gap-1 w-max"><ShieldAlert className="w-2.5 h-2.5" /> LECTURA</span>
+        <div className="flex items-center gap-2">
+            <h1 className="text-slate-100 font-black text-[14px] tracking-widest flex items-center gap-0.5 leading-none">MT<span className="text-indigo-500">_MGR</span></h1>
+            <span className="bg-blue-900/40 text-blue-400 text-[7px] font-black px-1.5 py-0.5 rounded border border-blue-800 flex items-center gap-0.5 w-max"><ShieldAlert className="w-2.5 h-2.5" /> LECTURA</span>
         </div>
-        <button onClick={cerrarSesion} className="flex items-center gap-1 text-[9px] uppercase font-black tracking-widest text-slate-300 bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all shadow-sm"><LogOut className="w-3 h-3 text-red-400" /> Salir</button>
+        <button onClick={cerrarSesion} className="flex items-center gap-1 text-[8px] uppercase font-black tracking-widest text-slate-300 bg-slate-800/80 px-2 py-1.5 rounded-md border border-slate-700 active:bg-slate-700 active:scale-95 transition-all"><LogOut className="w-2.5 h-2.5 text-red-400" /> Salir</button>
       </div>
 
-      <div className={`flex flex-col h-full w-full max-w-md mx-auto p-3 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
+      <div className={`flex flex-col h-full w-full max-w-md mx-auto p-2.5 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         
         {/* SELECTORES MINIMIZADOS EN UNA SOLA FILA BIFURCADA */}
-        <div className="flex gap-2 mb-3 shrink-0">
-          
-          {/* TECNOLOGÍA */}
-          <div className={`flex bg-[#050814] p-1 rounded-xl border border-slate-800 shadow-inner transition-all duration-300 ${pestanaActiva === 'FO' ? 'w-1/2' : 'w-full'}`}>
-            <button
-              onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
-              className={`flex-1 py-1.5 px-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              <Server className="w-3 h-3" /> FO
-            </button>
-            <button
-              onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
-              className={`flex-1 py-1.5 px-1 rounded-lg text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-            >
-              <Wifi className="w-3 h-3" /> MW
-            </button>
+        <div className="flex gap-1.5 mb-2 shrink-0 mt-1">
+          <div className={`flex bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner transition-all duration-300 ${pestanaActiva === 'FO' ? 'w-1/2' : 'w-full'}`}>
+            <button onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Server className="w-3 h-3" /> FO</button>
+            <button onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Wifi className="w-3 h-3" /> MW</button>
           </div>
-
-          {/* CRITERIO (SOLO FO) */}
           {pestanaActiva === 'FO' && (
-            <div className="flex w-1/2 bg-[#050814] p-1 rounded-xl border border-slate-800 shadow-inner animate-in fade-in zoom-in duration-200">
-              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
-              <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-lg transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta</button>
+            <div className="flex w-1/2 bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner animate-in fade-in zoom-in duration-200">
+              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
+              <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta</button>
             </div>
           )}
         </div>
 
         {/* BUSCADOR COMPACTO */}
-        <div className="shrink-0 mb-3">
+        <div className="shrink-0 mb-2">
           <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative">
             <input 
               type="text" 
               placeholder={criterioBusqueda === 'RUTA' && pestanaActiva === 'FO' ? "Ej. RT20, RUTA-04..." : "Ej. Banamex, Nodo Centro..."} 
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full bg-[#0b132b] text-white text-sm py-3.5 pl-10 pr-10 rounded-xl border border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.15)] outline-none focus:border-indigo-400 transition-colors placeholder:text-slate-500"
+              className="w-full bg-[#0b132b] text-white text-[13px] py-2.5 pl-9 pr-8 rounded-lg border border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.15)] outline-none focus:border-indigo-400 transition-colors placeholder:text-slate-500"
             />
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
-            
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
             {busqueda.length > 0 && (
-              <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1">
-                <X className="w-4 h-4" />
-              </button>
+              <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1"><X className="w-3.5 h-3.5" /></button>
             )}
             <button type="submit" className="hidden">Buscar</button>
           </form>
@@ -332,18 +289,14 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
         {/* HISTORIAL RECIENTE */}
         {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
-          <div className="mb-4 animate-in fade-in shrink-0">
-            <div className="flex items-center justify-center gap-1.5 mb-2">
-              <Clock className="w-3 h-3 text-slate-500" />
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Recientes</p>
+          <div className="mb-3 animate-in fade-in shrink-0">
+            <div className="flex items-center justify-center gap-1 mb-1.5">
+              <Clock className="w-2.5 h-2.5 text-slate-500" />
+              <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Recientes</p>
             </div>
             <div className="flex flex-wrap justify-center gap-1.5">
               {busquedasRecientes.map((termino, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => { setBusqueda(termino); ejecutarBusqueda(termino, criterioBusqueda); }}
-                  className="bg-[#1c2541] hover:bg-slate-700 text-indigo-300 font-bold text-[10px] px-3 py-1.5 rounded-full border border-slate-700 transition-colors active:scale-95 shadow-sm"
-                >
+                <button key={idx} onClick={() => { setBusqueda(termino); ejecutarBusqueda(termino, criterioBusqueda); }} className="bg-[#1c2541] hover:bg-slate-700 text-indigo-300 font-bold text-[9px] px-2.5 py-1 rounded-full border border-slate-700 transition-colors active:scale-95 shadow-sm">
                   {termino}
                 </button>
               ))}
@@ -351,17 +304,17 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
           </div>
         )}
 
-        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2 mt-2 text-[11px]"><Activity className="w-4 h-4"/> Sincronizando MT_DB...</p>}
+        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-1.5 mt-2 text-[10px]"><Activity className="w-3.5 h-3.5"/> Consultando...</p>}
 
         {/* LISTADO DE RESULTADOS (MÁXIMO ESPACIO POSIBLE) */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 pb-8">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-6">
           
           {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
-             <p className="text-center text-slate-500 text-[11px] italic mt-4">No hay resultados en la pestaña seleccionada.</p>
+             <p className="text-center text-slate-500 text-[10px] italic mt-4">No hay resultados en la pestaña seleccionada.</p>
           )}
 
           {resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
-            <p className="text-center text-slate-500 text-[11px] italic mt-4">No se encontraron coincidencias.</p>
+            <p className="text-center text-slate-500 text-[10px] italic mt-4">No se encontraron coincidencias.</p>
           )}
           
           {resultadosActuales.map((p, idx) => {
@@ -373,17 +326,17 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
             return (
               <div 
                 key={p.ID || p.id || idx} 
-                className="bg-[#0b132b] border border-slate-700 p-3 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform relative overflow-hidden animate-in fade-in slide-in-from-bottom-2" 
+                className="bg-[#0b132b] border border-slate-700 p-2.5 rounded-xl shadow-sm cursor-pointer active:scale-95 transition-transform relative overflow-hidden animate-in fade-in slide-in-from-bottom-2" 
                 onClick={() => abrirDetalle(p)}
               >
-                <div className="flex justify-between items-start mb-1">
-                  <h3 className="font-black text-slate-100 text-[15px]">{p._tipo === 'FO' ? (p.PUERTO || '-') : (p.cliente || 'Enlace MW')}</h3>
-                  <span className={`px-2 py-0.5 rounded-md text-[8px] font-black border uppercase ${estatusStr.includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : estatusStr.includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : estatusStr.includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
+                <div className="flex justify-between items-start mb-0.5">
+                  <h3 className="font-black text-slate-100 text-[14px]">{p._tipo === 'FO' ? (p.PUERTO || '-') : (p.cliente || 'Enlace MW')}</h3>
+                  <span className={`px-1.5 py-0.5 rounded text-[7px] font-black border uppercase ${estatusStr.includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : estatusStr.includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : estatusStr.includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
                     {estatusStr || 'DESCONOCIDO'}
                   </span>
                 </div>
                 
-                <p className="text-[11px] text-indigo-300 font-bold mb-2 truncate">
+                <p className="text-[10px] text-indigo-300 font-bold mb-1.5 truncate">
                   {p._tipo === 'FO' ? (p.SERVICIO || 'Sin cliente asignado') : (p.sitio_base || 'Sitio Desconocido')}
                 </p>
 
@@ -391,27 +344,27 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                 {p._tipo === 'FO' && (
                   <>
                     {criterioBusqueda === 'CLIENTE' ? (
-                      <div className="mb-2.5 grid grid-cols-2 gap-y-2 gap-x-2 p-2.5 bg-[#050814]/80 rounded-lg border border-slate-800 text-[9px]">
+                      <div className="mb-1.5 grid grid-cols-2 gap-y-1.5 gap-x-2 p-2 bg-[#050814]/80 rounded-lg border border-slate-800 text-[8px]">
                         <div className="flex flex-col">
                           <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><Map className="w-2.5 h-2.5 text-emerald-500" /> Ruta</span>
-                          <span className="text-slate-200 font-black truncate">{p.RUTA || p.ruta || '-'}</span>
+                          <span className="text-slate-200 font-black text-[10px] truncate">{p.RUTA || p.ruta || '-'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><Server className="w-2.5 h-2.5 text-blue-400" /> IP Gestión</span>
-                          <span className="text-emerald-400 font-mono font-bold truncate">{p.IP_GESTION || '-'}</span>
+                          <span className="text-emerald-400 font-mono font-bold text-[10px] truncate">{p.IP_GESTION || '-'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><MapPin className="w-2.5 h-2.5 text-amber-500" /> Distancia</span>
-                          <span className="text-slate-200 font-bold truncate">{p.DISTANCIA_CLIENTE ? `${p.DISTANCIA_CLIENTE} km` : '-'}</span>
+                          <span className="text-slate-200 font-bold text-[10px] truncate">{p.DISTANCIA_CLIENTE ? `${p.DISTANCIA_CLIENTE} km` : '-'}</span>
                         </div>
                         <div className="flex flex-col">
                           <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><Zap className="w-2.5 h-2.5 text-pink-500" /> Potencia CPE</span>
-                          <span className="text-slate-200 font-bold truncate">{p.POTENCIA_CPE ? `${p.POTENCIA_CPE} dBm` : '-'}</span>
+                          <span className="text-slate-200 font-bold text-[10px] truncate">{p.POTENCIA_CPE ? `${p.POTENCIA_CPE} dBm` : '-'}</span>
                         </div>
                       </div>
                     ) : (
                       (rutaNombre || bufferVal || hiloVal) && (
-                        <div className="mb-2.5 p-2 bg-[#050814]/80 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[10px]">
+                        <div className="mb-1.5 p-1.5 bg-[#050814]/80 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-1 text-[9px]">
                           {rutaNombre && (
                             <span className="font-black text-emerald-400 uppercase flex items-center gap-1">
                               <Map className="w-2.5 h-2.5 text-emerald-500 shrink-0" /> {rutaNombre}
@@ -435,13 +388,13 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                   </>
                 )}
                 
-                <div className="flex justify-between text-[9px] text-slate-400 font-mono">
+                <div className="flex justify-between text-[8px] text-slate-400 font-mono">
                   <span className="flex items-center gap-1">
                     {p._tipo === 'FO' ? <Server className="w-2.5 h-2.5 text-slate-500" /> : <Wifi className="w-2.5 h-2.5 text-slate-500" />}
                     {p._tipo === 'FO' ? 'F. Óptica' : 'Microondas'}
                   </span>
                   {(p._tipo !== 'FO' || criterioBusqueda !== 'CLIENTE') && (p.IP_GESTION || p.ip_gestion_st || p.ip_gestion_ap) && (
-                    <span className="text-emerald-400 bg-emerald-900/20 px-1.5 rounded">
+                    <span className="text-emerald-400 bg-emerald-900/20 px-1 rounded">
                       {p.IP_GESTION || p.ip_gestion_st || p.ip_gestion_ap}
                     </span>
                   )}
@@ -460,20 +413,20 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               <div className="flex items-center gap-2.5">
                 <button onClick={() => setPuertoActivo(null)} className="p-1.5 bg-slate-800 rounded-full text-slate-300 active:bg-slate-700 transition-colors"><X className="w-4 h-4" /></button>
                 <div>
-                  <h2 className={`font-black text-[11px] uppercase tracking-widest leading-none ${puertoActivo._tipo === 'FO' ? 'text-indigo-400' : 'text-blue-400'}`}>Ficha Técnica {puertoActivo._tipo}</h2>
+                  <h2 className={`font-black text-xs uppercase tracking-widest leading-none ${puertoActivo._tipo === 'FO' ? 'text-indigo-400' : 'text-blue-400'}`}>Ficha Técnica {puertoActivo._tipo}</h2>
                   <p className="text-[9px] text-slate-500 truncate max-w-[200px] mt-0.5">{puertoActivo._tipo === 'FO' ? (puertoActivo.SERVICIO || puertoActivo.PUERTO) : (puertoActivo.cliente || puertoActivo.sitio_base)}</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-2.5 pb-10">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2 pb-10">
               
               {/* === VISTA DETALLE FIBRA ÓPTICA === */}
               {puertoActivo._tipo === 'FO' && (
                 <>
                   <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-3 shadow-sm">
-                    <h3 className="text-white font-black text-sm truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
-                    <p className="text-indigo-400 font-mono text-[10px] font-bold flex items-center gap-1.5"><Server className="w-3 h-3"/> Puerto Físico: {puertoActivo.PUERTO || '-'}</p>
+                    <h3 className="text-white font-black text-[13px] truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
+                    <p className="text-indigo-400 font-mono text-[9px] font-bold flex items-center gap-1.5"><Server className="w-3 h-3"/> Puerto Físico: {puertoActivo.PUERTO || '-'}</p>
                   </div>
 
                   <SeccionDesplegable titulo="Estado Operativo y Potencias" icono={<Zap className="w-3.5 h-3.5"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
@@ -493,12 +446,12 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     <InfoRow label="Distancia" value={puertoActivo.DISTANCIA_CLIENTE} />
                     <InfoRow label="Lambdas" value={puertoActivo.LAMBDAS} />
                     
-                    <div className="flex justify-between items-center py-2 border-b border-slate-800/50">
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-800/50">
                       <span className="text-[10px] text-slate-400 font-medium">Buffer (Tubo)</span>
                       <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${obtenerColorFibra(puertoActivo.BUFFER)}`}>{puertoActivo.BUFFER || '-'}</span>
                     </div>
 
-                    <div className="flex justify-between items-center py-2 border-b border-slate-800/50">
+                    <div className="flex justify-between items-center py-1.5 border-b border-slate-800/50">
                       <span className="text-[10px] text-slate-400 font-medium">Hilo (Fibra)</span>
                       <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase flex items-center gap-1 ${obtenerColorFibra(puertoActivo.HILOS)}`}><Scissors className="w-2.5 h-2.5" /> {puertoActivo.HILOS || '-'}</span>
                     </div>
@@ -508,9 +461,9 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
                     <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
                     {puertoActivo.COORDENADAS ? (
-                      <div className="mt-2.5 pt-2.5 border-t border-slate-800/50">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1.5">Coordenadas GPS</p>
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2.5 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[10px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
+                      <div className="mt-2 pt-2 border-t border-slate-800/50">
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1">Coordenadas GPS</p>
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[9px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
                       </div>
                     ) : (<InfoRow label="Coordenadas" value="No registradas" />)}
                   </SeccionDesplegable>
@@ -521,8 +474,8 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               {puertoActivo._tipo === 'MW' && (
                 <>
                   <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-3 shadow-sm">
-                    <h3 className="text-white font-black text-sm truncate mb-1">{puertoActivo.cliente || 'Sin Cliente'}</h3>
-                    <p className="text-blue-400 font-mono text-[10px] font-bold flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Sitio Base: {puertoActivo.sitio_base || '-'}</p>
+                    <h3 className="text-white font-black text-[13px] truncate mb-1">{puertoActivo.cliente || 'Sin Cliente'}</h3>
+                    <p className="text-blue-400 font-mono text-[9px] font-bold flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Sitio Base: {puertoActivo.sitio_base || '-'}</p>
                   </div>
 
                   <SeccionDesplegable titulo="Radiofrecuencia e Interfaz" icono={<Activity className="w-3.5 h-3.5"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
@@ -545,9 +498,9 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     <InfoRow label="Distancia Torre" value={puertoActivo.distancia_km ? `${puertoActivo.distancia_km} km` : '-'} />
                     
                     {puertoActivo.coordenadas ? (
-                      <div className="mt-2.5 pt-2.5 border-t border-slate-800/50">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1.5">Coordenadas GPS</p>
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.coordenadas)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2.5 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[10px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
+                      <div className="mt-2 pt-2 border-t border-slate-800/50">
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1">Coordenadas GPS</p>
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.coordenadas)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[9px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
                       </div>
                     ) : (<InfoRow label="Coordenadas" value="No registradas" />)}
                   </SeccionDesplegable>
@@ -555,7 +508,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               )}
 
               <div className="text-center pt-1.5">
-                <p className="text-[8px] text-slate-600 font-bold uppercase tracking-widest">Edición de datos restringida a la plataforma de escritorio.</p>
+                <p className="text-[7px] text-slate-600 font-bold uppercase tracking-widest">Edición restringida a la plataforma de escritorio.</p>
               </div>
             </div>
           </>
