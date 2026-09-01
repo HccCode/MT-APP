@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, LogOut, ChevronDown, ChevronUp, Clock, Smartphone, Calculator, Wifi, MapPin } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, 
+  LogOut, ChevronDown, ChevronUp, Clock, Smartphone, Calculator, Wifi, 
+  MapPin, Map, Scissors, Layers, Filter 
+} from 'lucide-react';
 
 export default function Cuadrilla({ token, handleLogout }) {
   // ================= ESTADO DE SEGURIDAD =================
   const [esMovil, setEsMovil] = useState(true);
 
   const [busqueda, setBusqueda] = useState('');
+  const [filtroRuta, setFiltroRuta] = useState('');
   
   // ================= ESTADOS PARA MULTI-TECNOLOGÍA =================
   const [resultadosFO, setResultadosFO] = useState([]);
@@ -21,6 +26,27 @@ export default function Cuadrilla({ token, handleLogout }) {
   });
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+  // ================= HELPER: CÓDIGO DE COLORES TIA-598-C =================
+  const obtenerColorFibra = (valor) => {
+    if (!valor || valor === '-') return 'bg-slate-800 text-slate-400 border-slate-700';
+    const str = String(valor).toUpperCase().trim();
+    
+    if (str.includes('AZUL') || str.includes('BLUE')) return 'bg-blue-600 text-white';
+    if (str.includes('NARANJA') || str.includes('ORANGE')) return 'bg-orange-500 text-white';
+    if (str.includes('VERDE') || str.includes('GREEN')) return 'bg-emerald-600 text-white';
+    if (str.includes('CAFE') || str.includes('BROWN') || str.includes('CAFÉ')) return 'bg-amber-800 text-white';
+    if (str.includes('GRIS') || str.includes('GREY') || str.includes('GRAY')) return 'bg-slate-500 text-white';
+    if (str.includes('BLANCO') || str.includes('WHITE')) return 'bg-white text-slate-900 border border-slate-300 font-bold';
+    if (str.includes('ROJO') || str.includes('RED')) return 'bg-red-600 text-white';
+    if (str.includes('NEGRO') || str.includes('BLACK')) return 'bg-slate-900 text-white border border-slate-700';
+    if (str.includes('AMARILLO') || str.includes('YELLOW')) return 'bg-yellow-400 text-slate-950 font-bold';
+    if (str.includes('VIOLETA') || str.includes('PURPLE') || str.includes('MORADO')) return 'bg-purple-600 text-white';
+    if (str.includes('ROSA') || str.includes('PINK')) return 'bg-pink-500 text-white';
+    if (str.includes('AQUA') || str.includes('CYAN')) return 'bg-cyan-500 text-slate-950 font-bold';
+    
+    return 'bg-indigo-950 text-indigo-300 border border-indigo-700/50';
+  };
 
   // ================= EFECTO: FINGERPRINT DE DISPOSITIVO =================
   useEffect(() => {
@@ -91,6 +117,7 @@ export default function Cuadrilla({ token, handleLogout }) {
     setPuertoActivo(null);
     setResultadosFO([]);
     setResultadosMW([]);
+    setFiltroRuta('');
     
     try {
       const [resFO, resMW] = await Promise.all([
@@ -119,7 +146,6 @@ export default function Cuadrilla({ token, handleLogout }) {
       setResultadosFO(resultsFO);
       setResultadosMW(resultsMW);
 
-      // Auto-seleccionar la pestaña que tenga resultados si la actual está vacía
       if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
       if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
@@ -130,10 +156,32 @@ export default function Cuadrilla({ token, handleLogout }) {
 
     } catch (err) {
       alert("Error de conexión al consultar el espectro.");
-    } finally {
+    } font-bold {
       setCargando(false);
     }
   };
+
+  // Extracción dinámica de rutas disponibles en los resultados de FO
+  const rutasDisponibles = useMemo(() => {
+    const rutasMap = {};
+    resultadosFO.forEach(p => {
+      const r = p.RUTA || p.ruta;
+      if (r && typeof r === 'string' && r.trim() !== '') {
+        const nombreRuta = r.trim();
+        rutasMap[nombreRuta] = (rutasMap[nombreRuta] || 0) + 1;
+      }
+    });
+    return Object.entries(rutasMap).map(([nombre, cantidad]) => ({ nombre, cantidad }));
+  }, [resultadosFO]);
+
+  // Filtrado reactivo por RUTA en la pestaña FO
+  const resultadosFOFiltrados = useMemo(() => {
+    if (!filtroRuta.trim()) return resultadosFO;
+    return resultadosFO.filter(p => {
+      const r = String(p.RUTA || p.ruta || '').toLowerCase();
+      return r.includes(filtroRuta.toLowerCase());
+    });
+  }, [resultadosFO, filtroRuta]);
 
   const abrirDetalle = (puerto) => setPuertoActivo(puerto);
 
@@ -227,7 +275,7 @@ export default function Cuadrilla({ token, handleLogout }) {
     );
   };
 
-  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : resultadosMW;
+  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFOFiltrados : resultadosMW;
 
   // ================= PANTALLA DE BLOQUEO (DESKTOP) =================
   if (!esMovil) {
@@ -278,7 +326,7 @@ export default function Cuadrilla({ token, handleLogout }) {
         </button>
       </div>
 
-      {/* PANEL DE BÚSQUEDA */}
+      {/* PANEL DE BÚSQUEDA GENERAL */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         <div className="mb-4 mt-2 text-center shrink-0">
           <h2 className="text-xl font-black text-indigo-400">Trabajo en Campo</h2>
@@ -296,7 +344,7 @@ export default function Cuadrilla({ token, handleLogout }) {
           <Search className="absolute left-4 top-4.5 w-6 h-6 text-indigo-400" />
           
           {busqueda.length > 0 && (
-            <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-4 top-4.5 text-slate-500 hover:text-slate-300 transition-colors">
+            <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }} className="absolute right-4 top-4.5 text-slate-500 hover:text-slate-300 transition-colors">
               <X className="w-6 h-6" />
             </button>
           )}
@@ -304,12 +352,12 @@ export default function Cuadrilla({ token, handleLogout }) {
         </form>
 
         {/* PESTAÑAS (TABS) PERMANENTES */}
-        <div className="flex bg-[#1c2541]/80 rounded-xl p-1.5 mb-4 shrink-0 border border-slate-700/50 shadow-inner">
+        <div className="flex bg-[#1c2541]/80 rounded-xl p-1.5 mb-3 shrink-0 border border-slate-700/50 shadow-inner">
             <button
             onClick={() => setPestanaActiva('FO')}
             className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
             >
-            <Server className="w-3 h-3" /> F. Óptica {resultadosFO.length > 0 && `(${resultadosFO.length})`}
+            <Server className="w-3 h-3" /> F. Óptica {resultadosFO.length > 0 && `(${resultadosFOFiltrados.length}/${resultadosFO.length})`}
             </button>
             <button
             onClick={() => setPestanaActiva('MW')}
@@ -318,6 +366,55 @@ export default function Cuadrilla({ token, handleLogout }) {
             <Wifi className="w-3 h-3" /> Microondas {resultadosMW.length > 0 && `(${resultadosMW.length})`}
             </button>
         </div>
+
+        {/* ================= FILTRO ESPECÍFICO POR RUTA (PLANTAS DE EMPALME) ================= */}
+        {pestanaActiva === 'FO' && resultadosFO.length > 0 && (
+          <div className="mb-4 bg-[#0b132b] border border-emerald-500/40 rounded-xl p-3 shrink-0 shadow-lg">
+            <div className="relative flex items-center mb-2">
+              <Map className="absolute left-3 w-4 h-4 text-emerald-400" />
+              <input
+                type="text"
+                placeholder="Filtrar por RUTA de empalme..."
+                value={filtroRuta}
+                onChange={(e) => setFiltroRuta(e.target.value)}
+                className="w-full bg-[#050814] text-emerald-300 text-xs font-bold pl-9 pr-8 py-2 rounded-lg border border-slate-700 outline-none focus:border-emerald-500 uppercase tracking-wider"
+              />
+              {filtroRuta.length > 0 && (
+                <button 
+                  type="button" 
+                  onClick={() => setFiltroRuta('')}
+                  className="absolute right-2 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* CHIPS RÁPIDOS CON RUTAS DETECTADAS */}
+            {rutasDisponibles.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                <button
+                  onClick={() => setFiltroRuta('')}
+                  className={`text-[9px] font-black uppercase px-2 py-1 rounded-md transition-all ${!filtroRuta ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}
+                >
+                  Todas ({resultadosFO.length})
+                </button>
+                {rutasDisponibles.map(({ nombre, cantidad }) => {
+                  const estaSeleccionada = filtroRuta.toLowerCase() === nombre.toLowerCase();
+                  return (
+                    <button
+                      key={nombre}
+                      onClick={() => setFiltroRuta(estaSeleccionada ? '' : nombre)}
+                      className={`text-[9px] font-black uppercase px-2 py-1 rounded-md flex items-center gap-1 transition-all ${estaSeleccionada ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' : 'bg-slate-800/80 text-emerald-400 border border-emerald-900/50'}`}
+                    >
+                      <MapPin className="w-2.5 h-2.5" /> {nombre} ({cantidad})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* HISTORIAL */}
         {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
@@ -345,10 +442,11 @@ export default function Cuadrilla({ token, handleLogout }) {
 
         {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2"><Activity className="w-5 h-5"/> Sincronizando MT_DB...</p>}
 
+        {/* LISTADO DE RESULTADOS */}
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10">
           
           {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
-             <p className="text-center text-slate-500 text-sm italic mt-4">No hay resultados en esta pestaña.</p>
+             <p className="text-center text-slate-500 text-sm italic mt-4">No hay resultados en esta pestaña con los filtros aplicados.</p>
           )}
 
           {resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
@@ -357,9 +455,16 @@ export default function Cuadrilla({ token, handleLogout }) {
           
           {resultadosActuales.map((p, idx) => {
             const estatusStr = String(p.ESTATUS || p.estatus || '').toUpperCase();
+            const rutaNombre = p.RUTA || p.ruta;
+            const bufferVal = p.BUFFER || p.buffer;
+            const hiloVal = p.HILOS || p.hilos || p.hilo;
             
             return (
-              <div key={p.ID || p.id || idx} className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform" onClick={() => abrirDetalle(p)}>
+              <div 
+                key={p.ID || p.id || idx} 
+                className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform relative overflow-hidden" 
+                onClick={() => abrirDetalle(p)}
+              >
                 <div className="flex justify-between items-start mb-1.5">
                   <h3 className="font-black text-slate-100 text-lg">{p._tipo === 'FO' ? (p.PUERTO || '-') : (p.cliente || 'Enlace MW')}</h3>
                   <span className={`px-2 py-1 rounded-md text-[9px] font-black border uppercase ${estatusStr.includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : estatusStr.includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : estatusStr.includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
@@ -370,6 +475,30 @@ export default function Cuadrilla({ token, handleLogout }) {
                 <p className="text-[13px] text-indigo-300 font-bold mb-2 truncate">
                   {p._tipo === 'FO' ? (p.SERVICIO || 'Sin cliente asignado') : (p.sitio_base || 'Sitio Desconocido')}
                 </p>
+
+                {/* VISTA RÁPIDA DE EMPALME (RUTA, BUFFER E HILOS EN CASO DE FO) */}
+                {p._tipo === 'FO' && (rutaNombre || bufferVal || hiloVal) && (
+                  <div className="mb-3 p-2 bg-[#050814]/80 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                    {rutaNombre && (
+                      <span className="text-[10px] font-black text-emerald-400 uppercase flex items-center gap-1">
+                        <Map className="w-3 h-3 text-emerald-500 shrink-0" /> {rutaNombre}
+                      </span>
+                    )}
+
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      {bufferVal && (
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(bufferVal)}`}>
+                          <Layers className="w-2.5 h-2.5 opacity-70" /> {bufferVal}
+                        </span>
+                      )}
+                      {hiloVal && (
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(hiloVal)}`}>
+                          <Scissors className="w-2.5 h-2.5 opacity-70" /> {hiloVal}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                   <span className="flex items-center gap-1">
@@ -430,12 +559,25 @@ export default function Cuadrilla({ token, handleLogout }) {
                     <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
                   </SeccionDesplegable>
 
-                  <SeccionDesplegable titulo="Planta Externa" icono={<Activity className="w-4 h-4"/>} colorTexto="text-emerald-400">
+                  <SeccionDesplegable titulo="Planta Externa y Empalme" icono={<Activity className="w-4 h-4"/>} colorTexto="text-emerald-400" abiertoPorDefecto={true}>
                     <InfoRow label="Ruta OSP" value={puertoActivo.RUTA} />
                     <InfoRow label="Distancia" value={puertoActivo.DISTANCIA_CLIENTE} />
                     <InfoRow label="Lambdas" value={puertoActivo.LAMBDAS} />
-                    <InfoRow label="Buffer" value={puertoActivo.BUFFER} />
-                    <InfoRow label="Hilos" value={puertoActivo.HILOS} />
+                    
+                    {/* VISUALIZACIÓN EN COLORES DE BUFFER E HILOS */}
+                    <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50">
+                      <span className="text-[11px] text-slate-400 font-medium">Buffer (Tubo)</span>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase ${obtenerColorFibra(puertoActivo.BUFFER)}`}>
+                        {puertoActivo.BUFFER || '-'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50">
+                      <span className="text-[11px] text-slate-400 font-medium">Hilo (Fibra)</span>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase flex items-center gap-1 ${obtenerColorFibra(puertoActivo.HILOS)}`}>
+                        <Scissors className="w-3 h-3" /> {puertoActivo.HILOS || '-'}
+                      </span>
+                    </div>
                   </SeccionDesplegable>
 
                   <SeccionDesplegable titulo="Contacto y Sitio" icono={<Users className="w-4 h-4"/>} colorTexto="text-pink-400">
