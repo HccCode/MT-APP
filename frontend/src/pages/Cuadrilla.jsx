@@ -5,7 +5,7 @@ import {
   MapPin, Map, Scissors, Layers 
 } from 'lucide-react';
 
-export default function Cuadrilla({ token, handleLogout }) {
+export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {} }) {
   // ================= ESTADO DE SEGURIDAD =================
   const [esMovil, setEsMovil] = useState(true);
 
@@ -26,10 +26,27 @@ export default function Cuadrilla({ token, handleLogout }) {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // ================= NORMALIZADOR DE TEXTO (IGNORA ACENTOS Y MAYÚSCULAS) =================
-  const normalizarTexto = (texto) => {
-    return String(texto || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  // ================= NORMALIZADOR INTELIGENTE =================
+  // Ignora espacios, guiones, guiones bajos, acentos y mayúsculas
+  const normalizarBusqueda = (texto) => {
+    return String(texto || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[-\s_]/g, "").toLowerCase();
   };
+
+  // ================= EXTRACCIÓN DE HUBS GLOBALES =================
+  const hubsDisponibles = useMemo(() => {
+    const hubs = [];
+    if (!estructuraGeografica) return hubs;
+    Object.entries(estructuraGeografica).forEach(([region, dataReg]) => {
+      if (dataReg.ciudades) {
+        Object.entries(dataReg.ciudades).forEach(([ciudad, dataCd]) => {
+          if (dataCd.hubs && Array.isArray(dataCd.hubs)) {
+            dataCd.hubs.forEach(hub => hubs.push({ ...hub, ciudad, region }));
+          }
+        });
+      }
+    });
+    return hubs;
+  }, [estructuraGeografica]);
 
   // ================= HELPER: CÓDIGO DE COLORES TIA-598-C =================
   const obtenerColorFibra = (valor) => {
@@ -87,7 +104,7 @@ export default function Cuadrilla({ token, handleLogout }) {
     } catch (e) { return null; }
   };
 
-  // ================= BÚSQUEDA Y FILTRADO ESTRICTO MULTI-COLUMNA =================
+  // ================= BÚSQUEDA Y FILTRADO ROBUSTO =================
   const ejecutarBusqueda = async (termino, criterioActivo) => {
     if (!termino || termino.length < 3) return alert("Ingresa un término válido para buscar (mínimo 3 letras)");
     
@@ -99,35 +116,56 @@ export default function Cuadrilla({ token, handleLogout }) {
     try {
       let resultsFO = [];
       let resultsMW = [];
-      const termNorm = normalizarTexto(termino);
+      const termNorm = normalizarBusqueda(termino);
 
+      // Paso 1: Intentamos la búsqueda global rápida del backend
       const [resFO, resMW] = await Promise.all([
         fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
         fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
       ]);
 
-      // ================= LÓGICA FIBRA ÓPTICA =================
       if (resFO?.ok) {
           const dataFO = await resFO.json();
           let rawFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
 
           if (criterioActivo === 'RUTA') {
-              resultsFO = rawFO.filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termNorm));
+              resultsFO = rawFO.filter(p => normalizarBusqueda(p.RUTA || p.ruta).includes(termNorm));
           } else {
-              // Búsqueda Multi-Columna: Busca en Cliente, Puerto Físico o IP de Gestión
               resultsFO = rawFO.filter(p => 
-                  normalizarTexto(p.SERVICIO).includes(termNorm) || 
-                  normalizarTexto(p.PUERTO).includes(termNorm) || 
-                  normalizarTexto(p.IP_GESTION).includes(termNorm)
+                  normalizarBusqueda(p.SERVICIO).includes(termNorm) || 
+                  normalizarBusqueda(p.PUERTO).includes(termNorm) || 
+                  normalizarBusqueda(p.IP_GESTION).includes(termNorm)
               );
           }
       }
 
-      // ================= LÓGICA MICROONDAS =================
       if (resMW?.ok) {
           const dataMW = await resMW.json();
           const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
           resultsMW = rawMW.map(item => ({ ...item, _tipo: 'MW' }));
+      }
+
+      // Paso 2 (FALLBACK): Si buscaron RUTA y no hubo resultados, el backend no indexó esa columna.
+      // Descargamos todo el espectro de los HUBs de forma invisible para filtrar localmente.
+      if (criterioActivo === 'RUTA' && resultsFO.length === 0 && hubsDisponibles.length > 0) {
+          const promesasHubs = hubsDisponibles.map(h => 
+              fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+              .then(res => res.ok ? res.json() : null)
+              .catch(() => null)
+          );
+          
+          const respuestasHubs = await Promise.all(promesasHubs);
+          let puertosGlobales = [];
+          
+          respuestasHubs.forEach(hubData => {
+              if (hubData && hubData.puertos) {
+                  puertosGlobales = [...puertosGlobales, ...hubData.puertos];
+              }
+          });
+
+          resultsFO = puertosGlobales
+              .filter(p => normalizarBusqueda(p.RUTA || p.ruta).includes(termNorm))
+              .map(item => ({ ...item, _tipo: 'FO' }));
       }
 
       setResultadosFO(resultsFO);
@@ -234,78 +272,79 @@ export default function Cuadrilla({ token, handleLogout }) {
       <style>{`header, nav, aside { display: none !important; } body { overflow: hidden !important; }`}</style>
 
       {/* BARRA SUPERIOR MÍNIMA */}
-      <div className="bg-[#0b132b] border-b border-slate-800 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex justify-between items-center shrink-0 shadow-md relative z-20">
-        <div className="flex items-center gap-3">
-            <h1 className="text-slate-100 font-black text-[15px] tracking-widest flex items-center gap-1 leading-none">MT<span className="text-indigo-500">_MANAGER</span></h1>
-            <span className="bg-blue-900/40 text-blue-400 text-[8px] font-black px-2 py-0.5 rounded border border-blue-800 flex items-center gap-1 w-max"><ShieldAlert className="w-2.5 h-2.5" /> LECTURA</span>
+      <div className="bg-[#0b132b] border-b border-slate-800 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex justify-between items-start shrink-0 shadow-md relative z-20">
+        <div className="flex flex-col gap-1.5">
+            <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2 leading-none">MT<span className="text-indigo-500">_MANAGER</span></h1>
+            <span className="bg-blue-900/40 text-blue-400 text-[9px] font-black px-2.5 py-0.5 rounded-full border border-blue-800 flex items-center gap-1 w-max"><ShieldAlert className="w-3 h-3" /> SOLO LECTURA</span>
         </div>
-        <button onClick={cerrarSesion} className="flex items-center gap-1.5 text-[9px] uppercase font-black tracking-widest text-slate-300 bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all shadow-sm"><LogOut className="w-3 h-3 text-red-400" /> Salir</button>
+        <button onClick={cerrarSesion} className="flex items-center gap-1.5 text-[10px] uppercase font-black tracking-widest text-slate-300 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 active:bg-slate-700 active:scale-95 transition-all shadow-sm mt-0.5"><LogOut className="w-3.5 h-3.5 text-red-400" /> Salir</button>
       </div>
 
-      {/* ÁREA DE BÚSQUEDA COMPACTA */}
-      <div className={`flex flex-col h-full w-full max-w-md mx-auto p-3 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
+      <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         
-        {/* TÍTULO Y SELECTORES COMPACTOS */}
-        <div className="flex flex-col gap-2 mb-3 shrink-0">
-            <h2 className="text-lg font-black text-indigo-400 text-center mb-1">Trabajo en Campo</h2>
-            
-            {/* 1. SELECCIÓN DE TECNOLOGÍA */}
-            <div className="flex bg-[#050814] p-1 rounded-lg border border-slate-800 shadow-inner">
-                <button
-                  onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
-                  className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-all flex justify-center items-center gap-1.5 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  <Server className="w-3.5 h-3.5" /> F. Óptica
-                </button>
-                <button
-                  onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
-                  className={`flex-1 py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-widest transition-all flex justify-center items-center gap-1.5 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  <Wifi className="w-3.5 h-3.5" /> Microondas
-                </button>
-            </div>
-
-            {/* 2. TABS DE CRITERIO (SOLO FO) */}
-            {pestanaActiva === 'FO' && (
-              <div className="flex gap-1 bg-[#050814] p-1 rounded-lg border border-slate-800">
-                <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Cliente / ID</button>
-                <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta FO</button>
-              </div>
-            )}
+        <div className="mb-6 mt-2 text-center shrink-0">
+          <h2 className="text-2xl font-black text-indigo-400 mb-1">Trabajo en Campo</h2>
+          <p className="text-slate-400 text-sm">Busca el cliente, puerto o enlace</p>
         </div>
 
-        {/* 3. BUSCADOR */}
-        <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative mb-3 shrink-0">
-          <input 
-            type="text" 
-            placeholder={criterioBusqueda === 'RUTA' ? "Ej. RT20..." : "Buscar nombre, IP o puerto..."} 
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full bg-[#0b132b] text-white text-sm py-3 pl-10 pr-10 rounded-xl border border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.1)] outline-none focus:border-indigo-400 transition-colors"
-          />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
-          
-          {busqueda.length > 0 && (
-            <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors">
-              <X className="w-4 h-4" />
+        {/* 1. SELECCIÓN DE TECNOLOGÍA */}
+        <div className="flex gap-3 mb-6 shrink-0">
+            <button
+              onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
+              className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
+            >
+              <Server className="w-4 h-4" /> F. Óptica
             </button>
-          )}
-          <button type="submit" className="hidden">Buscar</button>
-        </form>
+            <button
+              onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
+              className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
+            >
+              <Wifi className="w-4 h-4" /> Microondas
+            </button>
+        </div>
+
+        {/* 2. BUSCADOR GLOBAL */}
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
+          
+          {/* TABS DE CRITERIO */}
+          <div className="flex gap-2 mb-4 bg-[#050814] p-1.5 rounded-xl border border-slate-800 shrink-0">
+            <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[11px] font-black uppercase py-3 rounded-lg transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Cliente / ID</button>
+            <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[11px] font-black uppercase py-3 rounded-lg transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Ruta FO</button>
+          </div>
+
+          <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative mb-6">
+            <input 
+              type="text" 
+              placeholder={criterioBusqueda === 'RUTA' ? "Ej. RT20, RUTA-NORTE-04..." : "Ej. Banamex, Nodo Centro..."} 
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
+            />
+            
+            <Search className="absolute left-4 top-[18px] w-6 h-6 text-indigo-400 pointer-events-none" />
+            
+            {busqueda.length > 0 && (
+              <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-4 top-[18px] text-slate-500 hover:text-slate-300 transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            )}
+            <button type="submit" className="hidden">Buscar</button>
+          </form>
+        </div>
 
         {/* HISTORIAL RECIENTE */}
         {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
-          <div className="mb-4 animate-in fade-in shrink-0">
-            <div className="flex items-center justify-center gap-1.5 mb-2.5">
-              <Clock className="w-3 h-3 text-slate-500" />
-              <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Búsquedas Recientes</p>
+          <div className="mb-6 animate-in fade-in shrink-0">
+            <div className="flex items-center justify-center gap-2 mb-3">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Búsquedas Recientes</p>
             </div>
-            <div className="flex flex-wrap justify-center gap-1.5">
+            <div className="flex flex-wrap justify-center gap-2">
               {busquedasRecientes.map((termino, idx) => (
                 <button
                   key={idx}
                   onClick={() => { setBusqueda(termino); ejecutarBusqueda(termino, criterioBusqueda); }}
-                  className="bg-[#1c2541] hover:bg-slate-700 text-indigo-300 font-bold text-[10px] px-3 py-1.5 rounded-full border border-slate-700 transition-colors active:scale-95 shadow-sm"
+                  className="bg-[#1c2541] hover:bg-slate-700 text-indigo-300 font-bold text-[11px] px-4 py-2 rounded-full border border-slate-700 transition-colors active:scale-95 shadow-sm"
                 >
                   {termino}
                 </button>
@@ -314,17 +353,17 @@ export default function Cuadrilla({ token, handleLogout }) {
           </div>
         )}
 
-        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2 mt-2 text-sm"><Activity className="w-4 h-4"/> Consultando MT_DB...</p>}
+        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2 mt-4"><Activity className="w-5 h-5"/> Consultando Base de Datos...</p>}
 
         {/* LISTADO DE RESULTADOS */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 pb-8">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10">
           
           {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
-             <p className="text-center text-slate-500 text-xs italic mt-4">No hay resultados con los filtros actuales.</p>
+             <p className="text-center text-slate-500 text-sm italic mt-4">No hay resultados con los filtros actuales.</p>
           )}
 
           {resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
-            <p className="text-center text-slate-500 text-xs italic mt-4">No se encontraron coincidencias.</p>
+            <p className="text-center text-slate-500 text-sm italic mt-4">No se encontraron coincidencias.</p>
           )}
           
           {resultadosActuales.map((p, idx) => {
@@ -336,17 +375,17 @@ export default function Cuadrilla({ token, handleLogout }) {
             return (
               <div 
                 key={p.ID || p.id || idx} 
-                className="bg-[#0b132b] border border-slate-700 p-3.5 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform relative overflow-hidden animate-in fade-in slide-in-from-bottom-2" 
+                className="bg-[#0b132b] border border-slate-700 p-4 rounded-xl shadow-lg cursor-pointer active:scale-95 transition-transform relative overflow-hidden animate-in fade-in slide-in-from-bottom-2" 
                 onClick={() => abrirDetalle(p)}
               >
-                <div className="flex justify-between items-start mb-1">
-                  <h3 className="font-black text-slate-100 text-[15px]">{p._tipo === 'FO' ? (p.PUERTO || '-') : (p.cliente || 'Enlace MW')}</h3>
-                  <span className={`px-2 py-0.5 rounded-md text-[8px] font-black border uppercase ${estatusStr.includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : estatusStr.includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : estatusStr.includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
+                <div className="flex justify-between items-start mb-1.5">
+                  <h3 className="font-black text-slate-100 text-lg">{p._tipo === 'FO' ? (p.PUERTO || '-') : (p.cliente || 'Enlace MW')}</h3>
+                  <span className={`px-2 py-1 rounded-md text-[9px] font-black border uppercase ${estatusStr.includes('ACTIVO') ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/50' : estatusStr.includes('DISPONIBLE') ? 'bg-slate-800 text-slate-400 border-slate-600' : estatusStr.includes('SUSPENDIDO') ? 'bg-red-900/30 text-red-400 border-red-500/50' : 'bg-amber-900/30 text-amber-400 border-amber-500/50'}`}>
                     {estatusStr || 'DESCONOCIDO'}
                   </span>
                 </div>
                 
-                <p className="text-xs text-indigo-300 font-bold mb-2 truncate">
+                <p className="text-[13px] text-indigo-300 font-bold mb-2 truncate">
                   {p._tipo === 'FO' ? (p.SERVICIO || 'Sin cliente asignado') : (p.sitio_base || 'Sitio Desconocido')}
                 </p>
 
@@ -354,42 +393,42 @@ export default function Cuadrilla({ token, handleLogout }) {
                 {p._tipo === 'FO' && (
                   <>
                     {criterioBusqueda === 'CLIENTE' ? (
-                      <div className="mb-2.5 grid grid-cols-2 gap-y-2 gap-x-2 p-2.5 bg-[#050814]/80 rounded-lg border border-slate-800 text-[9px]">
+                      <div className="mb-3 grid grid-cols-2 gap-y-3 gap-x-2 p-3 bg-[#050814]/80 rounded-lg border border-slate-800 text-[10px]">
                         <div className="flex flex-col">
-                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><Map className="w-2.5 h-2.5 text-emerald-500" /> Ruta</span>
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Map className="w-3 h-3 text-emerald-500" /> Ruta</span>
                           <span className="text-slate-200 font-black truncate">{p.RUTA || p.ruta || '-'}</span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><Server className="w-2.5 h-2.5 text-blue-400" /> IP Gestión</span>
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Server className="w-3 h-3 text-blue-400" /> IP Gestión</span>
                           <span className="text-emerald-400 font-mono font-bold truncate">{p.IP_GESTION || '-'}</span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><MapPin className="w-2.5 h-2.5 text-amber-500" /> Distancia</span>
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><MapPin className="w-3 h-3 text-amber-500" /> Distancia</span>
                           <span className="text-slate-200 font-bold truncate">{p.DISTANCIA_CLIENTE ? `${p.DISTANCIA_CLIENTE} km` : '-'}</span>
                         </div>
                         <div className="flex flex-col">
-                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-0.5 flex items-center gap-1"><Zap className="w-2.5 h-2.5 text-pink-500" /> Potencia CPE</span>
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Zap className="w-3 h-3 text-pink-500" /> Potencia CPE</span>
                           <span className="text-slate-200 font-bold truncate">{p.POTENCIA_CPE ? `${p.POTENCIA_CPE} dBm` : '-'}</span>
                         </div>
                       </div>
                     ) : (
                       /* Vista de Empalme para Búsqueda por Ruta (Mantiene colores de hilos) */
                       (rutaNombre || bufferVal || hiloVal) && (
-                        <div className="mb-2.5 p-2 bg-[#050814]/80 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                        <div className="mb-3 p-2 bg-[#050814]/80 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-xs">
                           {rutaNombre && (
-                            <span className="text-[9px] font-black text-emerald-400 uppercase flex items-center gap-1">
+                            <span className="text-[10px] font-black text-emerald-400 uppercase flex items-center gap-1">
                               <Map className="w-3 h-3 text-emerald-500 shrink-0" /> {rutaNombre}
                             </span>
                           )}
                           <div className="flex items-center gap-1.5 ml-auto">
                             {bufferVal && (
-                              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(bufferVal)}`}>
-                                <Layers className="w-2 h-2 opacity-70" /> {bufferVal}
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(bufferVal)}`}>
+                                <Layers className="w-2.5 h-2.5 opacity-70" /> {bufferVal}
                               </span>
                             )}
                             {hiloVal && (
-                              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(hiloVal)}`}>
-                                <Scissors className="w-2 h-2 opacity-70" /> {hiloVal}
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(hiloVal)}`}>
+                                <Scissors className="w-2.5 h-2.5 opacity-70" /> {hiloVal}
                               </span>
                             )}
                           </div>
@@ -399,9 +438,9 @@ export default function Cuadrilla({ token, handleLogout }) {
                   </>
                 )}
                 
-                <div className="flex justify-between text-[9px] text-slate-400 font-mono">
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                   <span className="flex items-center gap-1">
-                    {p._tipo === 'FO' ? <Server className="w-2.5 h-2.5 text-slate-500" /> : <Wifi className="w-2.5 h-2.5 text-slate-500" />}
+                    {p._tipo === 'FO' ? <Server className="w-3 h-3 text-slate-500" /> : <Wifi className="w-3 h-3 text-slate-500" />}
                     {p._tipo === 'FO' ? 'F. Óptica' : 'Microondas'}
                   </span>
                   {/* Solo mostrar IP abajo si NO es FO en vista CLIENTE (porque ya está en la cuadrícula) */}
@@ -421,61 +460,61 @@ export default function Cuadrilla({ token, handleLogout }) {
       <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
         {puertoActivo && (
           <>
-            <div className="bg-[#0b132b] p-3 flex justify-between items-center border-b border-slate-800 shrink-0 shadow-md">
-              <div className="flex items-center gap-2.5">
-                <button onClick={() => setPuertoActivo(null)} className="p-1.5 bg-slate-800 rounded-full text-slate-300 active:bg-slate-700 transition-colors"><X className="w-4 h-4" /></button>
+            <div className="bg-[#0b132b] p-4 flex justify-between items-center border-b border-slate-800 shrink-0 shadow-md">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setPuertoActivo(null)} className="p-2 bg-slate-800 rounded-full text-slate-300 active:bg-slate-700 transition-colors"><X className="w-5 h-5" /></button>
                 <div>
-                  <h2 className={`font-black text-xs uppercase tracking-widest leading-none ${puertoActivo._tipo === 'FO' ? 'text-indigo-400' : 'text-blue-400'}`}>Ficha Técnica {puertoActivo._tipo}</h2>
-                  <p className="text-[9px] text-slate-500 truncate max-w-[200px] mt-0.5">{puertoActivo._tipo === 'FO' ? (puertoActivo.SERVICIO || puertoActivo.PUERTO) : (puertoActivo.cliente || puertoActivo.sitio_base)}</p>
+                  <h2 className={`font-black text-sm uppercase tracking-widest leading-none ${puertoActivo._tipo === 'FO' ? 'text-indigo-400' : 'text-blue-400'}`}>Ficha Técnica {puertoActivo._tipo}</h2>
+                  <p className="text-[10px] text-slate-500 truncate max-w-[200px] mt-0.5">{puertoActivo._tipo === 'FO' ? (puertoActivo.SERVICIO || puertoActivo.PUERTO) : (puertoActivo.cliente || puertoActivo.sitio_base)}</p>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-3.5 space-y-2.5 pb-10">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3 pb-10">
               
               {/* === VISTA DETALLE FIBRA ÓPTICA === */}
               {puertoActivo._tipo === 'FO' && (
                 <>
-                  <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-3 shadow-sm">
-                    <h3 className="text-white font-black text-base truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
-                    <p className="text-indigo-400 font-mono text-[10px] font-bold flex items-center gap-1.5"><Server className="w-3 h-3"/> Puerto Físico: {puertoActivo.PUERTO || '-'}</p>
+                  <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.SERVICIO || 'Sin Cliente'}</h3>
+                    <p className="text-indigo-400 font-mono text-xs font-bold flex items-center gap-1.5"><Server className="w-3.5 h-3.5"/> Puerto Físico: {puertoActivo.PUERTO || '-'}</p>
                   </div>
 
-                  <SeccionDesplegable titulo="Estado Operativo y Potencias" icono={<Zap className="w-3.5 h-3.5"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
+                  <SeccionDesplegable titulo="Estado Operativo y Potencias" icono={<Zap className="w-4 h-4"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
                     <InfoRow label="Estatus Físico" value={puertoActivo.ESTATUS} />
                     <InfoRow label="Potencia HUB" value={puertoActivo.POTENCIA_HUB ? `${puertoActivo.POTENCIA_HUB} dBm` : '-'} />
                     <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
                   </SeccionDesplegable>
 
-                  <SeccionDesplegable titulo="Lógica y Enrutamiento" icono={<Server className="w-3.5 h-3.5"/>} colorTexto="text-blue-400">
+                  <SeccionDesplegable titulo="Lógica y Enrutamiento" icono={<Server className="w-4 h-4"/>} colorTexto="text-blue-400">
                     <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
                     <InfoRowIP label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
                     <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
                   </SeccionDesplegable>
 
-                  <SeccionDesplegable titulo="Planta Externa y Empalme" icono={<Activity className="w-3.5 h-3.5"/>} colorTexto="text-emerald-400" abiertoPorDefecto={true}>
+                  <SeccionDesplegable titulo="Planta Externa y Empalme" icono={<Activity className="w-4 h-4"/>} colorTexto="text-emerald-400" abiertoPorDefecto={true}>
                     <InfoRow label="Ruta OSP" value={puertoActivo.RUTA} />
                     <InfoRow label="Distancia" value={puertoActivo.DISTANCIA_CLIENTE} />
                     <InfoRow label="Lambdas" value={puertoActivo.LAMBDAS} />
                     
-                    <div className="flex justify-between items-center py-2 border-b border-slate-800/50">
-                      <span className="text-[10px] text-slate-400 font-medium">Buffer (Tubo)</span>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${obtenerColorFibra(puertoActivo.BUFFER)}`}>{puertoActivo.BUFFER || '-'}</span>
+                    <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50">
+                      <span className="text-[11px] text-slate-400 font-medium">Buffer (Tubo)</span>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase ${obtenerColorFibra(puertoActivo.BUFFER)}`}>{puertoActivo.BUFFER || '-'}</span>
                     </div>
 
-                    <div className="flex justify-between items-center py-2 border-b border-slate-800/50">
-                      <span className="text-[10px] text-slate-400 font-medium">Hilo (Fibra)</span>
-                      <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase flex items-center gap-1 ${obtenerColorFibra(puertoActivo.HILOS)}`}><Scissors className="w-2.5 h-2.5" /> {puertoActivo.HILOS || '-'}</span>
+                    <div className="flex justify-between items-center py-2.5 border-b border-slate-800/50">
+                      <span className="text-[11px] text-slate-400 font-medium">Hilo (Fibra)</span>
+                      <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase flex items-center gap-1 ${obtenerColorFibra(puertoActivo.HILOS)}`}><Scissors className="w-3 h-3" /> {puertoActivo.HILOS || '-'}</span>
                     </div>
                   </SeccionDesplegable>
 
-                  <SeccionDesplegable titulo="Contacto y Sitio" icono={<Users className="w-3.5 h-3.5"/>} colorTexto="text-pink-400">
+                  <SeccionDesplegable titulo="Contacto y Sitio" icono={<Users className="w-4 h-4"/>} colorTexto="text-pink-400">
                     <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
                     <InfoRow label="Teléfono" value={puertoActivo.CONTACTO_TELEFONO} isPhone={true} />
                     {puertoActivo.COORDENADAS ? (
-                      <div className="mt-2.5 pt-2.5 border-t border-slate-800/50">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1.5">Coordenadas GPS</p>
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2.5 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[10px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
+                      <div className="mt-3 pt-3 border-t border-slate-800/50">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.COORDENADAS)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-sm"><Navigation className="w-4 h-4 text-emerald-400"/> Abrir en Google Maps</a>
                       </div>
                     ) : (<InfoRow label="Coordenadas" value="No registradas" />)}
                   </SeccionDesplegable>
@@ -485,12 +524,12 @@ export default function Cuadrilla({ token, handleLogout }) {
               {/* === VISTA DETALLE MICROONDAS === */}
               {puertoActivo._tipo === 'MW' && (
                 <>
-                  <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-3 shadow-sm">
-                    <h3 className="text-white font-black text-base truncate mb-1">{puertoActivo.cliente || 'Sin Cliente'}</h3>
-                    <p className="text-blue-400 font-mono text-[10px] font-bold flex items-center gap-1.5"><Wifi className="w-3 h-3"/> Sitio Base: {puertoActivo.sitio_base || '-'}</p>
+                  <div className="bg-[#0b132b] border border-slate-800 rounded-xl p-4 shadow-sm">
+                    <h3 className="text-white font-black text-lg truncate mb-1">{puertoActivo.cliente || 'Sin Cliente'}</h3>
+                    <p className="text-blue-400 font-mono text-xs font-bold flex items-center gap-1.5"><Wifi className="w-3.5 h-3.5"/> Sitio Base: {puertoActivo.sitio_base || '-'}</p>
                   </div>
 
-                  <SeccionDesplegable titulo="Radiofrecuencia e Interfaz" icono={<Activity className="w-3.5 h-3.5"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
+                  <SeccionDesplegable titulo="Radiofrecuencia e Interfaz" icono={<Activity className="w-4 h-4"/>} colorTexto="text-amber-500" bgClass="bg-amber-950/20" borderClass="border-amber-900/30" abiertoPorDefecto={true}>
                     <InfoRow label="Estatus Enlace" value={puertoActivo.estatus} />
                     <InfoRow label="Frecuencia AP" value={puertoActivo.frecuencia ? `${puertoActivo.frecuencia} MHz` : '-'} />
                     <InfoRow label="SSID Torre" value={puertoActivo.ssid} />
@@ -498,29 +537,29 @@ export default function Cuadrilla({ token, handleLogout }) {
                     <InfoRow label="Señal RX (Cliente)" value={puertoActivo.senal_rx_st ? `${puertoActivo.senal_rx_st} dBm` : '-'} />
                   </SeccionDesplegable>
 
-                  <SeccionDesplegable titulo="Lógica y Equipamiento" icono={<Server className="w-3.5 h-3.5"/>} colorTexto="text-blue-400">
+                  <SeccionDesplegable titulo="Lógica y Equipamiento" icono={<Server className="w-4 h-4"/>} colorTexto="text-blue-400">
                     <InfoRowIP label="IP Gestión (AP)" value={puertoActivo.ip_gestion_ap} />
                     <InfoRowIP label="IP Gestión (CPE)" value={puertoActivo.ip_gestion_st} />
                     <InfoRow label="Modelo CPE" value={puertoActivo.modelo_st} />
                     <InfoRow label="MAC CPE" value={puertoActivo.mac_st} />
                   </SeccionDesplegable>
 
-                  <SeccionDesplegable titulo="Ubicación y Sitio" icono={<MapPin className="w-3.5 h-3.5"/>} colorTexto="text-emerald-400">
+                  <SeccionDesplegable titulo="Ubicación y Sitio" icono={<MapPin className="w-4 h-4"/>} colorTexto="text-emerald-400">
                     <InfoRow label="Dirección" value={puertoActivo.direccion} />
                     <InfoRow label="Distancia Torre" value={puertoActivo.distancia_km ? `${puertoActivo.distancia_km} km` : '-'} />
                     
                     {puertoActivo.coordenadas ? (
-                      <div className="mt-2.5 pt-2.5 border-t border-slate-800/50">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1.5">Coordenadas GPS</p>
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.coordenadas)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2.5 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[10px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
+                      <div className="mt-3 pt-3 border-t border-slate-800/50">
+                        <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Coordenadas GPS</p>
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.coordenadas)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold transition-colors shadow-sm"><Navigation className="w-4 h-4 text-emerald-400"/> Abrir en Google Maps</a>
                       </div>
                     ) : (<InfoRow label="Coordenadas" value="No registradas" />)}
                   </SeccionDesplegable>
                 </>
               )}
 
-              <div className="text-center pt-1.5">
-                <p className="text-[8px] text-slate-600 font-bold uppercase tracking-widest">Edición de datos restringida a la plataforma de escritorio.</p>
+              <div className="text-center pt-2">
+                <p className="text-[9px] text-slate-600 font-bold uppercase tracking-widest">Edición de datos restringida a la plataforma de escritorio.</p>
               </div>
             </div>
           </>
