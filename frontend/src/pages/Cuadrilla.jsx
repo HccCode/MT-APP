@@ -11,7 +11,8 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
   // ================= ESTADOS DE BÚSQUEDA Y FLUJO =================
   const [pestanaActiva, setPestanaActiva] = useState('FO'); 
-  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); 
+  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); // 'CLIENTE' o 'RUTA'
+  const [hubSeleccionado, setHubSeleccionado] = useState('');
   const [busqueda, setBusqueda] = useState('');
   
   const [resultadosFO, setResultadosFO] = useState([]);
@@ -66,7 +67,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     return 'bg-indigo-950 text-indigo-300 border border-indigo-700/50';
   };
 
-  // ================= EFECTO: FINGERPRINT =================
+  // ================= EFECTO: FINGERPRINT DE DISPOSITIVO =================
   useEffect(() => {
     const verificarDispositivo = () => {
       const anchoFisico = window.innerWidth < 1024;
@@ -123,24 +124,35 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               setCargando(false);
               return;
           }
-          const promesasHubs = hubsDisponibles.map(h => 
+
+          let hubsAFetch = hubsDisponibles;
+          if (hubSeleccionado) {
+              hubsAFetch = hubsDisponibles.filter(h => String(h.id) === String(hubSeleccionado));
+          }
+
+          const promesasHubs = hubsAFetch.map(h => 
               fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
               .then(res => res.ok ? res.json() : null)
               .catch(() => null)
           );
+          
           const respuestasHubs = await Promise.all(promesasHubs);
           let puertosGlobales = [];
+          
           respuestasHubs.forEach(hubData => {
               if (hubData && hubData.puertos) puertosGlobales = [...puertosGlobales, ...hubData.puertos];
           });
+
           resultsFO = puertosGlobales
               .filter(p => normalizarBusqueda(p.RUTA || p.ruta).includes(termNorm))
               .map(item => ({ ...item, _tipo: 'FO' }));
+
       } else {
           const [resFO, resMW] = await Promise.all([
             fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
             fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
           ]);
+
           if (resFO?.ok) {
               const dataFO = await resFO.json();
               let rawFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
@@ -150,6 +162,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                   normalizarBusqueda(p.IP_GESTION).includes(termNorm)
               );
           }
+
           if (resMW?.ok) {
               const dataMW = await resMW.json();
               const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
@@ -159,6 +172,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       setResultadosFO(resultsFO);
       setResultadosMW(resultsMW);
+
       if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
       if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
@@ -255,16 +269,42 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-2.5 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         
-        {/* SELECTORES MINIMIZADOS EN UNA SOLA FILA BIFURCADA */}
-        <div className="flex gap-1.5 mb-2 shrink-0 mt-1">
-          <div className={`flex bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner transition-all duration-300 ${pestanaActiva === 'FO' ? 'w-1/2' : 'w-full'}`}>
+        {/* SELECTORES EN FILAS APILADAS */}
+        <div className="flex flex-col gap-1.5 mb-2 shrink-0 mt-1">
+          
+          {/* 1. TECNOLOGÍA */}
+          <div className="flex bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner transition-all duration-300 w-full">
             <button onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Server className="w-3 h-3" /> FO</button>
             <button onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Wifi className="w-3 h-3" /> MW</button>
           </div>
+
+          {/* 2. CRITERIO (SOLO FO) */}
           {pestanaActiva === 'FO' && (
-            <div className="flex w-1/2 bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner animate-in fade-in zoom-in duration-200">
-              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
+            <div className="flex w-full bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner animate-in fade-in zoom-in duration-200">
+              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); setHubSeleccionado(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
               <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta</button>
+            </div>
+          )}
+
+          {/* 3. SELECTOR HUB (SOLO RUTA FO) */}
+          {pestanaActiva === 'FO' && criterioBusqueda === 'RUTA' && (
+            <div className="relative animate-in fade-in slide-in-from-top-1 duration-200">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400" />
+                <select
+                  value={hubSeleccionado}
+                  onChange={(e) => { 
+                    setHubSeleccionado(e.target.value); 
+                    setBusqueda(''); 
+                    setResultadosFO([]); 
+                  }}
+                  className="w-full bg-[#0b132b] text-white text-[12px] pl-9 pr-8 py-2 rounded-lg border border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.1)] outline-none focus:border-indigo-400 transition-colors appearance-none cursor-pointer"
+                >
+                  <option value="">-- Todos los HUBs --</option>
+                  {hubsDisponibles.map(h => (
+                    <option key={h.id} value={h.id}>{h.ciudad} - {h.nombre}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
           )}
         </div>
@@ -274,7 +314,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
           <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative">
             <input 
               type="text" 
-              placeholder={criterioBusqueda === 'RUTA' && pestanaActiva === 'FO' ? "Ej. RT20, RUTA-04..." : "Ej. Banamex, Nodo Centro..."} 
+              placeholder={criterioBusqueda === 'RUTA' && pestanaActiva === 'FO' ? "Ej. RT20..." : "Buscar nombre, IP o puerto..."} 
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full bg-[#0b132b] text-white text-[13px] py-2.5 pl-9 pr-8 rounded-lg border border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.15)] outline-none focus:border-indigo-400 transition-colors placeholder:text-slate-500"
@@ -306,7 +346,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
         {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-1.5 mt-2 text-[10px]"><Activity className="w-3.5 h-3.5"/> Consultando...</p>}
 
-        {/* LISTADO DE RESULTADOS (MÁXIMO ESPACIO POSIBLE) */}
+        {/* LISTADO DE RESULTADOS */}
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-6">
           
           {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
@@ -413,7 +453,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               <div className="flex items-center gap-2.5">
                 <button onClick={() => setPuertoActivo(null)} className="p-1.5 bg-slate-800 rounded-full text-slate-300 active:bg-slate-700 transition-colors"><X className="w-4 h-4" /></button>
                 <div>
-                  <h2 className={`font-black text-xs uppercase tracking-widest leading-none ${puertoActivo._tipo === 'FO' ? 'text-indigo-400' : 'text-blue-400'}`}>Ficha Técnica {puertoActivo._tipo}</h2>
+                  <h2 className={`font-black text-[11px] uppercase tracking-widest leading-none ${puertoActivo._tipo === 'FO' ? 'text-indigo-400' : 'text-blue-400'}`}>Ficha Técnica {puertoActivo._tipo}</h2>
                   <p className="text-[9px] text-slate-500 truncate max-w-[200px] mt-0.5">{puertoActivo._tipo === 'FO' ? (puertoActivo.SERVICIO || puertoActivo.PUERTO) : (puertoActivo.cliente || puertoActivo.sitio_base)}</p>
                 </div>
               </div>
@@ -498,9 +538,9 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     <InfoRow label="Distancia Torre" value={puertoActivo.distancia_km ? `${puertoActivo.distancia_km} km` : '-'} />
                     
                     {puertoActivo.coordenadas ? (
-                      <div className="mt-2 pt-2 border-t border-slate-800/50">
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1">Coordenadas GPS</p>
-                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.coordenadas)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[9px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
+                      <div className="mt-2.5 pt-2.5 border-t border-slate-800/50">
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest font-bold mb-1.5">Coordenadas GPS</p>
+                        <a href={`https://maps.google.com/?q=${encodeURIComponent(puertoActivo.coordenadas)}`} target="_blank" rel="noreferrer" className="w-full bg-slate-800/50 hover:bg-slate-700 border border-slate-700 text-white p-2.5 rounded-xl flex items-center justify-center gap-1.5 font-bold transition-colors shadow-sm text-[10px]"><Navigation className="w-3 h-3 text-emerald-400"/> Abrir en Google Maps</a>
                       </div>
                     ) : (<InfoRow label="Coordenadas" value="No registradas" />)}
                   </SeccionDesplegable>
