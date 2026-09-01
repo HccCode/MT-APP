@@ -118,7 +118,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       const termNorm = normalizarTexto(termino);
 
       if (criterioActivo === 'RUTA') {
-          // 🚨 El backend NO indexa RUTA globalmente. Recorremos los HUBs de forma invisible para la cuadrilla.
           if (hubsDisponibles.length === 0) {
               alert("Aún no se han sincronizado los HUBs. Por favor recarga o contacta al administrador.");
               setCargando(false);
@@ -140,13 +139,11 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               }
           });
 
-          // Filtro estricto de ruta en memoria RAM
           resultsFO = puertosGlobales
               .filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termNorm))
               .map(item => ({ ...item, _tipo: 'FO' }));
 
       } else {
-          // Búsqueda Clásica (Cliente / ID / IP) soportada por Backend
           const [resFO, resMW] = await Promise.all([
             fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
             fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
@@ -173,7 +170,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       setResultadosFO(resultsFO);
       setResultadosMW(resultsMW);
 
-      // Auto-seleccionar la pestaña pertinente
       if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
       if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
@@ -285,7 +281,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         
-        {/* ENCABEZADO Y TÍTULO */}
         <div className="mb-6 mt-2 text-center shrink-0">
           <h2 className="text-2xl font-black text-indigo-400 mb-1">Trabajo en Campo</h2>
           <p className="text-slate-400 text-sm">Busca el cliente, puerto o enlace</p>
@@ -393,28 +388,53 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                   {p._tipo === 'FO' ? (p.SERVICIO || 'Sin cliente asignado') : (p.sitio_base || 'Sitio Desconocido')}
                 </p>
 
-                {/* VISTA RÁPIDA DE EMPALME */}
-                {p._tipo === 'FO' && (rutaNombre || bufferVal || hiloVal) && (
-                  <div className="mb-3 p-2 bg-[#050814]/80 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-xs">
-                    {rutaNombre && (
-                      <span className="text-[10px] font-black text-emerald-400 uppercase flex items-center gap-1">
-                        <Map className="w-3 h-3 text-emerald-500 shrink-0" /> {rutaNombre}
-                      </span>
+                {/* VISTA RÁPIDA DINÁMICA (FO) */}
+                {p._tipo === 'FO' && (
+                  <>
+                    {criterioBusqueda === 'CLIENTE' ? (
+                      <div className="mb-3 grid grid-cols-2 gap-y-3 gap-x-2 p-3 bg-[#050814]/80 rounded-lg border border-slate-800 text-[10px]">
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Map className="w-3 h-3 text-emerald-500" /> Ruta</span>
+                          <span className="text-slate-200 font-black truncate">{p.RUTA || p.ruta || '-'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Server className="w-3 h-3 text-blue-400" /> IP Gestión</span>
+                          <span className="text-emerald-400 font-mono font-bold truncate">{p.IP_GESTION || '-'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><MapPin className="w-3 h-3 text-amber-500" /> Distancia</span>
+                          <span className="text-slate-200 font-bold truncate">{p.DISTANCIA_CLIENTE ? `${p.DISTANCIA_CLIENTE} km` : '-'}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-slate-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-1"><Zap className="w-3 h-3 text-pink-500" /> Potencia CPE</span>
+                          <span className="text-slate-200 font-bold truncate">{p.POTENCIA_CPE ? `${p.POTENCIA_CPE} dBm` : '-'}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Vista de Empalme para Búsqueda por Ruta (Mantiene colores de hilos) */
+                      (rutaNombre || bufferVal || hiloVal) && (
+                        <div className="mb-3 p-2 bg-[#050814]/80 rounded-lg border border-slate-800 flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                          {rutaNombre && (
+                            <span className="text-[10px] font-black text-emerald-400 uppercase flex items-center gap-1">
+                              <Map className="w-3 h-3 text-emerald-500 shrink-0" /> {rutaNombre}
+                            </span>
+                          )}
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            {bufferVal && (
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(bufferVal)}`}>
+                                <Layers className="w-2.5 h-2.5 opacity-70" /> {bufferVal}
+                              </span>
+                            )}
+                            {hiloVal && (
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(hiloVal)}`}>
+                                <Scissors className="w-2.5 h-2.5 opacity-70" /> {hiloVal}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )
                     )}
-
-                    <div className="flex items-center gap-1.5 ml-auto">
-                      {bufferVal && (
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(bufferVal)}`}>
-                          <Layers className="w-2.5 h-2.5 opacity-70" /> {bufferVal}
-                        </span>
-                      )}
-                      {hiloVal && (
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase shadow-sm flex items-center gap-1 ${obtenerColorFibra(hiloVal)}`}>
-                          <Scissors className="w-2.5 h-2.5 opacity-70" /> {hiloVal}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  </>
                 )}
                 
                 <div className="flex justify-between text-[10px] text-slate-400 font-mono">
@@ -422,7 +442,8 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     {p._tipo === 'FO' ? <Server className="w-3 h-3 text-slate-500" /> : <Wifi className="w-3 h-3 text-slate-500" />}
                     {p._tipo === 'FO' ? 'F. Óptica' : 'Microondas'}
                   </span>
-                  {(p.IP_GESTION || p.ip_gestion_st || p.ip_gestion_ap) && (
+                  {/* Solo mostrar IP abajo si NO es FO en vista CLIENTE (porque ya está en la cuadrícula) */}
+                  {(p._tipo !== 'FO' || criterioBusqueda !== 'CLIENTE') && (p.IP_GESTION || p.ip_gestion_st || p.ip_gestion_ap) && (
                     <span className="text-emerald-400 bg-emerald-900/20 px-1.5 rounded">
                       {p.IP_GESTION || p.ip_gestion_st || p.ip_gestion_ap}
                     </span>
