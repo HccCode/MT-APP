@@ -5,7 +5,7 @@ import {
   MapPin, Map, Scissors, Layers 
 } from 'lucide-react';
 
-export default function Cuadrilla({ token, handleLogout }) {
+export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {} }) {
   // ================= ESTADO DE SEGURIDAD =================
   const [esMovil, setEsMovil] = useState(true);
 
@@ -13,7 +13,6 @@ export default function Cuadrilla({ token, handleLogout }) {
   const [pestanaActiva, setPestanaActiva] = useState('FO'); 
   const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); // 'CLIENTE' o 'RUTA'
   const [busqueda, setBusqueda] = useState('');
-  const [filtroRuta, setFiltroRuta] = useState('');
   
   const [resultadosFO, setResultadosFO] = useState([]);
   const [resultadosMW, setResultadosMW] = useState([]);
@@ -27,10 +26,26 @@ export default function Cuadrilla({ token, handleLogout }) {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-  // ================= NORMALIZADOR DE TEXTO (IGNORA ACENTOS Y MAYÚSCULAS) =================
+  // ================= NORMALIZADOR DE TEXTO =================
   const normalizarTexto = (texto) => {
     return String(texto || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   };
+
+  // ================= EXTRACCIÓN DE HUBS GLOBALES =================
+  const hubsDisponibles = useMemo(() => {
+    const hubs = [];
+    if (!estructuraGeografica) return hubs;
+    Object.entries(estructuraGeografica).forEach(([region, dataReg]) => {
+      if (dataReg.ciudades) {
+        Object.entries(dataReg.ciudades).forEach(([ciudad, dataCd]) => {
+          if (dataCd.hubs && Array.isArray(dataCd.hubs)) {
+            dataCd.hubs.forEach(hub => hubs.push({ ...hub, ciudad, region }));
+          }
+        });
+      }
+    });
+    return hubs;
+  }, [estructuraGeografica]);
 
   // ================= HELPER: CÓDIGO DE COLORES TIA-598-C =================
   const obtenerColorFibra = (valor) => {
@@ -88,7 +103,7 @@ export default function Cuadrilla({ token, handleLogout }) {
     } catch (e) { return null; }
   };
 
-  // ================= BÚSQUEDA Y FILTRADO ESTRICTO MULTI-COLUMNA =================
+  // ================= BÚSQUEDA Y FILTRADO INTELIGENTE =================
   const ejecutarBusqueda = async (termino, criterioActivo) => {
     if (!termino || termino.length < 3) return alert("Ingresa un término válido para buscar (mínimo 3 letras)");
     
@@ -102,38 +117,63 @@ export default function Cuadrilla({ token, handleLogout }) {
       let resultsMW = [];
       const termNorm = normalizarTexto(termino);
 
-      const [resFO, resMW] = await Promise.all([
-        fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
-        fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
-      ]);
+      if (criterioActivo === 'RUTA') {
+          // 🚨 El backend NO indexa RUTA globalmente. Recorremos los HUBs de forma invisible para la cuadrilla.
+          if (hubsDisponibles.length === 0) {
+              alert("Aún no se han sincronizado los HUBs. Por favor recarga o contacta al administrador.");
+              setCargando(false);
+              return;
+          }
 
-      // ================= LÓGICA FIBRA ÓPTICA =================
-      if (resFO?.ok) {
-          const dataFO = await resFO.json();
-          let rawFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
+          const promesasHubs = hubsDisponibles.map(h => 
+              fetch(`${API_URL}/api/hubs?id_hub=${h.id}`, { headers: { 'Authorization': `Bearer ${token}` } })
+              .then(res => res.ok ? res.json() : null)
+              .catch(() => null)
+          );
+          
+          const respuestasHubs = await Promise.all(promesasHubs);
+          let puertosGlobales = [];
+          
+          respuestasHubs.forEach(hubData => {
+              if (hubData && hubData.puertos) {
+                  puertosGlobales = [...puertosGlobales, ...hubData.puertos];
+              }
+          });
 
-          if (criterioActivo === 'RUTA') {
-              resultsFO = rawFO.filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termNorm));
-          } else {
-              // Búsqueda Multi-Columna: Busca en Cliente, Puerto Físico o IP de Gestión
+          // Filtro estricto de ruta en memoria RAM
+          resultsFO = puertosGlobales
+              .filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termNorm))
+              .map(item => ({ ...item, _tipo: 'FO' }));
+
+      } else {
+          // Búsqueda Clásica (Cliente / ID / IP) soportada por Backend
+          const [resFO, resMW] = await Promise.all([
+            fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
+            fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
+          ]);
+
+          if (resFO?.ok) {
+              const dataFO = await resFO.json();
+              let rawFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
+
               resultsFO = rawFO.filter(p => 
                   normalizarTexto(p.SERVICIO).includes(termNorm) || 
                   normalizarTexto(p.PUERTO).includes(termNorm) || 
                   normalizarTexto(p.IP_GESTION).includes(termNorm)
               );
           }
-      }
 
-      // ================= LÓGICA MICROONDAS =================
-      if (resMW?.ok) {
-          const dataMW = await resMW.json();
-          const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
-          resultsMW = rawMW.map(item => ({ ...item, _tipo: 'MW' }));
+          if (resMW?.ok) {
+              const dataMW = await resMW.json();
+              const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
+              resultsMW = rawMW.map(item => ({ ...item, _tipo: 'MW' }));
+          }
       }
 
       setResultadosFO(resultsFO);
       setResultadosMW(resultsMW);
 
+      // Auto-seleccionar la pestaña pertinente
       if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
       if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
@@ -148,24 +188,6 @@ export default function Cuadrilla({ token, handleLogout }) {
       setCargando(false);
     }
   };
-
-  const rutasDisponibles = useMemo(() => {
-    const rutasMap = {};
-    resultadosFO.forEach(p => {
-      const r = p.RUTA || p.ruta;
-      if (r && typeof r === 'string' && r.trim() !== '') {
-        const nombreRuta = r.trim();
-        rutasMap[nombreRuta] = (rutasMap[nombreRuta] || 0) + 1;
-      }
-    });
-    return Object.entries(rutasMap).map(([nombre, cantidad]) => ({ nombre, cantidad }));
-  }, [resultadosFO]);
-
-  const resultadosFOFiltrados = useMemo(() => {
-    if (!filtroRuta.trim()) return resultadosFO;
-    const termRuta = normalizarTexto(filtroRuta);
-    return resultadosFO.filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termRuta));
-  }, [resultadosFO, filtroRuta]);
 
   const abrirDetalle = (puerto) => setPuertoActivo(puerto);
   const cerrarSesion = () => {
@@ -232,7 +254,7 @@ export default function Cuadrilla({ token, handleLogout }) {
     );
   };
 
-  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFOFiltrados : resultadosMW;
+  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : resultadosMW;
 
   // ================= PANTALLA DE BLOQUEO (DESKTOP) =================
   if (!esMovil) {
@@ -272,34 +294,32 @@ export default function Cuadrilla({ token, handleLogout }) {
         {/* 1. SELECCIÓN DE TECNOLOGÍA */}
         <div className="flex gap-3 mb-6 shrink-0">
             <button
-              onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
+              onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
               className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
             >
               <Server className="w-4 h-4" /> F. Óptica
             </button>
             <button
-              onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
+              onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }}
               className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
             >
               <Wifi className="w-4 h-4" /> Microondas
             </button>
         </div>
 
-        {/* 2. BUSCADOR GLOBAL MULTICRITERIO */}
+        {/* 2. BUSCADOR GLOBAL */}
         <div className="animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
           
           {/* TABS DE CRITERIO */}
-          {pestanaActiva === 'FO' && (
-            <div className="flex gap-1 mb-2 bg-[#050814] p-1 rounded-xl border border-slate-800">
-              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-2 rounded-lg transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Cliente / ID</button>
-              <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[10px] font-black uppercase py-2 rounded-lg transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Ruta FO</button>
-            </div>
-          )}
+          <div className="flex gap-2 mb-4 bg-[#050814] p-1.5 rounded-xl border border-slate-800 shrink-0">
+            <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); }} className={`flex-1 text-[11px] font-black uppercase py-3 rounded-lg transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Cliente / ID</button>
+            <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[11px] font-black uppercase py-3 rounded-lg transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-[#4f46e5] text-white shadow-md' : 'text-slate-500 hover:text-slate-300'}`}>Ruta FO</button>
+          </div>
 
           <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative mb-6">
             <input 
               type="text" 
-              placeholder={criterioBusqueda === 'RUTA' ? "Ej. RUTA-NORTE-04..." : "Buscar nombre, IP o puerto..."} 
+              placeholder={criterioBusqueda === 'RUTA' ? "Ej. RT20, RUTA-NORTE-04..." : "Ej. Banamex, Nodo Centro..."} 
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
@@ -308,48 +328,13 @@ export default function Cuadrilla({ token, handleLogout }) {
             <Search className="absolute left-4 top-[18px] w-6 h-6 text-indigo-400 pointer-events-none" />
             
             {busqueda.length > 0 && (
-              <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }} className="absolute right-4 top-[18px] text-slate-500 hover:text-slate-300 transition-colors">
+              <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-4 top-[18px] text-slate-500 hover:text-slate-300 transition-colors">
                 <X className="w-6 h-6" />
               </button>
             )}
             <button type="submit" className="hidden">Buscar</button>
           </form>
         </div>
-
-        {/* FILTRO ESPECÍFICO DE CHIPS (SUB-RUTAS) */}
-        {pestanaActiva === 'FO' && resultadosFO.length > 0 && criterioBusqueda !== 'RUTA' && (
-          <div className="mb-4 bg-[#0b132b] border border-emerald-500/40 rounded-xl p-3 shrink-0 shadow-lg animate-in fade-in">
-            <div className="relative flex items-center mb-2">
-              <Map className="absolute left-3 w-4 h-4 text-emerald-400" />
-              <input
-                type="text"
-                placeholder="Filtrar sub-rutas de este cliente..."
-                value={filtroRuta}
-                onChange={(e) => setFiltroRuta(e.target.value)}
-                className="w-full bg-[#050814] text-emerald-300 text-xs font-bold pl-9 pr-8 py-2 rounded-lg border border-slate-700 outline-none focus:border-emerald-500 uppercase tracking-wider"
-              />
-              {filtroRuta.length > 0 && (
-                <button onClick={() => setFiltroRuta('')} className="absolute right-2 text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
-              )}
-            </div>
-
-            {rutasDisponibles.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-1">
-                <button onClick={() => setFiltroRuta('')} className={`text-[9px] font-black uppercase px-2 py-1 rounded-md transition-all ${!filtroRuta ? 'bg-emerald-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>
-                  Todas ({resultadosFO.length})
-                </button>
-                {rutasDisponibles.map(({ nombre, cantidad }) => {
-                  const estaSeleccionada = normalizarTexto(filtroRuta) === normalizarTexto(nombre);
-                  return (
-                    <button key={nombre} onClick={() => setFiltroRuta(estaSeleccionada ? '' : nombre)} className={`text-[9px] font-black uppercase px-2 py-1 rounded-md flex items-center gap-1 transition-all ${estaSeleccionada ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' : 'bg-slate-800/80 text-emerald-400 border border-emerald-900/50'}`}>
-                      <MapPin className="w-2.5 h-2.5" /> {nombre} ({cantidad})
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* HISTORIAL RECIENTE */}
         {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
