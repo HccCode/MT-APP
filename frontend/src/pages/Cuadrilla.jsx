@@ -10,8 +10,8 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
   const [esMovil, setEsMovil] = useState(true);
 
   // ================= ESTADOS DE BÚSQUEDA Y FLUJO =================
-  const [pestanaActiva, setPestanaActiva] = useState('FO'); // 'FO' o 'MW'
-  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); // 'CLIENTE', 'CIUDAD', 'RUTA'
+  const [pestanaActiva, setPestanaActiva] = useState('FO'); 
+  const [criterioBusqueda, setCriterioBusqueda] = useState('CLIENTE'); 
   const [hubSeleccionado, setHubSeleccionado] = useState('');
   const [busqueda, setBusqueda] = useState('');
   const [filtroRuta, setFiltroRuta] = useState('');
@@ -27,6 +27,11 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
   });
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+  // ================= NORMALIZADOR DE TEXTO (IGNORA ACENTOS Y MAYÚSCULAS) =================
+  const normalizarTexto = (texto) => {
+    return String(texto || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  };
 
   // ================= EXTRACCIÓN DE DATOS GLOBALES =================
   const hubsDisponibles = useMemo(() => {
@@ -110,7 +115,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     } catch (e) { return null; }
   };
 
-  // ================= BÚSQUEDA Y FILTRADO ESTRICTO =================
+  // ================= BÚSQUEDA Y FILTRADO ESTRICTO MULTI-COLUMNA =================
   const ejecutarBusqueda = async (termino, criterioActivo) => {
     if (!termino || termino.length < 3) return alert("Ingresa un término válido para buscar (mínimo 3 letras)");
     if (!hubSeleccionado) return alert("Por favor selecciona un HUB / Nodo primero");
@@ -123,43 +128,34 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     try {
       let resultsFO = [];
       let resultsMW = [];
+      const termNorm = normalizarTexto(termino);
 
-      // ================= LÓGICA FIBRA ÓPTICA =================
+      // ================= LÓGICA FIBRA ÓPTICA (FILTRADO LOCAL EN MEMORIA) =================
       if (pestanaActiva === 'FO') {
-          if (criterioActivo === 'RUTA' || criterioActivo === 'CIUDAD') {
-              // Bypass al buscador del backend: Descargamos el HUB completo y filtramos localmente
-              const resHub = await fetch(`${API_URL}/api/hubs?id_hub=${hubSeleccionado}`, { headers: { 'Authorization': `Bearer ${token}` } });
-              if (resHub.ok) {
-                  const jsonHub = await resHub.json();
-                  const puertosHub = jsonHub.puertos || [];
-                  
-                  if (criterioActivo === 'RUTA') {
-                      resultsFO = puertosHub.filter(p => String(p.RUTA || p.ruta || '').toUpperCase().includes(termino.toUpperCase()));
-                  } else if (criterioActivo === 'CIUDAD') {
-                      resultsFO = puertosHub.filter(p => String(p.CIUDAD || p.ciudad || p.HUB_PERTENENCIA || '').toUpperCase().includes(termino.toUpperCase()));
-                  }
-                  resultsFO = resultsFO.map(item => ({ ...item, _tipo: 'FO' }));
+          // Descargamos el HUB completo y filtramos localmente para garantizar velocidad y precisión
+          const resHub = await fetch(`${API_URL}/api/hubs?id_hub=${hubSeleccionado}`, { headers: { 'Authorization': `Bearer ${token}` } });
+          
+          if (resHub.ok) {
+              const jsonHub = await resHub.json();
+              const puertosHub = jsonHub.puertos || [];
+              
+              if (criterioActivo === 'RUTA') {
+                  resultsFO = puertosHub.filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termNorm));
+              } else if (criterioActivo === 'CIUDAD') {
+                  resultsFO = puertosHub.filter(p => normalizarTexto(p.CIUDAD || p.ciudad || p.HUB_PERTENENCIA).includes(termNorm));
+              } else {
+                  // Búsqueda Multi-Columna: Busca en Cliente, Puerto Físico o IP de Gestión
+                  resultsFO = puertosHub.filter(p => 
+                      normalizarTexto(p.SERVICIO).includes(termNorm) || 
+                      normalizarTexto(p.PUERTO).includes(termNorm) || 
+                      normalizarTexto(p.IP_GESTION).includes(termNorm)
+                  );
               }
-          } else {
-              // Búsqueda normal por Cliente o Puerto (Soportada por el backend)
-              const endpointFO = `${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}&id_hub=${hubSeleccionado}`;
-              const resFO = await fetch(endpointFO, { headers: { 'Authorization': `Bearer ${token}` } });
-              if (resFO.ok) {
-                  const dataFO = await resFO.json();
-                  if (dataFO.status === 'success' || Array.isArray(dataFO.data)) {
-                      resultsFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
-                      
-                      // Filtro de seguridad por HUB
-                      const hubObj = hubsDisponibles.find(h => String(h.id) === String(hubSeleccionado));
-                      if (hubObj) {
-                          resultsFO = resultsFO.filter(p => String(p.id_hub) === String(hubSeleccionado) || p.HUB_PERTENENCIA === hubObj.nombre);
-                      }
-                  }
-              }
+              resultsFO = resultsFO.map(item => ({ ...item, _tipo: 'FO' }));
           }
       }
 
-      // ================= LÓGICA MICROONDAS =================
+      // ================= LÓGICA MICROONDAS (MANTIENE BÚSQUEDA BACKEND POR SER GLOBAL) =================
       if (pestanaActiva === 'MW') {
           const resMW = await fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } });
           if (resMW.ok) {
@@ -196,12 +192,11 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     return Object.entries(rutasMap).map(([nombre, cantidad]) => ({ nombre, cantidad }));
   }, [resultadosFO]);
 
+  // Actualizado para usar la función de normalización al filtrar con los chips de ruta
   const resultadosFOFiltrados = useMemo(() => {
     if (!filtroRuta.trim()) return resultadosFO;
-    return resultadosFO.filter(p => {
-      const r = String(p.RUTA || p.ruta || '').toLowerCase();
-      return r.includes(filtroRuta.toLowerCase());
-    });
+    const termRuta = normalizarTexto(filtroRuta);
+    return resultadosFO.filter(p => normalizarTexto(p.RUTA || p.ruta).includes(termRuta));
   }, [resultadosFO, filtroRuta]);
 
   const abrirDetalle = (puerto) => setPuertoActivo(puerto);
@@ -379,7 +374,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               ) : (
                 <input 
                   type="text" 
-                  placeholder={criterioBusqueda === 'RUTA' ? "Ej. RUTA-NORTE-04..." : "Ej. Banamex, Nodo Centro..."} 
+                  placeholder={criterioBusqueda === 'RUTA' ? "Ej. RUTA-NORTE-04..." : "Buscar nombre, IP o puerto..."} 
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
@@ -405,7 +400,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               <Map className="absolute left-3 w-4 h-4 text-emerald-400" />
               <input
                 type="text"
-                placeholder="Filtrar por RUTA de empalme..."
+                placeholder="Filtrar sub-rutas de este cliente..."
                 value={filtroRuta}
                 onChange={(e) => setFiltroRuta(e.target.value)}
                 className="w-full bg-[#050814] text-emerald-300 text-xs font-bold pl-9 pr-8 py-2 rounded-lg border border-slate-700 outline-none focus:border-emerald-500 uppercase tracking-wider"
@@ -421,7 +416,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                   Todas ({resultadosFO.length})
                 </button>
                 {rutasDisponibles.map(({ nombre, cantidad }) => {
-                  const estaSeleccionada = filtroRuta.toLowerCase() === nombre.toLowerCase();
+                  const estaSeleccionada = normalizarTexto(filtroRuta) === normalizarTexto(nombre);
                   return (
                     <button key={nombre} onClick={() => setFiltroRuta(estaSeleccionada ? '' : nombre)} className={`text-[9px] font-black uppercase px-2 py-1 rounded-md flex items-center gap-1 transition-all ${estaSeleccionada ? 'bg-emerald-500 text-slate-950 font-bold shadow-md' : 'bg-slate-800/80 text-emerald-400 border border-emerald-900/50'}`}>
                       <MapPin className="w-2.5 h-2.5" /> {nombre} ({cantidad})
@@ -454,7 +449,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
           </div>
         )}
 
-        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2 mt-4"><Activity className="w-5 h-5"/> Procesando datos del NODO...</p>}
+        {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-2 mt-4"><Activity className="w-5 h-5"/> Consultando Base de Datos...</p>}
 
         {/* LISTADO DE RESULTADOS */}
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10">
