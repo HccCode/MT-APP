@@ -139,7 +139,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     setFiltroRuta('');
     
     try {
-      // Si la búsqueda es de FO, le anexamos el id_hub para optimizar si el backend lo soporta
       const endpointFO = pestanaActiva === 'FO' 
         ? `${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}&id_hub=${hubSeleccionado}`
         : `${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`;
@@ -160,7 +159,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       if (dataFO.status === 'success' || Array.isArray(dataFO.data)) {
         resultsFO = (dataFO.data || []).map(item => ({ ...item, _tipo: 'FO' }));
-        // Filtrado local estricto por HUB en caso de que el backend devuelva datos globales
+        // Filtro local estricto adicional por seguridad
         if (pestanaActiva === 'FO' && hubSeleccionado) {
            const hubObj = hubsDisponibles.find(h => String(h.id) === String(hubSeleccionado));
            if (hubObj) {
@@ -334,7 +333,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         body { overflow: hidden !important; }
       `}</style>
 
-      {/* BARRA SUPERIOR */}
+      {/* BARRA SUPERIOR MÍNIMA */}
       <div className="bg-[#0b132b] border-b border-slate-800 p-4 pt-[max(1rem,env(safe-area-inset-top))] flex justify-between items-start shrink-0 shadow-md relative z-20">
         <div className="flex flex-col gap-1.5">
             <h1 className="text-slate-100 font-black text-lg tracking-widest flex items-center gap-2 leading-none">
@@ -353,34 +352,33 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       </div>
 
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-4 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
-        <div className="mb-4 mt-2 text-center shrink-0">
-          <h2 className="text-xl font-black text-indigo-400">Trabajo en Campo</h2>
-          <p className="text-slate-500 text-xs mt-1">Busca el cliente, puerto o enlace</p>
+        
+        {/* ENCABEZADO Y TÍTULO */}
+        <div className="mb-6 mt-2 text-center shrink-0">
+          <h2 className="text-2xl font-black text-indigo-400 mb-1">Trabajo en Campo</h2>
+          <p className="text-slate-400 text-sm">Busca el cliente, puerto o enlace</p>
         </div>
 
-        {/* 1. SELECCIÓN DE TECNOLOGÍA (TABS SUPERIORES) */}
-        <div className="flex bg-[#1c2541]/80 rounded-xl p-1.5 mb-4 shrink-0 border border-slate-700/50 shadow-inner">
+        {/* 1. SELECCIÓN DE TECNOLOGÍA (COMO EN LA IMAGEN) */}
+        <div className="flex gap-3 mb-6 shrink-0">
             <button
               onClick={() => { setPestanaActiva('FO'); setHubSeleccionado(''); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
-              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
             >
-              <Server className="w-3 h-3" /> F. Óptica
+              <Server className="w-4 h-4" /> F. Óptica
             </button>
             <button
               onClick={() => { setPestanaActiva('MW'); setHubSeleccionado(''); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }}
-              className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200'}`}
+              className={`flex-1 py-3.5 px-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex justify-center items-center gap-2 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-[#1c2541] text-slate-400 border border-slate-800'}`}
             >
-              <Wifi className="w-3 h-3" /> Microondas
+              <Wifi className="w-4 h-4" /> Microondas
             </button>
         </div>
 
         {/* 2. SELECCIÓN DE HUB / NODO */}
-        <div className="mb-4 animate-in fade-in slide-in-from-top-2 shrink-0">
-            <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 ml-1">
-                {pestanaActiva === 'FO' ? '1. Selecciona HUB / Nodo' : '1. Selecciona Red'}
-            </label>
+        <div className="mb-6 animate-in fade-in slide-in-from-top-2 shrink-0">
             <div className="relative">
-                <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400" />
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-400" />
                 <select
                   value={hubSeleccionado}
                   onChange={(e) => { 
@@ -390,39 +388,36 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     setResultadosMW([]); 
                     setFiltroRuta('');
                   }}
-                  className="w-full bg-[#0b132b] text-white text-sm pl-10 pr-4 py-3.5 rounded-xl border border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.1)] outline-none focus:border-indigo-400 transition-colors appearance-none cursor-pointer"
+                  className="w-full bg-[#0b132b] text-white text-base pl-12 pr-10 py-4 rounded-2xl border border-slate-700 shadow-sm outline-none focus:border-indigo-400 transition-colors appearance-none cursor-pointer font-medium"
                 >
-                  <option value="">-- Seleccionar --</option>
+                  <option value="">-- Selecciona el HUB / Red --</option>
                   {pestanaActiva === 'FO' ? (
                     hubsDisponibles.map(h => (
                       <option key={h.id} value={h.id}>{h.ciudad} - {h.nombre}</option>
                     ))
                   ) : (
-                    <option value="MW_GLOBAL">Red de Microondas (Global)</option>
+                    <option value="MW_GLOBAL">Red Global de Microondas</option>
                   )}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
             </div>
         </div>
 
         {/* 3. BUSCADOR (SÓLO VISIBLE SI HAY HUB SELECCIONADO) */}
         {hubSeleccionado && (
-          <div className="animate-in fade-in zoom-in duration-300 shrink-0">
-            <label className="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2 ml-1">
-                2. Buscar Cliente / Puerto
-            </label>
-            <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda); }} className="relative mb-4">
+          <div className="animate-in fade-in slide-in-from-top-2 duration-300 shrink-0">
+            <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda); }} className="relative mb-6">
               <input 
                 type="text" 
                 placeholder="Ej. Banamex, Nodo Centro..." 
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
-                className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
+                className="w-full bg-[#0b132b] text-white text-lg p-4 pl-12 rounded-2xl border border-indigo-500/50 shadow-[0_0_15px_rgba(99,102,241,0.2)] outline-none focus:border-indigo-400 transition-colors"
               />
-              <Search className="absolute left-4 top-4.5 w-6 h-6 text-indigo-400" />
+              <Search className="absolute left-4 top-[18px] w-6 h-6 text-indigo-400" />
               
               {busqueda.length > 0 && (
-                <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }} className="absolute right-4 top-4.5 text-slate-500 hover:text-slate-300 transition-colors">
+                <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); setFiltroRuta(''); }} className="absolute right-4 top-[18px] text-slate-500 hover:text-slate-300 transition-colors">
                   <X className="w-6 h-6" />
                 </button>
               )}
@@ -479,7 +474,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
           </div>
         )}
 
-        {/* HISTORIAL */}
+        {/* HISTORIAL RECIENTE */}
         {hubSeleccionado && !cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
           <div className="mb-6 animate-in fade-in shrink-0">
             <div className="flex items-center justify-center gap-2 mb-3">
@@ -509,11 +504,11 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pb-10">
           
           {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
-             <p className="text-center text-slate-500 text-sm italic mt-4">No hay resultados en esta pestaña con los filtros aplicados.</p>
+             <p className="text-center text-slate-500 text-sm italic mt-4">No hay resultados con los filtros actuales.</p>
           )}
 
           {resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
-            <p className="text-center text-slate-500 text-sm italic mt-4">No se encontraron coincidencias en la red actual.</p>
+            <p className="text-center text-slate-500 text-sm italic mt-4">No se encontraron coincidencias.</p>
           )}
           
           {resultadosActuales.map((p, idx) => {
@@ -580,7 +575,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         </div>
       </div>
 
-      {/* FICHA TÉCNICA DINÁMICA */}
+      {/* FICHA TÉCNICA DINÁMICA LATERAL/MODAL */}
       <div className={`flex flex-col h-full w-full max-w-md mx-auto bg-[#050814] transition-transform duration-300 ${puertoActivo ? 'translate-x-0' : 'translate-x-full absolute opacity-0'}`}>
         {puertoActivo && (
           <>
