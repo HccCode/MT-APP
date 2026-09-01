@@ -5,7 +5,7 @@ import {
   MapPin, Map, Scissors, Layers 
 } from 'lucide-react';
 
-export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {} }) {
+export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {}, habilitarMW = true }) {
   // ================= ESTADO DE SEGURIDAD =================
   const [esMovil, setEsMovil] = useState(true);
 
@@ -118,7 +118,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       let resultsMW = [];
       const termNorm = normalizarBusqueda(termino);
 
-      if (criterioActivo === 'RUTA') {
+      if (pestanaActiva === 'FO' && criterioActivo === 'RUTA') {
           if (hubsDisponibles.length === 0) {
               alert("Aún no se han sincronizado los nodos. Recarga la aplicación.");
               setCargando(false);
@@ -149,8 +149,8 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       } else {
           const [resFO, resMW] = await Promise.all([
-            fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null),
-            fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null)
+            pestanaActiva === 'FO' ? fetch(`${API_URL}/api/ports/search?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null) : null,
+            (pestanaActiva === 'MW' && habilitarMW) ? fetch(`${API_URL}/api/microondas?q=${encodeURIComponent(termino)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null) : null
           ]);
 
           if (resFO?.ok) {
@@ -163,7 +163,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               );
           }
 
-          if (resMW?.ok) {
+          if (resMW?.ok && habilitarMW) {
               const dataMW = await resMW.json();
               const rawMW = Array.isArray(dataMW.data) ? dataMW.data : (Array.isArray(dataMW) ? dataMW : []);
               resultsMW = rawMW.map(item => ({ ...item, _tipo: 'MW' }));
@@ -174,7 +174,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       setResultadosMW(resultsMW);
 
       if (resultsFO.length > 0 && resultsMW.length === 0) setPestanaActiva('FO');
-      if (resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
+      if (habilitarMW && resultsMW.length > 0 && resultsFO.length === 0) setPestanaActiva('MW');
 
       const terminoLimpio = termino.trim();
       const nuevaLista = [terminoLimpio, ...busquedasRecientes.filter(b => b.toLowerCase() !== terminoLimpio.toLowerCase())].slice(0, 5);
@@ -241,7 +241,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     );
   };
 
-  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : resultadosMW;
+  const resultadosActuales = pestanaActiva === 'FO' ? resultadosFO : (pestanaActiva === 'MW' ? resultadosMW : []);
 
   if (!esMovil) {
     return (
@@ -272,64 +272,71 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         {/* SELECTORES EN FILAS APILADAS */}
         <div className="flex flex-col gap-1.5 mb-2 shrink-0 mt-1">
           
-          {/* 1. TECNOLOGÍA */}
-          <div className="flex bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner transition-all duration-300 w-full">
-            <button onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Server className="w-3 h-3" /> FO</button>
-            <button onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Wifi className="w-3 h-3" /> MW</button>
-          </div>
-
-          {/* 2. CRITERIO (SOLO FO) */}
-          {pestanaActiva === 'FO' && (
-            <div className="flex w-full bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner animate-in fade-in zoom-in duration-200">
-              <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); setHubSeleccionado(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
-              <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta</button>
+          {/* 1. TECNOLOGÍA (SÓLO SE MUESTRA SI MW ESTÁ HABILITADO) */}
+          {habilitarMW && (
+            <div className="flex bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner transition-all duration-300 w-full">
+              <button onClick={() => { setPestanaActiva('FO'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'FO' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Server className="w-3 h-3" /> FO</button>
+              <button onClick={() => { setPestanaActiva('MW'); setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className={`flex-1 py-1.5 px-1 rounded-md text-[9px] font-black uppercase tracking-widest transition-colors flex justify-center items-center gap-1 ${pestanaActiva === 'MW' ? 'bg-[#4f46e5] text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}><Wifi className="w-3 h-3" /> MW</button>
             </div>
           )}
 
-          {/* 3. SELECTOR HUB (SOLO RUTA FO) */}
-          {pestanaActiva === 'FO' && criterioBusqueda === 'RUTA' && (
-            <div className="relative animate-in fade-in slide-in-from-top-1 duration-200">
-                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400" />
-                <select
-                  value={hubSeleccionado}
-                  onChange={(e) => { 
-                    setHubSeleccionado(e.target.value); 
-                    setBusqueda(''); 
-                    setResultadosFO([]); 
-                  }}
-                  className="w-full bg-[#0b132b] text-white text-[12px] pl-9 pr-8 py-2 rounded-lg border border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.1)] outline-none focus:border-indigo-400 transition-colors appearance-none cursor-pointer"
-                >
-                  <option value="">-- Todos los HUBs --</option>
-                  {hubsDisponibles.map(h => (
-                    <option key={h.id} value={h.id}>{h.ciudad} - {h.nombre}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          {/* ELEMENTOS DESPLEGABLES (SOLO SE MUESTRAN AL SELECCIONAR UNA TECNOLOGÍA) */}
+          {pestanaActiva && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col gap-1.5">
+              
+              {/* 2. CRITERIO (SOLO FO) */}
+              {pestanaActiva === 'FO' && (
+                <div className="flex w-full bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner">
+                  <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); setHubSeleccionado(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
+                  <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta</button>
+                </div>
+              )}
+
+              {/* 3. SELECTOR HUB (SOLO RUTA FO) */}
+              {pestanaActiva === 'FO' && criterioBusqueda === 'RUTA' && (
+                <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-400" />
+                    <select
+                      value={hubSeleccionado}
+                      onChange={(e) => { 
+                        setHubSeleccionado(e.target.value); 
+                        setBusqueda(''); 
+                        setResultadosFO([]); 
+                      }}
+                      className="w-full bg-[#0b132b] text-white text-[12px] pl-9 pr-8 py-2 rounded-lg border border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.1)] outline-none focus:border-indigo-400 transition-colors appearance-none cursor-pointer"
+                    >
+                      <option value="">-- Todos los HUBs --</option>
+                      {hubsDisponibles.map(h => (
+                        <option key={h.id} value={h.id}>{h.ciudad} - {h.nombre}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
+              )}
+              
+              {/* 4. BUSCADOR COMPACTO */}
+              <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative mt-1">
+                <input 
+                  type="text" 
+                  placeholder={criterioBusqueda === 'RUTA' && pestanaActiva === 'FO' ? "Ej. RT20..." : "Buscar nombre, IP o puerto..."} 
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  className="w-full bg-[#0b132b] text-white text-[13px] py-2.5 pl-9 pr-8 rounded-lg border border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.15)] outline-none focus:border-indigo-400 transition-colors placeholder:text-slate-500"
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
+                {busqueda.length > 0 && (
+                  <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1"><X className="w-3.5 h-3.5" /></button>
+                )}
+                <button type="submit" className="hidden">Buscar</button>
+              </form>
+
             </div>
           )}
-        </div>
-
-        {/* BUSCADOR COMPACTO */}
-        <div className="shrink-0 mb-2">
-          <form onSubmit={(e) => { e.preventDefault(); ejecutarBusqueda(busqueda, criterioBusqueda); }} className="relative">
-            <input 
-              type="text" 
-              placeholder={criterioBusqueda === 'RUTA' && pestanaActiva === 'FO' ? "Ej. RT20..." : "Buscar nombre, IP o puerto..."} 
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              className="w-full bg-[#0b132b] text-white text-[13px] py-2.5 pl-9 pr-8 rounded-lg border border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.15)] outline-none focus:border-indigo-400 transition-colors placeholder:text-slate-500"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-400 pointer-events-none" />
-            {busqueda.length > 0 && (
-              <button type="button" onClick={() => { setBusqueda(''); setResultadosFO([]); setResultadosMW([]); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 p-1"><X className="w-3.5 h-3.5" /></button>
-            )}
-            <button type="submit" className="hidden">Buscar</button>
-          </form>
         </div>
 
         {/* HISTORIAL RECIENTE */}
-        {!cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
-          <div className="mb-3 animate-in fade-in shrink-0">
+        {pestanaActiva && !cargando && resultadosFO.length === 0 && resultadosMW.length === 0 && busquedasRecientes.length > 0 && busqueda.length === 0 && (
+          <div className="mb-3 animate-in fade-in shrink-0 mt-2">
             <div className="flex items-center justify-center gap-1 mb-1.5">
               <Clock className="w-2.5 h-2.5 text-slate-500" />
               <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">Recientes</p>
@@ -347,13 +354,13 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
         {cargando && <p className="text-center text-indigo-400 animate-pulse font-bold flex justify-center items-center gap-1.5 mt-2 text-[10px]"><Activity className="w-3.5 h-3.5"/> Consultando...</p>}
 
         {/* LISTADO DE RESULTADOS */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pb-6 mt-1">
           
-          {resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
+          {pestanaActiva && resultadosActuales.length === 0 && !cargando && busqueda.length > 2 && (resultadosFO.length > 0 || resultadosMW.length > 0) && (
              <p className="text-center text-slate-500 text-[10px] italic mt-4">No hay resultados en la pestaña seleccionada.</p>
           )}
 
-          {resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
+          {pestanaActiva && resultadosFO.length === 0 && resultadosMW.length === 0 && !cargando && busqueda.length > 2 && (
             <p className="text-center text-slate-500 text-[10px] italic mt-4">No se encontraron coincidencias.</p>
           )}
           
@@ -376,9 +383,16 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                   </span>
                 </div>
                 
-                <p className="text-[10px] text-indigo-300 font-bold mb-1.5 truncate">
-                  {p._tipo === 'FO' ? (p.SERVICIO || 'Sin cliente asignado') : (p.sitio_base || 'Sitio Desconocido')}
-                </p>
+                <div className="mb-1.5 flex flex-col">
+                  <p className="text-[10px] text-indigo-300 font-bold truncate">
+                    {p._tipo === 'FO' ? (p.SERVICIO || 'Sin cliente asignado') : (p.sitio_base || 'Sitio Desconocido')}
+                  </p>
+                  {p._tipo === 'FO' && p.HUB_PERTENENCIA && (
+                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                      <Server className="w-2.5 h-2.5 text-slate-500" /> {p.HUB_PERTENENCIA}
+                    </p>
+                  )}
+                </div>
 
                 {/* VISTA RÁPIDA DINÁMICA (FO) */}
                 {p._tipo === 'FO' && (
