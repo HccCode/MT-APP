@@ -261,7 +261,7 @@ function App() {
           <Resumen token={token} estructuraGeografica={estructuraGeografica} puedeEditar={puedeEditar} esAdmin={esAdmin}/>
         )}
         {tabActiva === 'cuadrilla' && (
-          <Cuadrilla token={token} />
+          <Cuadrilla token={token} handleLogout={handleLogout} estructuraGeografica={estructuraGeografica}/>
         )}
         {tabActiva === 'geografia' && (
           <Geografia token={token} estructuraGeografica={estructuraGeografica} cargarGeographyDB={cargarGeographyDB} handleLogout={handleLogout} esAdmin={esAdmin} />
