@@ -205,7 +205,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   }) || [];
 
   return (
-    // CONTENEDOR PRINCIPAL: Fija la altura total restando el menú superior (~70px) para bloquear el scroll global de la página
     <div className="flex flex-col h-[calc(100vh-70px)] min-h-0 overflow-hidden relative">
       
       {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
@@ -368,9 +367,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
 
         {/* ==============================================
-            COLUMNA DERECHA: FICHA TÉCNICA
+            COLUMNA DERECHA: FICHA TÉCNICA (AMPLIADA)
             ============================================== */}
-        <div className="w-full lg:w-[450px] shrink-0 flex flex-col min-h-0 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 overflow-hidden shadow-xl">
+        <div className="w-full lg:w-[550px] xl:w-[600px] shrink-0 flex flex-col min-h-0 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 overflow-hidden shadow-xl">
           {puertoDetalle ? (
             <>
               {/* Cabecera Fija */}
