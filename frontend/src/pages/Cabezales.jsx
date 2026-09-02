@@ -293,7 +293,8 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
   };
 
   return (
-    <div className="p-0 flex flex-col h-full overflow-hidden bg-[#070b19] relative">
+    // FIX APLICADO: Altura estricta para eliminar el scroll de la página
+    <div className="flex flex-col h-[calc(100vh-74px)] min-h-0 overflow-hidden bg-[#070b19] w-full relative">
       
       {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
       {msgCab.text && (
@@ -309,12 +310,14 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         </div>
       )}
 
+      {/* HEADER FIJO */}
       <div className="p-6 pb-2 flex justify-between items-center shrink-0">
         <h1 className="text-xl font-bold text-white flex items-center gap-2">
           📡 Control Central de Cabezales
         </h1>
       </div>
 
+      {/* FILTROS FIJOS */}
       <div className="bg-[#090f24] border-y border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 mb-4 shadow-md">
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium w-full lg:w-auto">
           <span className="px-3 py-1 rounded-md text-blue-500 border border-blue-600/60 shadow-sm uppercase tracking-wider font-bold">FILTROS</span>
@@ -345,9 +348,10 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto border border-slate-800 rounded-lg custom-scrollbar mx-6 mb-6">
+      {/* ÁREA SCROLLEABLE: TABLA DE CABEZALES */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar border border-slate-800 rounded-lg mx-6 mb-6 min-h-0">
         <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
-          <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
+          <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow outline outline-1 outline-slate-800">
             <tr>
               <th className="p-4 border-b border-slate-700">CIUDAD</th>
               <th className="p-4 border-b border-slate-700 text-cyan-400">ID EQUIPO</th>
@@ -357,7 +361,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
               <th className="p-4 border-b border-slate-700">MARCA</th>
               <th className="p-4 border-b border-slate-700">MODELO</th>
               <th className="p-4 border-b border-slate-700">SERIE</th>
-              {/* LA COLUMNA DE ACCIONES AHORA SIEMPRE ES VISIBLE */}
               <th className="p-4 border-b border-slate-700 text-center">ACCIONES</th>
             </tr>
           </thead>
@@ -399,14 +402,13 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
                   <td className="p-4">{cab.modelo || '---'}</td>
                   <td className="p-4 font-mono text-xs">{cab.serie || '---'}</td>
                   
-                  {/* CELDAS DE ACCIONES: El botón Excel es para todos */}
+                  {/* CELDAS DE ACCIONES */}
                   <td className="p-4 text-center">
                     <div className="flex justify-center gap-4">
                       <button onClick={() => exportarAlineacionExcel(cab)} className="text-emerald-400 hover:text-emerald-300 transition" title="Exportar Canales a Excel">
                         <FileSpreadsheet className="w-4 h-4"/>
                       </button>
                       
-                      {/* Editar y Eliminar solo visibles si tiene permisos de escritura/carga */}
                       {puedeCargar && (
                         <>
                           <button onClick={() => iniciarEdicion(cab)} className="text-blue-400 hover:text-blue-300 transition" title="Editar"><Edit className="w-4 h-4"/></button>
@@ -420,7 +422,6 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
             ))}
             {cabezalesFiltrados.length === 0 && (
               <tr>
-                {/* Ajustamos el colSpan a 9 (siempre están las 9 columnas) */}
                 <td colSpan="9" className="p-8 text-center text-slate-500 italic">
                   {!filtroReg || !filtroCd 
                     ? "⚠️ Por favor, seleccione una Región y Ciudad para desplegar el inventario." 
@@ -461,9 +462,9 @@ export default function Cabezales({ token, handleLogout, puedeCargar, estructura
               </div>
             </div>
 
-            <div className="p-0 overflow-auto flex-1 custom-scrollbar">
+            <div className="p-0 overflow-y-auto flex-1 custom-scrollbar min-h-0">
               <table className="min-w-max w-full text-left text-sm text-slate-300 whitespace-nowrap">
-                <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow">
+                <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow outline outline-1 outline-slate-800">
                   <tr>
                     <th className="p-3 border-b border-slate-700">PORTADORA</th>
                     <th className="p-3 border-b border-slate-700">FORMATO</th>
