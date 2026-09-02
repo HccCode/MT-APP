@@ -281,8 +281,8 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   };
 
   return (
-    // FIX APLICADO: h-[calc(100vh-70px)] fuerza al contenedor a no desbordarse de la ventana, matando el scroll global.
-    <div className="flex flex-col h-[calc(100vh-70px)] min-h-0 overflow-hidden bg-[#070b19] w-full">
+    // FIX APLICADO: flex-1 asegura que llene exactamente el espacio restante, min-h-0 corta el overflow global. 
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-[#070b19] w-full relative">
       
       {/* 1. HEADER Y SELECTOR MAESTRO (FIJO) */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
