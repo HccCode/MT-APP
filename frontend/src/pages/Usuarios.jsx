@@ -56,7 +56,6 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
     setIdUserEditando(null); setNewUsername(''); setNewPassword(''); setNewNombreCompleto(''); 
     setNewPlazas(['*']); setNewNumEmpleado(''); setNewCorreo(''); setNewArea(''); 
     setNewRegionUsuario(''); setNewPuesto(''); 
-    // CORRECCIÓN: Se eliminó setMsgUser aquí para que el Toast no se cierre instantáneamente
     setNewPermisos(['LECTURA']); setNewPestanas(['*']); setFiltroPlazas('');
     
     // Restaurar acordeones al cancelar
@@ -184,7 +183,8 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
   const safeEstructura = estructuraGeografica || {};
 
   return (
-    <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto custom-scrollbar bg-[#070b19] relative">
+    // CONTENEDOR PRINCIPAL FIX: Altura estricta calculada y sin scroll global
+    <main className="flex flex-col h-[calc(100vh-70px)] min-h-0 overflow-hidden bg-[#070b19] relative">
       
       {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
       {msgUser.text && (
@@ -200,7 +200,8 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
         </div>
       )}
 
-      <div className="bg-[#090f24] border-b border-slate-800/60 pb-4 shrink-0">
+      {/* CABECERA (Fija) */}
+      <div className="bg-[#090f24] border-b border-slate-800/60 p-4 md:px-6 md:py-4 shrink-0">
         <h2 className="text-lg font-black text-white flex items-center gap-3 uppercase tracking-widest">
             <ShieldCheck className="w-6 h-6 text-purple-500" /> 
             Consola de Seguridad y Accesos
@@ -208,237 +209,250 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
         <p className="text-xs text-slate-500 mt-1">Administración centralizada de identidades, roles tácticos y privilegios geográficos.</p>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+      {/* CONTENEDOR DE COLUMNAS CON SCROLL INDEPENDIENTE */}
+      <div className="flex-1 flex flex-col xl:flex-row gap-6 p-4 md:p-6 min-h-0 overflow-hidden">
         
-        {/* PANEL IZQUIERDO: FORMULARIO DE EDICIÓN */}
-        <div className="xl:col-span-1 bg-[#0b132b]/50 border border-slate-800/80 rounded-xl p-5 space-y-4 h-fit shadow-xl relative overflow-hidden">
+        {/* ==============================================
+            PANEL IZQUIERDO: FORMULARIO DE EDICIÓN
+            ============================================== */}
+        <div className="w-full xl:w-[450px] 2xl:w-[500px] shrink-0 bg-[#0b132b]/50 border border-slate-800/80 rounded-xl p-5 flex flex-col shadow-xl relative overflow-hidden min-h-0">
           {/* Deco bg */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
 
-          <form onSubmit={handleProcesarUsuario} className="space-y-4 relative z-10" autoComplete="off">
-            <h3 className="text-xs font-black text-purple-400 uppercase tracking-widest border-b border-slate-800 pb-2 flex items-center gap-2">
+          <form onSubmit={handleProcesarUsuario} className="flex flex-col h-full min-h-0 relative z-10" autoComplete="off">
+            {/* Título Formulario Fijo */}
+            <h3 className="shrink-0 text-xs font-black text-purple-400 uppercase tracking-widest border-b border-slate-800 pb-3 mb-2 flex items-center gap-2">
                 {idUserEditando ? <><Edit className="w-4 h-4"/> Editando Identidad</> : <><UserPlus className="w-4 h-4"/> Nueva Identidad</>}
             </h3>
             
-            <div className="space-y-3 pt-2">
-                <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Nombre Completo *</label>
-                    <div className="relative">
-                        <input type="text" value={newNombreCompleto} onChange={e => setNewNombreCompleto(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-8 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
-                        <Users className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
+            {/* Contenido Scrolleable del Formulario */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-4 pt-1">
+                <div className="space-y-3">
                     <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Username *</label>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Nombre Completo *</label>
                         <div className="relative">
-                            <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} required autoComplete="off" className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-8 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
-                            <Lock className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
+                            <input type="text" value={newNombreCompleto} onChange={e => setNewNombreCompleto(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-8 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
+                            <Users className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
                         </div>
                     </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Clave {idUserEditando ? '(Opcional)' : '*'}</label>
-                        <div className="relative">
-                            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required={!idUserEditando} placeholder={idUserEditando ? "Dejar en blanco" : "Requerido"} autoComplete="new-password" className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-8 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner placeholder:text-slate-600" />
-                            <Key className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
-                        </div>
-                    </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">No. Empleado *</label>
-                        <input type="text" value={newNumEmpleado} onChange={e => setNewNumEmpleado(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
-                    </div>
-                    <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Correo *</label>
-                        <div className="relative">
-                            <input type="email" value={newCorreo} onChange={e => setNewCorreo(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-7 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
-                            <Mail className="w-3 h-3 text-slate-500 absolute left-2.5 top-3.5" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            {/* SECCIÓN DESPLEGABLE: PERMISOS */}
-            <div className="pt-2">
-                <div className="border border-slate-700/50 rounded-lg bg-[#050814] overflow-hidden shadow-inner">
-                    <button 
-                        type="button" 
-                        onClick={() => setVerPermisos(!verPermisos)}
-                        className="w-full flex items-center justify-between p-2.5 bg-[#0a0f1d] hover:bg-slate-800/60 font-bold text-slate-400 uppercase border-b border-slate-800 transition-colors"
-                    >
-                        <div className="flex items-center gap-2 text-[10px]">
-                            <ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> PERMISOS DE BASE DE DATOS *
-                        </div>
-                        {verPermisos ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                    </button>
-                    
-                    {verPermisos && (
-                        <div className="p-3 grid grid-cols-2 gap-3">
-                            <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-not-allowed font-medium"><input type="checkbox" checked={true} disabled className="accent-slate-500" /> LECTURA (Base)</label>
-                            <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer hover:text-blue-400 font-bold transition-colors"><input type="checkbox" checked={newPermisos.includes('ESCRITURA')} onChange={(e) => manejarTogglePermiso('ESCRITURA', e.target.checked)} className="accent-blue-500" /> ESCRITURA</label>
-                            <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer hover:text-emerald-400 font-bold transition-colors"><input type="checkbox" checked={newPermisos.includes('CARGA')} onChange={(e) => manejarTogglePermiso('CARGA', e.target.checked)} className="accent-emerald-500" /> CARGA EXCEL</label>
-                            <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer hover:text-purple-400 font-bold transition-colors"><input type="checkbox" checked={newPermisos.includes('ADMIN')} onChange={(e) => manejarTogglePermiso('ADMIN', e.target.checked)} className="accent-purple-500" /> ADMIN TOTAL</label>
-                            <label className="flex items-center gap-2 text-[11px] cursor-pointer hover:text-amber-400 col-span-2 pt-2 mt-1 border-t border-slate-800/80 transition-colors">
-                                <input type="checkbox" checked={newPermisos.includes('RNOC')} onChange={(e) => manejarTogglePermiso('RNOC', e.target.checked)} className="accent-amber-500" /> 
-                                <span className="font-black tracking-widest text-amber-500 uppercase">Perfil RNOC (Solo Fallas)</span>
-                            </label>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* SECCIÓN DESPLEGABLE: PESTAÑAS VISIBLES */}
-            <div className="pt-2">
-                <div className="border border-slate-700/50 rounded-lg bg-[#050814] overflow-hidden shadow-inner">
-                    <button 
-                        type="button" 
-                        onClick={() => setVerPestanas(!verPestanas)}
-                        className="w-full flex items-center justify-between p-2.5 bg-[#0a0f1d] hover:bg-slate-800/60 font-bold text-slate-400 uppercase border-b border-slate-800 transition-colors"
-                    >
-                        <div className="flex items-center gap-2 text-[10px]">
-                            <Briefcase className="w-3.5 h-3.5 text-blue-400" /> PESTAÑAS VISIBLES *
-                        </div>
-                        {verPestanas ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                    </button>
-                    
-                    {verPestanas && (
-                        <div className="p-3 grid grid-cols-2 gap-3">
-                            <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-amber-400 col-span-2 border-b border-slate-800/80 pb-2 mb-1 transition-colors">
-                                <input type="checkbox" checked={newPestanas.includes('*')} onChange={(e) => manejarTogglePestana('*', e.target.checked)} className="accent-amber-500 w-3.5 h-3.5" /> 
-                                <span className="font-black text-amber-500 tracking-widest">PERMITIR TODAS (*)</span>
-                            </label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('inventario')} onChange={(e) => manejarTogglePestana('inventario', e.target.checked)} className="accent-slate-400" /> S. Dedicados</label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('resumen')} onChange={(e) => manejarTogglePestana('resumen', e.target.checked)} className="accent-slate-400" /> Disponibilidad</label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cabezales')} onChange={(e) => manejarTogglePestana('cabezales', e.target.checked)} className="accent-slate-400" /> Cabezales</label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('microondas')} onChange={(e) => manejarTogglePestana('microondas', e.target.checked)} className="accent-slate-400" /> Microondas</label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('geografia')} onChange={(e) => manejarTogglePestana('geografia', e.target.checked)} className="accent-slate-400" /> Geografía</label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('carga_excel')} onChange={(e) => manejarTogglePestana('carga_excel', e.target.checked)} className="accent-slate-400" /> Aprovisionamiento</label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('usuarios')} onChange={(e) => manejarTogglePestana('usuarios', e.target.checked)} className="accent-slate-400" /> Usuarios</label>
-                            <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-indigo-400 transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
-                                <input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cuadrilla')} onChange={(e) => manejarTogglePestana('cuadrilla', e.target.checked)} className="accent-indigo-500" /> 
-                                Modo Cuadrilla
-                            </label>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-                <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Área Org. *</label>
-                    <input type="text" value={newArea} onChange={e => setNewArea(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
-                </div>
-                <div>
-                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Puesto *</label>
-                    <input type="text" value={newPuesto} onChange={e => setNewPuesto(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
-                </div>
-            </div>
-            
-            <div>
-                <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Región Asignada (RRHH) *</label>
-                <input type="text" value={newRegionUsuario} onChange={e => setNewRegionUsuario(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
-            </div>
-            
-            {/* SECCIÓN DESPLEGABLE: GEOGRAFÍA */}
-            <div className="pt-2">
-                <div className="border border-slate-700/50 rounded-lg bg-[#050814] overflow-hidden shadow-inner">
-                    <button 
-                        type="button" 
-                        onClick={() => setVerGeografia(!verGeografia)}
-                        className="w-full flex items-center justify-between p-2.5 bg-[#0a0f1d] hover:bg-slate-800/60 font-bold text-slate-400 uppercase border-b border-slate-800 transition-colors"
-                    >
-                        <div className="flex items-center gap-2 text-[10px]">
-                            <MapPin className="w-3.5 h-3.5 text-emerald-400" /> VISIBILIDAD GEOGRÁFICA *
-                        </div>
-                        {verGeografia ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                    </button>
-                    
-                    {verGeografia && (
-                        <div className="p-3 flex flex-col space-y-3">
-                            <div className="relative w-full">
-                                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
-                                <input 
-                                    type="text" 
-                                    placeholder="Buscar ciudad o región..." 
-                                    value={filtroPlazas} 
-                                    onChange={e => setFiltroPlazas(e.target.value)} 
-                                    className="w-full bg-[#070b19] border border-slate-700/80 text-[10px] py-1.5 pl-8 pr-2 rounded text-slate-300 focus:outline-none focus:border-purple-500 transition-colors shadow-inner" 
-                                />
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Username *</label>
+                            <div className="relative">
+                                <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} required autoComplete="off" className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-8 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
+                                <Lock className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
                             </div>
-                            
-                            <div className={`bg-[#070b19] border ${newPlazas.length === 0 ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'border-slate-700/80'} rounded-lg p-2 max-h-40 overflow-y-auto space-y-2 custom-scrollbar transition-all`}>
-                                <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer hover:bg-slate-800/80 p-1.5 rounded transition-colors">
-                                    <input type="checkbox" checked={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) setNewPlazas(['*']); else setNewPlazas([]); }} className="accent-emerald-500 w-3.5 h-3.5" />
-                                    <span className="font-black text-emerald-400 tracking-widest">ACCESO GLOBAL RED (*)</span>
+                        </div>
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Clave {idUserEditando ? '(Opcional)' : '*'}</label>
+                            <div className="relative">
+                                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required={!idUserEditando} placeholder={idUserEditando ? "Dejar en blanco" : "Requerido"} autoComplete="new-password" className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-8 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner placeholder:text-slate-600" />
+                                <Key className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">No. Empleado *</label>
+                            <input type="text" value={newNumEmpleado} onChange={e => setNewNumEmpleado(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
+                        </div>
+                        <div>
+                            <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Correo *</label>
+                            <div className="relative">
+                                <input type="email" value={newCorreo} onChange={e => setNewCorreo(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 pl-7 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
+                                <Mail className="w-3 h-3 text-slate-500 absolute left-2.5 top-3.5" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* SECCIÓN DESPLEGABLE: PERMISOS */}
+                <div>
+                    <div className="border border-slate-700/50 rounded-lg bg-[#050814] overflow-hidden shadow-inner">
+                        <button 
+                            type="button" 
+                            onClick={() => setVerPermisos(!verPermisos)}
+                            className="w-full flex items-center justify-between p-2.5 bg-[#0a0f1d] hover:bg-slate-800/60 font-bold text-slate-400 uppercase border-b border-slate-800 transition-colors"
+                        >
+                            <div className="flex items-center gap-2 text-[10px]">
+                                <ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> PERMISOS DE BASE DE DATOS *
+                            </div>
+                            {verPermisos ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                        </button>
+                        
+                        {verPermisos && (
+                            <div className="p-3 grid grid-cols-2 gap-3">
+                                <label className="flex items-center gap-2 text-[11px] text-slate-500 cursor-not-allowed font-medium"><input type="checkbox" checked={true} disabled className="accent-slate-500" /> LECTURA (Base)</label>
+                                <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer hover:text-blue-400 font-bold transition-colors"><input type="checkbox" checked={newPermisos.includes('ESCRITURA')} onChange={(e) => manejarTogglePermiso('ESCRITURA', e.target.checked)} className="accent-blue-500" /> ESCRITURA</label>
+                                <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer hover:text-emerald-400 font-bold transition-colors"><input type="checkbox" checked={newPermisos.includes('CARGA')} onChange={(e) => manejarTogglePermiso('CARGA', e.target.checked)} className="accent-emerald-500" /> CARGA EXCEL</label>
+                                <label className="flex items-center gap-2 text-[11px] text-slate-300 cursor-pointer hover:text-purple-400 font-bold transition-colors"><input type="checkbox" checked={newPermisos.includes('ADMIN')} onChange={(e) => manejarTogglePermiso('ADMIN', e.target.checked)} className="accent-purple-500" /> ADMIN TOTAL</label>
+                                <label className="flex items-center gap-2 text-[11px] cursor-pointer hover:text-amber-400 col-span-2 pt-2 mt-1 border-t border-slate-800/80 transition-colors">
+                                    <input type="checkbox" checked={newPermisos.includes('RNOC')} onChange={(e) => manejarTogglePermiso('RNOC', e.target.checked)} className="accent-amber-500" /> 
+                                    <span className="font-black tracking-widest text-amber-500 uppercase">Perfil RNOC (Solo Fallas)</span>
                                 </label>
-                                <div className="border-t border-slate-800/80 my-1"></div>
-                                
-                                {Object.keys(safeEstructura).map(r => {
-                                    const query = filtroPlazas.toLowerCase();
-                                    const regionMatch = r.toLowerCase().includes(query);
-                                    const ciudadesTodas = obtenerCiudadesOrdenadas(r);
-                                    const ciudadesFiltradas = ciudadesTodas.filter(c => c.nombre.toLowerCase().includes(query) || String(c.id).toLowerCase().includes(query));
-                                    
-                                    if (query && !regionMatch && ciudadesFiltradas.length === 0) return null;
-                                    const ciudadesRender = (query && !regionMatch) ? ciudadesFiltradas : ciudadesTodas;
-
-                                    const idsRegion = ciudadesTodas.map(c => String(c.id));
-                                    const todasSeleccionadas = idsRegion.length > 0 && idsRegion.every(id => newPlazas.includes(id));
-
-                                    return (
-                                        <div key={r} className="ml-1 space-y-1 mb-2">
-                                            <label className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800/50 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-600 opacity-50' : 'text-purple-400'}`}>
-                                                <input 
-                                                    type="checkbox" 
-                                                    checked={newPlazas.includes('*') || todasSeleccionadas} 
-                                                    disabled={newPlazas.includes('*')}
-                                                    onChange={(e) => {
-                                                        if (e.target.checked) {
-                                                            setNewPlazas(prev => Array.from(new Set([...prev.filter(p => p !== '*'), ...idsRegion])));
-                                                        } else {
-                                                            setNewPlazas(prev => prev.filter(p => !idsRegion.includes(p)));
-                                                        }
-                                                    }} 
-                                                    className="accent-purple-500 w-3.5 h-3.5" 
-                                                />
-                                                {r}
-                                            </label>
-                                            <div className="ml-2 flex flex-col gap-0.5 border-l border-slate-700/50 pl-2">
-                                                {ciudadesRender.map(c => { 
-                                                    const cityId = String(c.id); 
-                                                    return (
-                                                        <label key={cityId} className={`flex items-center gap-2 text-[11px] font-medium cursor-pointer hover:bg-slate-800/80 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
-                                                            <input type="checkbox" checked={newPlazas.includes(cityId) && !newPlazas.includes('*')} disabled={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) { setNewPlazas(prev => [...prev.filter(p => p !== '*'), cityId]); } else { setNewPlazas(prev => prev.filter(p => p !== cityId)); } }} className="accent-blue-500" />
-                                                            {c.nombre}
-                                                        </label>
-                                                    ); 
-                                                })}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
                             </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
+                </div>
+
+                {/* SECCIÓN DESPLEGABLE: PESTAÑAS VISIBLES */}
+                <div>
+                    <div className="border border-slate-700/50 rounded-lg bg-[#050814] overflow-hidden shadow-inner">
+                        <button 
+                            type="button" 
+                            onClick={() => setVerPestanas(!verPestanas)}
+                            className="w-full flex items-center justify-between p-2.5 bg-[#0a0f1d] hover:bg-slate-800/60 font-bold text-slate-400 uppercase border-b border-slate-800 transition-colors"
+                        >
+                            <div className="flex items-center gap-2 text-[10px]">
+                                <Briefcase className="w-3.5 h-3.5 text-blue-400" /> PESTAÑAS VISIBLES *
+                            </div>
+                            {verPestanas ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                        </button>
+                        
+                        {verPestanas && (
+                            <div className="p-3 grid grid-cols-2 gap-3">
+                                <label className="flex items-center gap-2 text-[11px] text-slate-200 cursor-pointer hover:text-amber-400 col-span-2 border-b border-slate-800/80 pb-2 mb-1 transition-colors">
+                                    <input type="checkbox" checked={newPestanas.includes('*')} onChange={(e) => manejarTogglePestana('*', e.target.checked)} className="accent-amber-500 w-3.5 h-3.5" /> 
+                                    <span className="font-black text-amber-500 tracking-widest">PERMITIR TODAS (*)</span>
+                                </label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('inventario')} onChange={(e) => manejarTogglePestana('inventario', e.target.checked)} className="accent-slate-400" /> S. Dedicados</label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('resumen')} onChange={(e) => manejarTogglePestana('resumen', e.target.checked)} className="accent-slate-400" /> Disponibilidad</label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cabezales')} onChange={(e) => manejarTogglePestana('cabezales', e.target.checked)} className="accent-slate-400" /> Cabezales</label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('microondas')} onChange={(e) => manejarTogglePestana('microondas', e.target.checked)} className="accent-slate-400" /> Microondas</label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('geografia')} onChange={(e) => manejarTogglePestana('geografia', e.target.checked)} className="accent-slate-400" /> Geografía</label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('carga_excel')} onChange={(e) => manejarTogglePestana('carga_excel', e.target.checked)} className="accent-slate-400" /> Aprovisionamiento</label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-white transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}><input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('usuarios')} onChange={(e) => manejarTogglePestana('usuarios', e.target.checked)} className="accent-slate-400" /> Usuarios</label>
+                                <label className={`flex items-center gap-2 text-[11px] cursor-pointer hover:text-indigo-400 transition-colors font-medium ${newPestanas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
+                                    <input type="checkbox" disabled={newPestanas.includes('*')} checked={newPestanas.includes('*') || newPestanas.includes('cuadrilla')} onChange={(e) => manejarTogglePestana('cuadrilla', e.target.checked)} className="accent-indigo-500" /> 
+                                    Modo Cuadrilla
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Área Org. *</label>
+                        <input type="text" value={newArea} onChange={e => setNewArea(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
+                    </div>
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Puesto *</label>
+                        <input type="text" value={newPuesto} onChange={e => setNewPuesto(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
+                    </div>
+                </div>
+                
+                <div>
+                    <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Región Asignada (RRHH) *</label>
+                    <input type="text" value={newRegionUsuario} onChange={e => setNewRegionUsuario(e.target.value)} required className="w-full bg-[#050814] border border-slate-700/80 text-xs p-2.5 rounded-lg text-white focus:outline-none focus:border-purple-500 transition-colors shadow-inner" />
+                </div>
+                
+                {/* SECCIÓN DESPLEGABLE: GEOGRAFÍA */}
+                <div>
+                    <div className="border border-slate-700/50 rounded-lg bg-[#050814] overflow-hidden shadow-inner">
+                        <button 
+                            type="button" 
+                            onClick={() => setVerGeografia(!verGeografia)}
+                            className="w-full flex items-center justify-between p-2.5 bg-[#0a0f1d] hover:bg-slate-800/60 font-bold text-slate-400 uppercase border-b border-slate-800 transition-colors"
+                        >
+                            <div className="flex items-center gap-2 text-[10px]">
+                                <MapPin className="w-3.5 h-3.5 text-emerald-400" /> VISIBILIDAD GEOGRÁFICA *
+                            </div>
+                            {verGeografia ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
+                        </button>
+                        
+                        {verGeografia && (
+                            <div className="p-3 flex flex-col space-y-3">
+                                <div className="relative w-full">
+                                    <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Buscar ciudad o región..." 
+                                        value={filtroPlazas} 
+                                        onChange={e => setFiltroPlazas(e.target.value)} 
+                                        className="w-full bg-[#070b19] border border-slate-700/80 text-[10px] py-1.5 pl-8 pr-2 rounded text-slate-300 focus:outline-none focus:border-purple-500 transition-colors shadow-inner" 
+                                    />
+                                </div>
+                                
+                                <div className={`bg-[#070b19] border ${newPlazas.length === 0 ? 'border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'border-slate-700/80'} rounded-lg p-2 max-h-40 overflow-y-auto space-y-2 custom-scrollbar transition-all`}>
+                                    <label className="flex items-center gap-2 text-xs text-slate-200 cursor-pointer hover:bg-slate-800/80 p-1.5 rounded transition-colors">
+                                        <input type="checkbox" checked={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) setNewPlazas(['*']); else setNewPlazas([]); }} className="accent-emerald-500 w-3.5 h-3.5" />
+                                        <span className="font-black text-emerald-400 tracking-widest">ACCESO GLOBAL RED (*)</span>
+                                    </label>
+                                    <div className="border-t border-slate-800/80 my-1"></div>
+                                    
+                                    {Object.keys(safeEstructura).map(r => {
+                                        const query = filtroPlazas.toLowerCase();
+                                        const regionMatch = r.toLowerCase().includes(query);
+                                        const ciudadesTodas = obtenerCiudadesOrdenadas(r);
+                                        const ciudadesFiltradas = ciudadesTodas.filter(c => c.nombre.toLowerCase().includes(query) || String(c.id).toLowerCase().includes(query));
+                                        
+                                        if (query && !regionMatch && ciudadesFiltradas.length === 0) return null;
+                                        const ciudadesRender = (query && !regionMatch) ? ciudadesFiltradas : ciudadesTodas;
+
+                                        const idsRegion = ciudadesTodas.map(c => String(c.id));
+                                        const todasSeleccionadas = idsRegion.length > 0 && idsRegion.every(id => newPlazas.includes(id));
+
+                                        return (
+                                            <div key={r} className="ml-1 space-y-1 mb-2">
+                                                <label className={`flex items-center gap-2 text-[10px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800/50 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-600 opacity-50' : 'text-purple-400'}`}>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        checked={newPlazas.includes('*') || todasSeleccionadas} 
+                                                        disabled={newPlazas.includes('*')}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setNewPlazas(prev => Array.from(new Set([...prev.filter(p => p !== '*'), ...idsRegion])));
+                                                            } else {
+                                                                setNewPlazas(prev => prev.filter(p => !idsRegion.includes(p)));
+                                                            }
+                                                        }} 
+                                                        className="accent-purple-500 w-3.5 h-3.5" 
+                                                    />
+                                                    {r}
+                                                </label>
+                                                <div className="ml-2 flex flex-col gap-0.5 border-l border-slate-700/50 pl-2">
+                                                    {ciudadesRender.map(c => { 
+                                                        const cityId = String(c.id); 
+                                                        return (
+                                                            <label key={cityId} className={`flex items-center gap-2 text-[11px] font-medium cursor-pointer hover:bg-slate-800/80 p-1 rounded transition-colors ${newPlazas.includes('*') ? 'text-slate-600 opacity-50' : 'text-slate-300'}`}>
+                                                                <input type="checkbox" checked={newPlazas.includes(cityId) && !newPlazas.includes('*')} disabled={newPlazas.includes('*')} onChange={(e) => { if(e.target.checked) { setNewPlazas(prev => [...prev.filter(p => p !== '*'), cityId]); } else { setNewPlazas(prev => prev.filter(p => p !== cityId)); } }} className="accent-blue-500" />
+                                                                {c.nombre}
+                                                            </label>
+                                                        ); 
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {idUserEditando ? (
-                <div className="flex gap-3 mt-4 pt-2 border-t border-slate-800/80">
-                    <button type="submit" disabled={newPlazas.length === 0} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs py-2.5 rounded-lg font-black tracking-widest uppercase cursor-pointer transition-colors disabled:opacity-50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">Actualizar</button>
-                    <button type="button" onClick={cancelarEdicionUser} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-xs py-2.5 rounded-lg font-black tracking-widest uppercase cursor-pointer transition-colors">Cancelar</button>
-                </div>
-            ) : (
-                <button type="submit" disabled={newPlazas.length === 0} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-2.5 rounded-lg font-black tracking-widest uppercase cursor-pointer transition-colors mt-4 shadow-[0_0_15px_rgba(168,85,247,0.2)] disabled:opacity-50">Registrar Identidad</button>
-            )}
+            {/* BOTONES DE ACCIÓN FIJOS AL FONDO */}
+            <div className="shrink-0 pt-4 mt-2 border-t border-slate-800/80 bg-[#0b132b]/50">
+              {idUserEditando ? (
+                  <div className="flex gap-3">
+                      <button type="submit" disabled={newPlazas.length === 0} className="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs py-2.5 rounded-lg font-black tracking-widest uppercase cursor-pointer transition-colors disabled:opacity-50 shadow-[0_0_15px_rgba(168,85,247,0.2)]">Actualizar</button>
+                      <button type="button" onClick={cancelarEdicionUser} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-xs py-2.5 rounded-lg font-black tracking-widest uppercase cursor-pointer transition-colors">Cancelar</button>
+                  </div>
+              ) : (
+                  <button type="submit" disabled={newPlazas.length === 0} className="w-full bg-purple-600 hover:bg-purple-500 text-white text-xs py-2.5 rounded-lg font-black tracking-widest uppercase cursor-pointer transition-colors shadow-[0_0_15px_rgba(168,85,247,0.2)] disabled:opacity-50">Registrar Identidad</button>
+              )}
+            </div>
           </form>
         </div>
 
-        {/* PANEL DERECHO: MATRIZ DE USUARIOS */}
-        <div className="xl:col-span-3 bg-[#0b132b]/30 border border-slate-800/80 rounded-xl p-5 flex flex-col space-y-4 shadow-xl overflow-hidden">
+        {/* ==============================================
+            PANEL DERECHO: MATRIZ DE USUARIOS
+            ============================================== */}
+        <div className="flex-1 bg-[#0b132b]/30 border border-slate-800/80 rounded-xl p-5 flex flex-col space-y-4 shadow-xl overflow-hidden min-h-0">
+          
           <div className="flex justify-between items-center bg-[#050814]/80 border border-slate-700/80 px-4 py-2.5 rounded-xl shadow-inner shrink-0">
             <div className="flex items-center gap-3 w-full">
                 <Search className="w-4 h-4 text-purple-500" />
@@ -452,6 +466,7 @@ export default function Usuarios({ token, usuario, esAdmin, estructuraGeografica
             </div>
           </div>
           
+          {/* TABLA CON SCROLL INTERNO */}
           <div className="flex-1 overflow-auto border border-slate-800/80 rounded-xl custom-scrollbar shadow-inner bg-[#050814]/40">
             <table className="min-w-full text-left text-xs text-slate-300 whitespace-nowrap">
                 <thead className="bg-[#0b132b] text-slate-400 border-b border-slate-800/80 sticky top-0 z-10 uppercase tracking-widest font-black text-[10px]">
