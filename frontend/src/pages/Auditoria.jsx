@@ -33,9 +33,10 @@ export default function Auditoria({ token }) {
   );
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#070b19] overflow-hidden">
+    // FIX APLICADO: Altura estricta para eliminar el scroll de la página y delegarlo al contenedor interno
+    <div className="flex flex-col h-[calc(100vh-74px)] min-h-0 overflow-hidden bg-[#070b19] w-full relative">
       
-      {/* CABECERA SUPERIOR Y FILTRO */}
+      {/* CABECERA SUPERIOR Y FILTRO (FIJA) */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 shadow-sm z-10">
         <div>
           <h2 className="text-lg font-black text-emerald-400 flex items-center gap-2 uppercase tracking-widest">
@@ -56,8 +57,8 @@ export default function Auditoria({ token }) {
         </div>
       </div>
 
-      {/* TABLA DE REGISTROS */}
-      <div className="flex-1 overflow-auto custom-scrollbar p-6">
+      {/* TABLA DE REGISTROS (SCROLLEABLE INDEPENDIENTE) */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 min-h-0">
         <div className="bg-[#0b132b]/40 border border-slate-800 rounded-xl overflow-hidden shadow-2xl">
           <table className="w-full text-left text-xs text-slate-300 table-fixed">
             <thead className="bg-[#1c2541] text-slate-400 sticky top-0 z-10 shadow-sm border-b border-slate-700 uppercase font-bold tracking-wider">
