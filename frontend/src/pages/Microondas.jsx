@@ -241,9 +241,10 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
   const ssidMostrar = apSeleccionado?.ssid || editCampos.ssid || '';
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#070b19]">
+    // FIX APLICADO: h-[calc(100vh-74px)] elimina el scroll global y se lo delega al panel interno
+    <div className="flex flex-col h-[calc(100vh-74px)] min-h-0 overflow-hidden bg-[#070b19] w-full relative">
       
-      {/* 1. FILTROS MAESTROS SUPERIORES (AHORA INCLUYE EL AP) */}
+      {/* 1. FILTROS MAESTROS SUPERIORES (FIJOS) */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-3 shrink-0">
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
           <span className="px-3 py-1 rounded-md text-indigo-400 border border-indigo-500/30 shadow-sm uppercase tracking-wider font-bold">ZONA RF</span>
@@ -282,7 +283,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
         </div>
       </div>
 
-      {/* 2. MENÚ DE SUB-PESTAÑAS INTERNAS */}
+      {/* 2. MENÚ DE SUB-PESTAÑAS INTERNAS (FIJAS) */}
       <div className="bg-[#0b132b]/60 border-b border-slate-800/80 p-4 flex gap-2 shrink-0">
           <button onClick={() => { setSubTab('enlaces'); setItemDetalle(null); setCreandoNuevo(false); }} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs transition-colors cursor-pointer ${subTab==='enlaces' ? 'bg-blue-600 text-white shadow-lg' : 'bg-[#050814] text-slate-400 border border-slate-800'}`}>
              <Link className="w-4 h-4"/> Enlaces (Clientes) [{enlacesFiltrados.length}]
@@ -295,7 +296,7 @@ export default function Microondas({ token, puedeEditar, handleLogout, estructur
           </button>
       </div>
 
-      {/* ÁREA DE TRABAJO PRINCIPAL */}
+      {/* 3. ÁREA DE TRABAJO PRINCIPAL (SCROLLEABLE INDEPENDIENTE) */}
       <div className="flex-1 flex flex-col xl:flex-row gap-6 p-6 overflow-hidden min-h-0">
         
         {/* TABLA CENTRAL */}
