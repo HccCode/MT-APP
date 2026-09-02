@@ -205,7 +205,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   }) || [];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden relative min-h-0">
+    // CONTENEDOR PRINCIPAL: Fija la altura total restando el menú superior (~70px) para bloquear el scroll global de la página
+    <div className="flex flex-col h-[calc(100vh-70px)] min-h-0 overflow-hidden relative">
       
       {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
       {msgInv.text && (
@@ -221,7 +222,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
-      {/* CABECERA Y FILTROS */}
+      {/* CABECERA Y FILTROS SUPERIORES (Fijos) */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-3 shrink-0">
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
           <span className="px-3 py-1 rounded-md text-blue-500 border border-blue-600/60 shadow-sm uppercase tracking-wider font-bold">FILTROS LISTADO</span>
@@ -253,7 +254,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       </div>
 
-      {/* METRICAS SUPERIORES */}
+      {/* MÉTRICAS SUPERIORES (Fijas) */}
       {datosHub?.resumen && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-6 mt-4 shrink-0">
           <div onClick={() => setFiltroEstatus('TODOS')} className={`cursor-pointer p-4 rounded-xl border transition-all ${filtroEstatus === 'TODOS' ? 'bg-[#1c2541] border-slate-400 shadow-xl' : 'bg-[#0b132b]/60 border-slate-800'}`}><p className="text-xs text-slate-400 font-bold">CAPACIDAD GLOBAL</p><p className="text-2xl font-black mt-1">{datosHub.resumen.total}</p></div>
@@ -265,12 +266,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       )}
 
       {/* ÁREA PRINCIPAL: Tabla y Ficha Técnica con Scrolls Independientes */}
-      <div className="flex-1 flex flex-col xl:flex-row gap-6 p-6 overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col lg:flex-row gap-6 p-6 min-h-0 overflow-hidden">
         
         {/* ==============================================
             COLUMNA IZQUIERDA: TABLA
             ============================================== */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
           
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full sm:max-w-md">
@@ -287,7 +288,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
             <table className="w-full text-xs text-slate-300 text-left border-collapse table-fixed">
               <thead className="bg-[#0f172a] text-slate-400 uppercase font-bold sticky top-0 z-10 outline outline-1 outline-slate-800 shadow-md">
                 <tr>
@@ -369,14 +370,13 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         {/* ==============================================
             COLUMNA DERECHA: FICHA TÉCNICA
             ============================================== */}
-        <div className="w-full xl:w-[450px] shrink-0 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 flex flex-col overflow-hidden shadow-xl min-h-0">
+        <div className="w-full lg:w-[450px] shrink-0 flex flex-col min-h-0 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 overflow-hidden shadow-xl">
           {puertoDetalle ? (
-            <div className="flex flex-col h-full overflow-hidden">
-              
+            <>
               {/* Cabecera Fija */}
               <div className="shrink-0 flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-xs font-black text-blue-400 tracking-widest">FICHA TÉCNICA DE INGENIERÍA</h3>
+                  <h3 className="text-xs font-black text-blue-400 tracking-widest">FICHA TÉCNICA</h3>
                   <button onClick={() => setMostrarModalVisualizar(true)} className="bg-blue-900/30 hover:bg-blue-600 border border-blue-800 text-blue-300 text-[10px] px-2.5 py-1 rounded transition-colors flex items-center gap-1 font-bold cursor-pointer" title="Ver ficha">
                     <Eye className="w-3.5 h-3.5" /> Visualizar
                   </button>
@@ -389,7 +389,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               </div>
               
               {/* Formulario Scrolleable */}
-              <div className="flex-1 overflow-y-auto pr-2 space-y-6 text-xs custom-scrollbar">
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6 text-xs">
                 
                 <div className="space-y-2">
                   <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-900 pb-1">1. Interfaz Física</h4>
@@ -507,11 +507,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
               
               {/* Botón Inferior Fijo */}
               {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-4 shadow-lg transition">💾 Guardar Ficha</button>)}
-            </div>
+            </>
           ) : (
-            // ==============================
-            // EMPTY STATE GRÁFICO (PANEL DERECHO)
-            // ==============================
             <div className="h-full flex flex-col justify-center items-center text-center p-6 border-2 border-dashed border-slate-700/50 rounded-lg bg-slate-900/20">
               <div className="bg-slate-800/80 p-6 rounded-full mb-4 shadow-inner relative flex justify-center items-center">
                 <Server className="w-10 h-10 text-blue-500/50 absolute animate-ping opacity-30" />
