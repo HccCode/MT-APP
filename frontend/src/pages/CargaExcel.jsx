@@ -29,14 +29,22 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     tipo_puerto: '1G',
     cantidad_puertos: 24,
     prefijo_puerto: 'Gi1/0/',
-    inicio_puerto: 1, 
+    inicio_puerto: 0, // Ahora empieza por defecto en 0
     estatus_inicial: 'DISPONIBLE GI',
+    
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
     prefijo_uplink: 'Te1/0/',
-    inicio_uplink: 1, 
-    estatus_uplink: 'DISPONIBLE TE'
+    inicio_uplink: 0, // Ahora empieza por defecto en 0
+    estatus_uplink: 'DISPONIBLE TE',
+
+    incluir_tercer: false,
+    tipo_tercer: '100G',
+    cantidad_tercer: 2,
+    prefijo_tercer: 'Hu1/0/',
+    inicio_tercer: 0, // Ahora empieza por defecto en 0
+    estatus_tercer: 'DISPONIBLE 100'
   });
 
   // --- ESTADOS MICROONDAS ---
@@ -124,6 +132,16 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     setNuevoEquipo({ ...nuevoEquipo, tipo_uplink: tipo, prefijo_uplink: prefijo, estatus_uplink: estatus });
   };
 
+  const handleCambioTercer = (e) => {
+    const tipo = e.target.value;
+    let prefijo = 'Hu1/0/';
+    let estatus = 'DISPONIBLE 100';
+    if (tipo === '1G') { prefijo = 'Gi1/0/'; estatus = 'DISPONIBLE GI'; } 
+    else if (tipo === '10G') { prefijo = 'Te1/0/'; estatus = 'DISPONIBLE TE'; } 
+    else if (tipo === '25G') { prefijo = 'Twe1/0/'; estatus = 'DISPONIBLE 25'; } 
+    setNuevoEquipo({ ...nuevoEquipo, tipo_tercer: tipo, prefijo_tercer: prefijo, estatus_tercer: estatus });
+  };
+
   const generarPreviewManual = () => {
     if (!hubSelec || !nuevoEquipo.chasis) return alert("Selecciona un HUB y escribe/selecciona el nombre del Chasis.");
     if (tipoAccionChasis === 'nuevo' && (!nuevoEquipo.ip_hub || nuevoEquipo.ip_hub.trim() === '')) {
@@ -131,6 +149,8 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     }
     
     const dataGenerada = [];
+    
+    // 1. Bloque Principal
     const limitePrincipal = nuevoEquipo.inicio_puerto + nuevoEquipo.cantidad_puertos;
     for (let i = nuevoEquipo.inicio_puerto; i < limitePrincipal; i++) {
       dataGenerada.push({
@@ -140,11 +160,24 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
       });
     }
 
+    // 2. Bloque Secundario
     if (nuevoEquipo.incluir_uplinks) {
         const limiteUplink = nuevoEquipo.inicio_uplink + nuevoEquipo.cantidad_uplinks;
         for (let i = nuevoEquipo.inicio_uplink; i < limiteUplink; i++) {
           dataGenerada.push({
             PUERTO: `${nuevoEquipo.prefijo_uplink}${i}`, ESTATUS: nuevoEquipo.estatus_uplink,
+            EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(), IP_HUB: nuevoEquipo.ip_hub,
+            SERVICIO: '', _valido: true, _errores: []
+          });
+        }
+    }
+
+    // 3. Bloque Terciario
+    if (nuevoEquipo.incluir_tercer) {
+        const limiteTercer = nuevoEquipo.inicio_tercer + nuevoEquipo.cantidad_tercer;
+        for (let i = nuevoEquipo.inicio_tercer; i < limiteTercer; i++) {
+          dataGenerada.push({
+            PUERTO: `${nuevoEquipo.prefijo_tercer}${i}`, ESTATUS: nuevoEquipo.estatus_tercer,
             EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(), IP_HUB: nuevoEquipo.ip_hub,
             SERVICIO: '', _valido: true, _errores: []
           });
@@ -362,6 +395,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                   </div>
                 </div>
 
+                {/* BLOQUE PRINCIPAL */}
                 <div className="mt-6 border-t border-slate-800 pt-6">
                     <div className="flex items-center gap-2 mb-4"><Network className="w-4 h-4 text-slate-400" /><h3 className="text-sm font-bold text-slate-200">Bloque Principal de Puertos</h3></div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -377,7 +411,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label>
-                            <input type="number" min="1" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
+                            <input type="number" min="0" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
@@ -388,6 +422,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                     </div>
                 </div>
 
+                {/* BLOQUE SECUNDARIO */}
                 <div className="mt-6 border-t border-slate-800 pt-6 bg-blue-950/10 p-4 rounded-xl border border-blue-900/30">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-blue-400" /><h3 className="text-sm font-bold text-blue-300">Incluir Bloque Secundario (Ej. Uplinks)</h3></div>
@@ -406,10 +441,40 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                                 </select>
                             </div>
                             <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo</label><input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
-                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="1" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: parseInt(e.target.value) || 1})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="0" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
                                 <select value={nuevoEquipo.cantidad_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_uplinks: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none">
+                                    <option value={1}>1</option><option value={2}>2</option><option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={16}>16</option><option value={24}>24</option><option value={48}>48</option>
+                                </select>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* BLOQUE TERCIARIO NUEVO */}
+                <div className="mt-6 border-t border-slate-800 pt-6 bg-purple-950/10 p-4 rounded-xl border border-purple-900/30">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2"><Zap className="w-4 h-4 text-purple-400" /><h3 className="text-sm font-bold text-purple-300">Incluir Bloque Terciario (Ej. Expansión/Módulos)</h3></div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" checked={nuevoEquipo.incluir_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, incluir_tercer: e.target.checked})} />
+                            <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-500"></div>
+                        </label>
+                    </div>
+
+                    {nuevoEquipo.incluir_tercer && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2">
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Velocidad</label>
+                                <select value={nuevoEquipo.tipo_tercer} onChange={handleCambioTercer} className="w-full bg-[#1c2541] border border-purple-900/50 text-purple-300 p-2.5 rounded-lg font-bold focus:border-purple-500 outline-none transition-colors">
+                                    <option value="1G">Gigabit (1G)</option><option value="10G">TenGigabit (10G)</option><option value="25G">25 Gigabit (25G)</option><option value="100G">100 Gigabit (100G)</option>
+                                </select>
+                            </div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo</label><input type="text" value={nuevoEquipo.prefijo_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_tercer: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-purple-400 p-2.5 rounded-lg font-mono font-bold focus:border-purple-500 outline-none" /></div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="0" value={nuevoEquipo.inicio_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_tercer: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-purple-500 outline-none" /></div>
+                            <div>
+                                <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
+                                <select value={nuevoEquipo.cantidad_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_tercer: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-purple-500 outline-none">
                                     <option value={1}>1</option><option value={2}>2</option><option value={4}>4</option><option value={8}>8</option><option value={12}>12</option><option value={16}>16</option><option value={24}>24</option><option value={48}>48</option>
                                 </select>
                             </div>
