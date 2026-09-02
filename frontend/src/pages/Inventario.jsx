@@ -200,6 +200,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       String(p.SERVICIO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.ESTATUS || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.IP_GESTION || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
+      String(p.EQUIPO_HOTEL_ID || '').toLowerCase().includes(filtroTexto.toLowerCase()) ||
       String(p.BDI || '').toLowerCase().includes(filtroTexto.toLowerCase())
     );
   }) || [];
@@ -275,7 +276,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full sm:max-w-md">
               <Search className="w-4 h-4 text-slate-500 shrink-0" />
-              <input type="text" placeholder="Buscar por interfaz, servicio, Estatus, IP..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-transparent text-sm text-white focus:outline-none w-full" />
+              <input type="text" placeholder="Buscar por equipo, interfaz, servicio, Estatus, IP..." value={filtroTexto} onChange={(e) => setFiltroTexto(e.target.value)} className="bg-transparent text-sm text-white focus:outline-none w-full" />
             </div>
 
             <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto overflow-hidden">
@@ -304,16 +305,17 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                   </th>
                   <th className="p-3 w-32">ESTATUS</th>
                   <th className="p-3 w-40">INTERFAZ</th>
+                  <th className="p-3 w-56 text-cyan-400">EQUIPO ID</th>
                   <th className="p-3 w-56">NODO</th>
                   <th className="p-3 w-40 text-emerald-400">IP GESTIÓN</th>
                   <th className="p-3">SERVICIO</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/40">
-                {cargando ? <tr><td colSpan="6" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
+                {cargando ? <tr><td colSpan="7" className="p-12 text-center text-slate-500 font-mono">Cargando base de datos de ingenieria...</td></tr> :
                 puertosFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="p-16">
+                    <td colSpan="7" className="p-16">
                       <div className="flex flex-col items-center justify-center text-slate-500 animate-in fade-in zoom-in duration-300">
                         <div className="bg-[#0b132b]/80 p-5 rounded-full mb-4 border border-slate-700/50 shadow-inner">
                           <Search className="w-10 h-10 text-slate-400 opacity-60" />
@@ -352,6 +354,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                           </span>
                         </td>
                         <td className="p-3 font-mono text-white truncate group-hover:text-blue-400 transition-colors">{p.PUERTO}</td>
+                        <td className="p-3 font-bold text-cyan-300 truncate transition-colors">{p.EQUIPO_HOTEL_ID || '-'}</td>
                         <td className="p-3 text-slate-400 font-mono truncate group-hover:text-slate-200 transition-colors">
                           {inventarioHub === 'TODOS' ? (p.HUB_PERTENENCIA || '-') : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs?.find(h => h.id === inventarioHub)?.nombre || '-')}
                         </td>
@@ -410,9 +413,15 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     </div>
                     <div><label className="text-[10px] text-slate-500 block font-bold mb-1">PUERTO</label><input type="text" disabled={!puedeEditar} value={editCampos.PUERTO || ''} onChange={e=>setEditCampos({...editCampos, PUERTO: e.target.value})} className="w-full bg-slate-950 font-mono p-2 rounded border border-slate-800 text-white" /></div>
                   </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 block font-bold mb-1">IP HUB</label>
-                    <input type="text" disabled={!puedeEditar} value={editCampos.IP_HUB || ''} onChange={e=>setEditCampos({...editCampos, IP_HUB: e.target.value})} className="w-full bg-slate-950 font-mono p-2 rounded border border-slate-800 text-white" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-500 block font-bold mb-1">EQUIPO ID</label>
+                      <input type="text" disabled={!puedeEditar} value={editCampos.EQUIPO_HOTEL_ID || ''} onChange={e=>setEditCampos({...editCampos, EQUIPO_HOTEL_ID: e.target.value})} className="w-full bg-slate-950 font-bold p-2 rounded border border-slate-800 text-cyan-300" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-500 block font-bold mb-1">IP HUB</label>
+                      <input type="text" disabled={!puedeEditar} value={editCampos.IP_HUB || ''} onChange={e=>setEditCampos({...editCampos, IP_HUB: e.target.value})} className="w-full bg-slate-950 font-mono p-2 rounded border border-slate-800 text-white" />
+                    </div>
                   </div>
                 </div>
 
