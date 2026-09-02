@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { X, AlertTriangle, Eraser, CheckSquare, Zap } from 'lucide-react';
+import { X, AlertTriangle, Eraser, CheckSquare, Zap, Trash2 } from 'lucide-react';
 
 export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, recargarDatos }) {
   const [guardando, setGuardando] = useState(false);
   const [nuevoEstatus, setNuevoEstatus] = useState('DISPONIBLE GI');
+  
+  // Estado para la doble confirmación (0: Reposo, 1: Confirmando)
+  const [pasoConfirmacion, setPasoConfirmacion] = useState(0);
   
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
@@ -52,26 +55,53 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
     ejecutarActualizacion({ ESTATUS: nuevoEstatus });
   };
 
+  const handleEliminarFisico = async () => {
+    if (pasoConfirmacion === 0) {
+      setPasoConfirmacion(1);
+      return;
+    }
+
+    setGuardando(true);
+    try {
+      const promesas = puertosIds.map(id => 
+        fetch(`${API_URL}/api/ports/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      );
+      await Promise.all(promesas);
+      alert(`✅ ${puertosIds.length} puertos eliminados del sistema.`);
+      recargarDatos();
+      cerrarModal();
+    } catch (error) {
+      console.error("Error al eliminar puertos", error);
+      alert("Hubo un error al eliminar los puertos de la base de datos.");
+    } finally {
+      setGuardando(false);
+      setPasoConfirmacion(0);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 font-sans text-slate-100">
-      <div className="bg-[#0b132b] border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+      <div className="bg-[#0b132b] border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden max-h-[95vh]">
         
-        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-[#050814]">
+        <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-[#050814] shrink-0">
           <h2 className="text-lg font-black text-amber-400 flex items-center gap-2">
             <CheckSquare className="w-5 h-5" /> EDICIÓN MASIVA ({puertosIds.length} Puertos)
           </h2>
-          <button onClick={cerrarModal} className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer">
+          <button onClick={cerrarModal} disabled={guardando} className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-800 transition-colors cursor-pointer disabled:opacity-50">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-6 space-y-6 bg-[#090f24]">
+        <div className="p-6 space-y-6 bg-[#090f24] overflow-y-auto custom-scrollbar flex-1">
           
           <div className="bg-[#0b132b] p-5 rounded-lg border border-slate-700 shadow-inner">
             <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2"><Zap className="w-4 h-4 text-blue-400" /> Cambio de Estatus Rápido</h3>
             <p className="text-xs text-slate-400 mb-4">Modifica únicamente el estado de los puertos seleccionados, conservando intactos todos sus demás datos.</p>
             <div className="flex gap-3">
-              <select value={nuevoEstatus} onChange={e=>setNuevoEstatus(e.target.value)} className="flex-1 bg-[#1c2541] border border-slate-600 rounded p-2 text-white text-xs font-bold outline-none focus:border-blue-500 cursor-pointer">
+              <select value={nuevoEstatus} onChange={e=>setNuevoEstatus(e.target.value)} disabled={guardando} className="flex-1 bg-[#1c2541] border border-slate-600 rounded p-2 text-white text-xs font-bold outline-none focus:border-blue-500 cursor-pointer disabled:opacity-50">
                 <option value="DISPONIBLE GI">DISPONIBLE GI</option>
                 <option value="DISPONIBLE TE">DISPONIBLE TE</option>
                 <option value="DISPONIBLE 25">DISPONIBLE 25</option>
@@ -83,7 +113,7 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
                 <option value="TRONCAL 25">TRONCAL 25</option>
                 <option value="TRONCAL 100">TRONCAL 100</option>
               </select>
-              <button onClick={handleCambiarEstatusSolo} disabled={guardando} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-xs font-bold transition shadow-lg disabled:opacity-50 cursor-pointer">
+              <button onClick={handleCambiarEstatusSolo} disabled={guardando} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-xs font-bold transition shadow-lg disabled:opacity-50 cursor-pointer min-w-[100px]">
                 Aplicar
               </button>
             </div>
@@ -102,6 +132,44 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
             <button onClick={handleLiberarPuertos} disabled={guardando} className="w-full bg-red-600/90 hover:bg-red-500 border border-red-500 px-4 py-3 rounded text-white text-xs font-black transition shadow-[0_0_15px_rgba(220,38,38,0.3)] disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer">
               <AlertTriangle className="w-4 h-4" /> LIBERAR {puertosIds.length} PUERTOS AHORA
             </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-slate-800"></div>
+            <span className="text-[10px] text-red-500/50 font-bold uppercase tracking-widest">Zona de Peligro</span>
+            <div className="flex-1 h-px bg-slate-800"></div>
+          </div>
+
+          <div className="bg-[#050814] p-5 rounded-lg border border-red-950 shadow-inner">
+            <h3 className="text-sm font-bold text-red-500 mb-2 flex items-center gap-2"><Trash2 className="w-4 h-4" /> Eliminación Definitiva</h3>
+            <p className="text-xs text-slate-500 mb-4">Borra permanentemente los puertos de la base de datos. Esta acción destruye el registro físico y no se puede deshacer.</p>
+            
+            {pasoConfirmacion === 0 ? (
+              <button 
+                onClick={handleEliminarFisico} 
+                disabled={guardando} 
+                className="w-full bg-red-950/30 hover:bg-red-900/60 border border-red-900/50 text-red-500 hover:text-red-400 px-4 py-3 rounded text-xs font-black transition disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer tracking-widest uppercase"
+              >
+                <Trash2 className="w-4 h-4" /> Eliminar {puertosIds.length} Puertos del Sistema
+              </button>
+            ) : (
+              <div className="flex gap-2 animate-in fade-in zoom-in duration-200">
+                <button 
+                  onClick={handleEliminarFisico} 
+                  disabled={guardando} 
+                  className="flex-[2] bg-red-600 hover:bg-red-500 text-white px-4 py-3 rounded text-xs font-black transition shadow-[0_0_15px_rgba(220,38,38,0.5)] disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer tracking-widest uppercase"
+                >
+                  <AlertTriangle className="w-4 h-4" /> Sí, Eliminar Permanentemente
+                </button>
+                <button 
+                  onClick={() => setPasoConfirmacion(0)} 
+                  disabled={guardando} 
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white px-4 py-3 rounded text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
           </div>
 
         </div>

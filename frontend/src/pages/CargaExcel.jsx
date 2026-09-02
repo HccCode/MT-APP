@@ -29,21 +29,21 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     tipo_puerto: '1G',
     cantidad_puertos: 24,
     prefijo_puerto: 'Gi1/0/',
-    inicio_puerto: 0, // Ahora empieza por defecto en 0
+    inicio_puerto: 0, 
     estatus_inicial: 'DISPONIBLE GI',
     
     incluir_uplinks: false,
     tipo_uplink: '10G',
     cantidad_uplinks: 4,
     prefijo_uplink: 'Te1/0/',
-    inicio_uplink: 0, // Ahora empieza por defecto en 0
+    inicio_uplink: 0, 
     estatus_uplink: 'DISPONIBLE TE',
 
     incluir_tercer: false,
     tipo_tercer: '100G',
     cantidad_tercer: 2,
     prefijo_tercer: 'Hu1/0/',
-    inicio_tercer: 0, // Ahora empieza por defecto en 0
+    inicio_tercer: 0, 
     estatus_tercer: 'DISPONIBLE 100'
   });
 
@@ -88,14 +88,22 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         
         if (res.ok && json.puertos) {
            const mapIps = {};
+           const setEquiposUnicos = new Set();
+           
+           // Agrupar forzando MAYÚSCULAS para evitar duplicados como "Switch_1" y "SWITCH_1"
            json.puertos.forEach(p => {
-               if (p.EQUIPO_HOTEL_ID && p.IP_HUB && !mapIps[p.EQUIPO_HOTEL_ID]) {
-                   mapIps[p.EQUIPO_HOTEL_ID] = p.IP_HUB;
+               if (p.EQUIPO_HOTEL_ID) {
+                   const nombreNormalizado = p.EQUIPO_HOTEL_ID.toUpperCase().trim();
+                   setEquiposUnicos.add(nombreNormalizado);
+                   if (p.IP_HUB && !mapIps[nombreNormalizado]) {
+                       mapIps[nombreNormalizado] = p.IP_HUB;
+                   }
                }
            });
+           
            setMapaIpsEquipos(mapIps);
 
-           const unicos = Array.from(new Set(json.puertos.map(p => p.EQUIPO_HOTEL_ID).filter(Boolean))).sort();
+           const unicos = Array.from(setEquiposUnicos).sort();
            setEquiposExistentes(unicos);
            
            if(unicos.length > 0){
@@ -382,7 +390,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">{tipoAccionChasis === 'nuevo' ? 'Nombre del Nuevo Equipo' : 'Equipo a Expandir'}</label>
                     {tipoAccionChasis === 'nuevo' ? (
-                        <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. SW-CORE-01" />
+                        <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value.toUpperCase()})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none uppercase" placeholder="Ej. SW-CORE-01" />
                     ) : (
                         <select value={nuevoEquipo.chasis} onChange={e => { const c = e.target.value; setNuevoEquipo({...nuevoEquipo, chasis: c, ip_hub: mapaIpsEquipos[c] || '' }); }} className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none">
                             {equiposExistentes.map(eq => <option key={eq} value={eq}>{eq}</option>)}
@@ -411,7 +419,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label>
-                            <input type="number" min="0" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
+                            <input type="number" min="0" value={nuevoEquipo.inicio_puerto} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_puerto: e.target.value !== '' ? parseInt(e.target.value, 10) : 0})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-emerald-500 outline-none" />
                         </div>
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
@@ -441,7 +449,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                                 </select>
                             </div>
                             <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo</label><input type="text" value={nuevoEquipo.prefijo_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_uplink: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-blue-400 p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
-                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="0" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="0" value={nuevoEquipo.inicio_uplink} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_uplink: e.target.value !== '' ? parseInt(e.target.value, 10) : 0})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-blue-500 outline-none" /></div>
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
                                 <select value={nuevoEquipo.cantidad_uplinks} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_uplinks: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-blue-500 outline-none">
@@ -471,7 +479,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                                 </select>
                             </div>
                             <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Prefijo</label><input type="text" value={nuevoEquipo.prefijo_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, prefijo_tercer: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-purple-400 p-2.5 rounded-lg font-mono font-bold focus:border-purple-500 outline-none" /></div>
-                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="0" value={nuevoEquipo.inicio_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_tercer: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-purple-500 outline-none" /></div>
+                            <div><label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Empezar en #</label><input type="number" min="0" value={nuevoEquipo.inicio_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, inicio_tercer: e.target.value !== '' ? parseInt(e.target.value, 10) : 0})} className="w-full bg-[#1c2541] border border-slate-600 text-white p-2.5 rounded-lg font-mono font-bold focus:border-purple-500 outline-none" /></div>
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">Cantidad</label>
                                 <select value={nuevoEquipo.cantidad_tercer} onChange={e=>setNuevoEquipo({...nuevoEquipo, cantidad_tercer: parseInt(e.target.value)})} className="w-full bg-[#0b132b] border border-slate-700 text-white p-2.5 rounded-lg font-bold focus:border-purple-500 outline-none">
