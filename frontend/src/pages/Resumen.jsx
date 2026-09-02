@@ -281,8 +281,8 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   };
 
   return (
-    // CONTENEDOR PRINCIPAL FIX: Altura estricta calculada y sin scroll global
-    <div className="flex flex-col h-[calc(100vh-70px)] min-h-0 overflow-hidden bg-[#070b19] relative">
+    // FIX APLICADO: flex-1 y h-full obligan al div a encajar perfectamente en el resto de la pantalla, sin causar overflow global.
+    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-[#070b19] w-full">
       
       {/* 1. HEADER Y SELECTOR MAESTRO (FIJO) */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
@@ -316,7 +316,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
         </button>
       </div>
 
-      {/* 3. ÁREA DE CONTENIDO (SCROLLEABLE) */}
+      {/* 3. ÁREA DE CONTENIDO (SCROLLEABLE INDEPENDIENTE) */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar min-h-0">
         {cargando ? (
           <div className="flex justify-center items-center h-40 text-indigo-500 font-mono text-sm animate-pulse">Escaneando red y calculando telemetría...</div>
