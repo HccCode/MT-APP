@@ -5,7 +5,7 @@ import {
   MapPin, Map, Scissors, Layers 
 } from 'lucide-react';
 
-export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {}, habilitarMW = true }) {
+export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {}, habilitarMW = false }) {
   // ================= ESTADO DE SEGURIDAD =================
   const [esMovil, setEsMovil] = useState(true);
 
@@ -280,7 +280,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
             </div>
           )}
 
-          {/* ELEMENTOS DESPLEGABLES (SOLO SE MUESTRAN AL SELECCIONAR UNA TECNOLOGÍA) */}
+          {/* ELEMENTOS DESPLEGABLES */}
           {pestanaActiva && (
             <div className="animate-in fade-in slide-in-from-top-1 duration-200 flex flex-col gap-1.5">
               
@@ -288,7 +288,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
               {pestanaActiva === 'FO' && (
                 <div className="flex w-full bg-[#050814] p-0.5 rounded-lg border border-slate-800 shadow-inner">
                   <button onClick={() => { setCriterioBusqueda('CLIENTE'); setBusqueda(''); setHubSeleccionado(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'CLIENTE' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>ID/Cte</button>
-                  <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta</button>
+                  <button onClick={() => { setCriterioBusqueda('RUTA'); setBusqueda(''); }} className={`flex-1 text-[9px] font-black uppercase py-1.5 rounded-md transition-colors ${criterioBusqueda === 'RUTA' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/50 shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}>Ruta FO</button>
                 </div>
               )}
 
