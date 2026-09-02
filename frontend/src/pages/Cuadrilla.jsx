@@ -48,7 +48,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     return hubs;
   }, [estructuraGeografica]);
 
-  // ================= HELPER: CÓDIGO DE COLORES TIA-598-C =================
+  // ================= HELPER: CÓDIGO DE COLORES =================
   const obtenerColorFibra = (valor) => {
     if (!valor || valor === '-') return 'bg-slate-800 text-slate-400 border-slate-700';
     const str = String(valor).toUpperCase().trim();
@@ -67,7 +67,7 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
     return 'bg-indigo-950 text-indigo-300 border border-indigo-700/50';
   };
 
-  // ================= EFECTO: FINGERPRINT DE DISPOSITIVO =================
+  // ================= EFECTO: FINGERPRINT =================
   useEffect(() => {
     const verificarDispositivo = () => {
       const anchoFisico = window.innerWidth < 1024;
@@ -269,8 +269,14 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
 
       <div className={`flex flex-col h-full w-full max-w-md mx-auto p-2.5 transition-transform duration-300 ${puertoActivo ? '-translate-x-full absolute opacity-0' : 'translate-x-0'}`}>
         
+        {/* ENCABEZADO Y TÍTULO OPTIMIZADO */}
+        <div className="mb-3 mt-1 text-center shrink-0">
+          <h2 className="text-[19px] font-black text-indigo-400 tracking-tight uppercase leading-tight">Modo Cuadrilla</h2>
+          <p className="text-slate-500 text-[8px] font-bold uppercase tracking-widest">Consulta Táctica de Infraestructura</p>
+        </div>
+
         {/* SELECTORES EN FILAS APILADAS */}
-        <div className="flex flex-col gap-1.5 mb-2 shrink-0 mt-1">
+        <div className="flex flex-col gap-1.5 mb-2 shrink-0">
           
           {/* 1. TECNOLOGÍA (SÓLO SE MUESTRA SI MW ESTÁ HABILITADO) */}
           {habilitarMW && (
