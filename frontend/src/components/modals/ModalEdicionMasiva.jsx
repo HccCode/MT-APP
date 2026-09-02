@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { X, AlertTriangle, Eraser, CheckSquare, Zap, Trash2 } from 'lucide-react';
+import { X, AlertTriangle, Eraser, CheckSquare, Zap, Trash2, Loader2 } from 'lucide-react';
 
 export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, recargarDatos }) {
   const [guardando, setGuardando] = useState(false);
   const [nuevoEstatus, setNuevoEstatus] = useState('DISPONIBLE GI');
   
-  // Estado para la doble confirmación (0: Reposo, 1: Confirmando)
+  // Estado para la doble confirmación de eliminación (0: Reposo, 1: Confirmando)
   const [pasoConfirmacion, setPasoConfirmacion] = useState(0);
   
   const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
@@ -55,6 +55,7 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
     ejecutarActualizacion({ ESTATUS: nuevoEstatus });
   };
 
+  // NUEVA LÓGICA OPTIMIZADA (BULK DELETE)
   const handleEliminarFisico = async () => {
     if (pasoConfirmacion === 0) {
       setPasoConfirmacion(1);
@@ -63,13 +64,18 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
 
     setGuardando(true);
     try {
-      const promesas = puertosIds.map(id => 
-        fetch(`${API_URL}/api/ports/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-      );
-      await Promise.all(promesas);
+      // Petición única enviando el arreglo de IDs
+      const res = await fetch(`${API_URL}/api/ports/bulk-delete`, {
+        method: 'POST', // Usamos POST para poder enviar un JSON en el body fácilmente
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ port_ids: puertosIds })
+      });
+
+      if (!res.ok) throw new Error("Fallo en el servidor");
+
       alert(`✅ ${puertosIds.length} puertos eliminados del sistema.`);
       recargarDatos();
       cerrarModal();
@@ -113,8 +119,8 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
                 <option value="TRONCAL 25">TRONCAL 25</option>
                 <option value="TRONCAL 100">TRONCAL 100</option>
               </select>
-              <button onClick={handleCambiarEstatusSolo} disabled={guardando} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-xs font-bold transition shadow-lg disabled:opacity-50 cursor-pointer min-w-[100px]">
-                Aplicar
+              <button onClick={handleCambiarEstatusSolo} disabled={guardando} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white text-xs font-bold transition shadow-lg disabled:opacity-50 cursor-pointer min-w-[100px] flex items-center justify-center">
+                {guardando && pasoConfirmacion === 0 ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Aplicar'}
               </button>
             </div>
           </div>
@@ -159,7 +165,8 @@ export default function ModalEdicionMasiva({ puertosIds, token, cerrarModal, rec
                   disabled={guardando} 
                   className="flex-[2] bg-red-600 hover:bg-red-500 text-white px-4 py-3 rounded text-xs font-black transition shadow-[0_0_15px_rgba(220,38,38,0.5)] disabled:opacity-50 flex justify-center items-center gap-2 cursor-pointer tracking-widest uppercase"
                 >
-                  <AlertTriangle className="w-4 h-4" /> Sí, Eliminar Permanentemente
+                  {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+                  Sí, Eliminar Permanentemente
                 </button>
                 <button 
                   onClick={() => setPasoConfirmacion(0)} 
