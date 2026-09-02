@@ -281,9 +281,10 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#070b19]">
+    // CONTENEDOR PRINCIPAL FIX: Altura estricta calculada y sin scroll global
+    <div className="flex flex-col h-[calc(100vh-70px)] min-h-0 overflow-hidden bg-[#070b19] relative">
       
-      {/* 1. HEADER Y SELECTOR MAESTRO */}
+      {/* 1. HEADER Y SELECTOR MAESTRO (FIJO) */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
         <div className="flex items-center gap-3 w-full md:w-auto">
             <ShieldCheck className="w-5 h-5 text-indigo-500 hidden md:block" />
@@ -305,7 +306,7 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
         )}
       </div>
 
-      {/* 2. MENÚ DE PESTAÑAS TECNOLÓGICAS */}
+      {/* 2. MENÚ DE PESTAÑAS TECNOLÓGICAS (FIJO) */}
       <div className="bg-[#0b132b]/60 border-b border-slate-800/80 p-3 flex gap-2 shrink-0 justify-center sm:justify-start px-6">
         <button onClick={() => setTabActiva('fibra')} className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${tabActiva==='fibra' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-[#050814] text-slate-400 hover:text-white border border-slate-800'}`}>
           <Server className="w-4 h-4"/> Nodos y Fibra Óptica
@@ -315,8 +316,8 @@ export default function Resumen({ token, estructuraGeografica, puedeEditar, esAd
         </button>
       </div>
 
-      {/* 3. ÁREA DE CONTENIDO */}
-      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 custom-scrollbar">
+      {/* 3. ÁREA DE CONTENIDO (SCROLLEABLE) */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar min-h-0">
         {cargando ? (
           <div className="flex justify-center items-center h-40 text-indigo-500 font-mono text-sm animate-pulse">Escaneando red y calculando telemetría...</div>
         ) : !ciudadSelec ? (
