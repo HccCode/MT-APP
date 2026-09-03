@@ -88,22 +88,29 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         
         if (res.ok && json.puertos) {
            const mapIps = {};
-           const setEquiposUnicos = new Set();
+           const mapNombresOriginales = {};
            
-           // Agrupar forzando MAYÚSCULAS para evitar duplicados como "Switch_1" y "SWITCH_1"
+           // Agrupar respetando el case original (mayúsculas/minúsculas)
            json.puertos.forEach(p => {
                if (p.EQUIPO_HOTEL_ID) {
-                   const nombreNormalizado = p.EQUIPO_HOTEL_ID.toUpperCase().trim();
-                   setEquiposUnicos.add(nombreNormalizado);
-                   if (p.IP_HUB && !mapIps[nombreNormalizado]) {
-                       mapIps[nombreNormalizado] = p.IP_HUB;
+                   const original = p.EQUIPO_HOTEL_ID.trim();
+                   const lower = original.toLowerCase();
+                   
+                   if (!mapNombresOriginales[lower]) {
+                       mapNombresOriginales[lower] = original;
+                   }
+                   
+                   const nombreExacto = mapNombresOriginales[lower];
+                   
+                   if (p.IP_HUB && !mapIps[nombreExacto]) {
+                       mapIps[nombreExacto] = p.IP_HUB;
                    }
                }
            });
            
            setMapaIpsEquipos(mapIps);
 
-           const unicos = Array.from(setEquiposUnicos).sort();
+           const unicos = Object.values(mapNombresOriginales).sort();
            setEquiposExistentes(unicos);
            
            if(unicos.length > 0){
@@ -163,7 +170,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
     for (let i = nuevoEquipo.inicio_puerto; i < limitePrincipal; i++) {
       dataGenerada.push({
         PUERTO: `${nuevoEquipo.prefijo_puerto}${i}`, ESTATUS: nuevoEquipo.estatus_inicial,
-        EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(), IP_HUB: nuevoEquipo.ip_hub,
+        EQUIPO_HOTEL_ID: nuevoEquipo.chasis.trim(), IP_HUB: nuevoEquipo.ip_hub,
         SERVICIO: '', _valido: true, _errores: []
       });
     }
@@ -174,7 +181,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         for (let i = nuevoEquipo.inicio_uplink; i < limiteUplink; i++) {
           dataGenerada.push({
             PUERTO: `${nuevoEquipo.prefijo_uplink}${i}`, ESTATUS: nuevoEquipo.estatus_uplink,
-            EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(), IP_HUB: nuevoEquipo.ip_hub,
+            EQUIPO_HOTEL_ID: nuevoEquipo.chasis.trim(), IP_HUB: nuevoEquipo.ip_hub,
             SERVICIO: '', _valido: true, _errores: []
           });
         }
@@ -186,7 +193,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
         for (let i = nuevoEquipo.inicio_tercer; i < limiteTercer; i++) {
           dataGenerada.push({
             PUERTO: `${nuevoEquipo.prefijo_tercer}${i}`, ESTATUS: nuevoEquipo.estatus_tercer,
-            EQUIPO_HOTEL_ID: nuevoEquipo.chasis.toUpperCase(), IP_HUB: nuevoEquipo.ip_hub,
+            EQUIPO_HOTEL_ID: nuevoEquipo.chasis.trim(), IP_HUB: nuevoEquipo.ip_hub,
             SERVICIO: '', _valido: true, _errores: []
           });
         }
@@ -390,7 +397,7 @@ export default function CargaExcel({ token, estructuraGeografica, puedeCargar, h
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 mb-1 block">{tipoAccionChasis === 'nuevo' ? 'Nombre del Nuevo Equipo' : 'Equipo a Expandir'}</label>
                     {tipoAccionChasis === 'nuevo' ? (
-                        <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value.toUpperCase()})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none uppercase" placeholder="Ej. SW-CORE-01" />
+                        <input type="text" value={nuevoEquipo.chasis} onChange={e=>setNuevoEquipo({...nuevoEquipo, chasis: e.target.value})} className="w-full bg-[#0b132b] border border-slate-700 text-emerald-400 p-2 rounded-lg font-mono focus:border-emerald-500 outline-none" placeholder="Ej. SW-CORE-01" />
                     ) : (
                         <select value={nuevoEquipo.chasis} onChange={e => { const c = e.target.value; setNuevoEquipo({...nuevoEquipo, chasis: c, ip_hub: mapaIpsEquipos[c] || '' }); }} className="w-full bg-[#0b132b] border border-indigo-500 text-indigo-300 p-2 rounded-lg font-mono focus:border-indigo-400 outline-none">
                             {equiposExistentes.map(eq => <option key={eq} value={eq}>{eq}</option>)}
