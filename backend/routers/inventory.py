@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import List
 import pandas as pd
 import io
 from datetime import datetime
@@ -18,6 +20,10 @@ from config import ALLOWED_EXCEL_MIME_TYPES, MAX_EXCEL_FILE_SIZE
 from security import get_current_user, is_admin, can_edit_ports, can_upload_excel, registrar_auditoria
 
 router = APIRouter(prefix="/api", tags=["Inventario y Puertos"])
+
+# Schema dinámico para el borrado masivo
+class PortBulkDelete(BaseModel):
+    port_ids: List[int]
 
 @router.get("/ports/search")
 def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -96,6 +102,21 @@ def bulk_update_ports(data: PortBulkUpdate, current_user: UserModel = Depends(ge
     db.commit()
     registrar_auditoria(db, current_user.username, "EDICIÓN MASIVA", "INVENTARIO", f"Edición Masiva a {len(data.port_ids)} puertos. " + " | ".join(cambios_desc))
     return {"status": "success"}
+
+# NUEVO ENDPOINT: Eliminación masiva de puertos físicos
+@router.post("/ports/bulk-delete")
+def bulk_delete_ports(data: PortBulkDelete, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not can_edit_ports(current_user): raise HTTPException(status_code=403, detail="Permisos insuficientes")
+    if not data.port_ids: return {"status": "success", "detail": "Sin puertos para eliminar"}
+    
+    try:
+        db.query(PortModel).filter(PortModel.id.in_(data.port_ids)).delete(synchronize_session=False)
+        db.commit()
+        registrar_auditoria(db, current_user.username, "ELIMINACIÓN MASIVA", "INVENTARIO", f"Eliminación física definitiva de {len(data.port_ids)} puertos en la base de datos.")
+        return {"status": "success", "message": f"{len(data.port_ids)} puertos eliminados"}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"status": "error", "detail": f"Fallo al eliminar puertos: {str(e)}"})
 
 @router.put("/ports/{port_id}")
 def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -181,7 +202,6 @@ async def upload_hub_excel(
                 
         equipos_en_otros_hubs = {}
         if chasis_in_excel:
-            # CORRECCIÓN: Convirtiendo el SET a LIST para no colapsar la consulta de SQLAlchemy
             conflictos = db.query(PortModel.equipo_hotel_id, PortModel.hub_id, PortModel.ciudad).filter(
                 PortModel.equipo_hotel_id.in_(list(chasis_in_excel)),
                 PortModel.hub_id != str(id_hub).upper().strip()
@@ -375,7 +395,7 @@ def exportar_inventario_excel(region: str = None, ciudad: str = None, id_hub: st
         draw_kpi('B9', 'B10', "DISPONIBLE GI (1G)", disp_gi, "16A34A") 
         draw_kpi('E9', 'E10', "DISPONIBLE TE (10G)", disp_te, "059669") 
         draw_kpi('H9', 'H10', "DISPONIBLE 25G", disp_25, "0891B2")     
-        draw_kpi('K9', 'K10', "DISPONIBLE 100G", disp_100, "0284C7")    
+        draw_kpi('K9', 'K10', "DISPONIBLE 100G", disp_100, "0284C7")   
 
         ws_dash['Z1'] = "Estatus"
         ws_dash['AA1'] = "Cantidad"
