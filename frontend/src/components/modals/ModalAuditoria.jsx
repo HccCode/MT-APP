@@ -33,7 +33,7 @@ export default function ModalAuditoria({ token, cerrarModal }) {
 
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[100] flex items-center justify-center p-4 font-sans text-slate-100">
-      <div className="bg-[#0b132b] border border-slate-700 rounded-xl shadow-2xl w-full max-w-5xl flex flex-col h-[80vh] overflow-hidden">
+      <div className="bg-[#0b132b] border border-slate-700 rounded-xl shadow-2xl w-full max-w-6xl flex flex-col h-[85vh] overflow-hidden">
         
         <div className="p-5 border-b border-slate-800 flex justify-between items-center bg-[#050814] shrink-0">
           <div>
@@ -48,11 +48,11 @@ export default function ModalAuditoria({ token, cerrarModal }) {
         </div>
 
         <div className="p-4 bg-[#090f24] border-b border-slate-800 shrink-0">
-            <div className="flex items-center gap-3 bg-[#050814] border border-slate-700 rounded-lg px-4 py-2 focus-within:border-emerald-500 transition-colors">
-                <Search className="w-4 h-4 text-slate-500" />
+            <div className="flex items-center gap-3 bg-[#050814] border border-slate-700 rounded-lg px-4 py-2 focus-within:border-emerald-500 transition-colors w-full max-w-lg shadow-inner">
+                <Search className="w-4 h-4 text-slate-500 shrink-0" />
                 <input 
                     type="text" 
-                    placeholder="Filtrar por usuario, acción, IP o puerto modificado..." 
+                    placeholder="Filtrar por usuario, acción, IP, equipo o puerto..." 
                     value={filtro}
                     onChange={e => setFiltro(e.target.value)}
                     className="bg-transparent border-none outline-none text-sm text-white w-full"
@@ -60,13 +60,13 @@ export default function ModalAuditoria({ token, cerrarModal }) {
             </div>
         </div>
 
-        <div className="flex-1 overflow-auto custom-scrollbar p-0 bg-[#070b19]">
-          <table className="w-full text-left text-xs text-slate-300">
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#070b19]">
+          <table className="w-full text-left text-xs text-slate-300 table-fixed">
             <thead className="bg-[#0b132b] text-slate-400 sticky top-0 z-10 shadow-md">
               <tr>
-                <th className="p-4 border-b border-slate-700 w-40"><div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5"/> FECHA / HORA</div></th>
-                <th className="p-4 border-b border-slate-700 w-32"><div className="flex items-center gap-2"><User className="w-3.5 h-3.5"/> USUARIO</div></th>
-                <th className="p-4 border-b border-slate-700 w-48">ACCIÓN</th>
+                <th className="p-4 border-b border-slate-700 w-40 border-r border-slate-800/50"><div className="flex items-center gap-2"><Clock className="w-3.5 h-3.5"/> FECHA / HORA</div></th>
+                <th className="p-4 border-b border-slate-700 w-32 border-r border-slate-800/50"><div className="flex items-center gap-2"><User className="w-3.5 h-3.5"/> USUARIO</div></th>
+                <th className="p-4 border-b border-slate-700 w-48 border-r border-slate-800/50">ACCIÓN</th>
                 <th className="p-4 border-b border-slate-700"><div className="flex items-center gap-2"><FileText className="w-3.5 h-3.5"/> REGISTRO TÉCNICO (PAYLOAD)</div></th>
               </tr>
             </thead>
@@ -78,12 +78,12 @@ export default function ModalAuditoria({ token, cerrarModal }) {
               ) : (
                 logsFiltrados.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4 font-mono text-slate-400 whitespace-nowrap">{log.fecha}</td>
-                    <td className="p-4">
+                    <td className="p-4 font-mono text-slate-400 whitespace-nowrap border-r border-slate-800/50">{log.fecha}</td>
+                    <td className="p-4 border-r border-slate-800/50">
                         <span className="bg-slate-800 text-slate-200 px-2 py-1 rounded border border-slate-700 font-bold">{log.usuario}</span>
                     </td>
-                    <td className="p-4 font-bold text-emerald-400 text-[10px] uppercase tracking-wider">{log.accion}</td>
-                    <td className="p-4 text-[11px] font-mono text-slate-400 break-words max-w-lg leading-relaxed">
+                    <td className="p-4 font-bold text-emerald-400 text-[10px] uppercase tracking-wider border-r border-slate-800/50">{log.accion}</td>
+                    <td className="p-4 text-[11px] font-mono text-slate-300 break-words leading-relaxed">
                         {log.detalle}
                     </td>
                   </tr>

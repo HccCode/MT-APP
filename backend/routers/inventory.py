@@ -135,7 +135,20 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
         setattr(db_port, attr_name, val)
         
     db.commit()
-    registrar_auditoria(db, current_user.username, "EDICIÓN DE PUERTO", "INVENTARIO", f"Modificó el puerto {db_port.puerto}.")
+    
+    # Extraemos el equipo y la IP para el log (con valores por defecto si están vacíos)
+    equipo_log = db_port.equipo_hotel_id or "SIN_EQUIPO"
+    ip_log = db_port.ip_hub or "SIN_IP"
+    detalles_str = " | ".join(cambios_realizados) if cambios_realizados else "Sin cambios detectables."
+
+    # Registramos el log con todo el contexto
+    registrar_auditoria(
+        db, 
+        current_user.username, 
+        "EDICIÓN DE PUERTO", 
+        "INVENTARIO", 
+        f"Modificó el puerto {db_port.puerto} en el chasis '{equipo_log}' (IP: {ip_log}). {detalles_str}"
+    )
     return {"status": "success"}
 
 @router.post("/hubs/upload-excel")
