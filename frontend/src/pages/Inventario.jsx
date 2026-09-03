@@ -183,6 +183,14 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   };
 
+  // Función para obtener el nombre limpio del nodo
+  const getNombreNodo = (hubId) => {
+    if (!hubId) return '-';
+    const hubsCiudad = estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || [];
+    const nodo = hubsCiudad.find(h => h.id === hubId);
+    return nodo ? nodo.nombre : hubId;
+  };
+
   const seleccionarPuerto = (p) => { setPuertoDetalle(p); setEditCampos(p); };
 
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
@@ -355,8 +363,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                         </td>
                         <td className="p-3 font-mono text-white truncate group-hover:text-blue-400 transition-colors">{p.PUERTO}</td>
                         <td className="p-3 font-bold text-cyan-300 truncate transition-colors">{p.EQUIPO_HOTEL_ID || '-'}</td>
-                        <td className="p-3 text-slate-400 font-mono truncate group-hover:text-slate-200 transition-colors">
-                          {inventarioHub === 'TODOS' ? (p.HUB_PERTENENCIA || '-') : (estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs?.find(h => h.id === inventarioHub)?.nombre || '-')}
+                        <td className="p-3 text-slate-300 truncate group-hover:text-white transition-colors">
+                          {inventarioHub === 'TODOS' ? getNombreNodo(p.HUB_PERTENENCIA) : getNombreNodo(inventarioHub)}
                         </td>
                         <td className="p-3 font-mono text-emerald-400/80 truncate group-hover:text-emerald-300 transition-colors">{p.IP_GESTION || '-'}</td>
                         <td className="p-3 text-slate-300 truncate font-medium group-hover:text-white transition-colors">{p.SERVICIO || '-'}</td>
