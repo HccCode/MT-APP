@@ -36,6 +36,10 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
         SECRET_KEY, 
         algorithm=ALGORITHM
     )
+    
+    # Evalúa si la propiedad existe y si es igual a 1
+    debe_cambiar_pass = getattr(user, 'must_change_password', 0) == 1
+    
     return {
         "status": "success", 
         "token": access_token, 
@@ -45,7 +49,7 @@ def login(request: Request, data: UserLogin, db: Session = Depends(get_db)):
             "plazas": user.plazas, 
             "pestanas": user.pestanas, 
             "nombre_completo": user.nombre_completo,
-            "must_change_password": getattr(user, 'must_change_password', False)
+            "must_change_password": debe_cambiar_pass
         }
     }
 
@@ -66,7 +70,8 @@ def register(data: UserRegister, current_user: UserModel = Depends(get_current_u
         correo=data.correo, 
         area_org=data.area_org, 
         region_asignacion=data.region_asignacion, 
-        puesto=data.puesto
+        puesto=data.puesto,
+        must_change_password=1 # <-- AQUÍ ESTÁ LA CLAVE: Forzamos el cambio de contraseña al crear
     )
     db.add(nuevo_usuario)
     db.commit()
@@ -93,7 +98,9 @@ def update_user_profile(user_id: int, data: UserUpdate, current_user: UserModel 
     if data.nombre_completo: user.nombre_completo = data.nombre_completo.strip()
     if data.plazas is not None: user.plazas = data.plazas
     if data.pestanas is not None: user.pestanas = data.pestanas
-    if data.password and data.password.strip() != "": user.password_hash = hash_password(data.password)
+    if data.password and data.password.strip() != "": 
+        user.password_hash = hash_password(data.password)
+        user.must_change_password = 1 # Opcional: Forzar cambio si el admin cambia la clave
     db.commit()
     return {"status": "success"}
 
