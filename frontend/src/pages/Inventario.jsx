@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, Inbox, UploadCloud } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, UploadCloud, Loader2 } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
@@ -38,13 +38,11 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
 
-  // NUEVO: ESTADO PARA LOS ARCHIVOS DE DISEÑO
+  // ESTADO PARA LOS ARCHIVOS DE DISEÑO
   const [archivosDiseño, setArchivosDiseño] = useState({ KMZ: null, DWG: null });
 
-  // ESTADO PARA NOTIFICACIONES (TOAST)
   const [msgInv, setMsgInv] = useState({ text: '', type: '' });
 
-  // EFECTO PARA DESAPARECER LA NOTIFICACIÓN DESPUÉS DE 4 SEGUNDOS
   useEffect(() => {
     if (msgInv.text) {
       const timer = setTimeout(() => {
@@ -135,6 +133,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     }
   };
 
+  // --- FUNCIÓN ACTUALIZADA DE GUARDADO (DATOS + ARCHIVOS) ---
   const handleGuardarCambios = async () => {
     if (!puertoDetalle?.ID) return;
     setGuardando(true);
@@ -151,7 +150,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     ];
 
     const payloadSanitizado = {};
-
     camposPermitidos.forEach(key => {
       let val = editCampos[key];
       if (val !== null && val !== undefined) {
@@ -160,24 +158,43 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     });
 
     try {
-      // Nota: Si posteriormente se requiere subir los archivos al backend,
-      // se deberá cambiar esto de JSON a FormData para poder incluir archivosDiseño.KMZ y .DWG
+      // 1. Enviar datos de texto (JSON)
       const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' }, 
         body: JSON.stringify(payloadSanitizado) 
       });
+      
       if (res.status === 401) { handleLogout(); return; }
-      if (res.ok) { 
-        setPuertoDetalle({...puertoDetalle, ...editCampos}); 
-        await cargarDatosSistemas(); 
-        setMsgInv({ text: "Modificación física guardada exitosamente en MT_DB.", type: 'success' });
-      } else { 
-        setMsgInv({ text: "Fallo de validación: No se pudo guardar la información.", type: 'error' });
+      if (!res.ok) throw new Error("Error al guardar texto");
+
+      // 2. Enviar archivos de diseño (si el usuario seleccionó alguno)
+      if (archivosDiseño.KMZ || archivosDiseño.DWG) {
+        const formData = new FormData();
+        if (archivosDiseño.KMZ) formData.append('file_kmz', archivosDiseño.KMZ);
+        if (archivosDiseño.DWG) formData.append('file_dwg', archivosDiseño.DWG);
+
+        const resArchivos = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}/upload-designs`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+
+        if (!resArchivos.ok) {
+           throw new Error("Datos guardados, pero falló la subida de los archivos de diseño.");
+        }
       }
+      
+      setPuertoDetalle({...puertoDetalle, ...editCampos}); 
+      await cargarDatosSistemas(); 
+      setArchivosDiseño({ KMZ: null, DWG: null }); // Limpiar campos de archivos
+      setMsgInv({ text: "Ficha técnica y archivos guardados exitosamente.", type: 'success' });
+      
     } catch (err) { 
-      setMsgInv({ text: "Fallo de red al intentar actualizar el puerto.", type: 'error' });
-    } finally { setGuardando(false); }
+      setMsgInv({ text: err.message || "Fallo de red al intentar actualizar el puerto.", type: 'error' });
+    } finally { 
+      setGuardando(false); 
+    }
   };
 
   const obtenerCiudadesOrdenadas = (region) => {
@@ -198,7 +215,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const seleccionarPuerto = (p) => { 
     setPuertoDetalle(p); 
     setEditCampos(p); 
-    setArchivosDiseño({ KMZ: null, DWG: null }); // Limpiamos archivos al cambiar de puerto
+    setArchivosDiseño({ KMZ: null, DWG: null }); 
   };
 
   const manejarArchivoDiseño = (e, tipo) => {
@@ -209,14 +226,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
 
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
     const est = String(p.ESTATUS || '').toUpperCase().trim();
-    
     if (filtroEstatus !== 'TODOS') {
       if (filtroEstatus === 'DISPONIBLE' && !est.includes('DISPONIBLE')) return false;
       if (filtroEstatus === 'ACTIVO' && est !== 'ACTIVO') return false;
       if (filtroEstatus === 'SUSPENDIDO' && est !== 'SUSPENDIDO') return false;
       if (filtroEstatus === 'TRONCAL' && !est.includes('TRONCAL')) return false;
     }
-    
     return (
       String(p.PUERTO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
       String(p.SERVICIO || '').toLowerCase().includes(filtroTexto.toLowerCase()) || 
@@ -230,7 +245,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   return (
     <div className="flex flex-col h-[calc(100vh-70px)] min-h-0 overflow-hidden relative">
       
-      {/* NOTIFICACIÓN FLOTANTE (TOAST) */}
       {msgInv.text && (
         <div className={`fixed top-8 left-1/2 transform -translate-x-1/2 z-[9999] px-6 py-4 rounded-xl border shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-300 ${msgInv.type === 'error' ? 'bg-red-950/95 border-red-500/50 text-red-400' : 'bg-emerald-950/95 border-emerald-500/50 text-emerald-400'}`}>
           {msgInv.type === 'error' ? <AlertTriangle className="w-6 h-6 shrink-0" /> : <CheckCircle className="w-6 h-6 shrink-0" />}
@@ -238,13 +252,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
             <h4 className="font-black text-sm uppercase tracking-widest">{msgInv.type === 'error' ? 'Error' : 'Operación Exitosa'}</h4>
             <p className="text-xs text-white mt-0.5 font-medium">{msgInv.text}</p>
           </div>
-          <button onClick={() => setMsgInv({ text: '', type: '' })} className="ml-4 p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0">
-            <X className="w-4 h-4" />
-          </button>
+          <button onClick={() => setMsgInv({ text: '', type: '' })} className="ml-4 p-1.5 hover:bg-white/10 rounded-full transition-colors shrink-0"><X className="w-4 h-4" /></button>
         </div>
       )}
 
-      {/* CABECERA Y FILTROS SUPERIORES (Fijos) */}
       <div className="bg-[#090f24] border-b border-slate-800/60 px-6 py-3 flex flex-col lg:flex-row justify-between items-center gap-3 shrink-0">
         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
           <span className="px-3 py-1 rounded-md text-blue-500 border border-blue-600/60 shadow-sm uppercase tracking-wider font-bold">FILTROS LISTADO</span>
@@ -266,17 +277,12 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
             )}
           </select>
 
-          <button 
-            onClick={handleExportarExcel} 
-            disabled={cargando || !inventarioCd}
-            className="ml-2 bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-md text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-lg cursor-pointer border border-emerald-500"
-          >
+          <button onClick={handleExportarExcel} disabled={cargando || !inventarioCd} className="ml-2 bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded-md text-white font-bold flex items-center gap-2 transition-colors disabled:opacity-50 shadow-lg cursor-pointer border border-emerald-500">
             <Download className="w-4 h-4" /> Exportar a Excel
           </button>
         </div>
       </div>
 
-      {/* MÉTRICAS SUPERIORES (Fijas) */}
       {datosHub?.resumen && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 px-6 mt-4 shrink-0">
           <div onClick={() => setFiltroEstatus('TODOS')} className={`cursor-pointer p-4 rounded-xl border transition-all ${filtroEstatus === 'TODOS' ? 'bg-[#1c2541] border-slate-400 shadow-xl' : 'bg-[#0b132b]/60 border-slate-800'}`}><p className="text-xs text-slate-400 font-bold">CAPACIDAD GLOBAL</p><p className="text-2xl font-black mt-1">{datosHub.resumen.total}</p></div>
@@ -287,14 +293,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
         </div>
       )}
 
-      {/* ÁREA PRINCIPAL: Tabla y Ficha Técnica con Scrolls Independientes */}
       <div className="flex-1 flex flex-col lg:flex-row gap-6 p-6 min-h-0 overflow-hidden">
         
-        {/* ==============================================
-            COLUMNA IZQUIERDA: TABLA
-            ============================================== */}
         <div className="flex-1 flex flex-col min-h-0 bg-[#0b132b]/30 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-          
           <div className="p-4 bg-[#0b132b]/80 border-b border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 shrink-0">
             <div className="flex items-center gap-3 w-full sm:max-w-md">
               <Search className="w-4 h-4 text-slate-500 shrink-0" />
@@ -344,7 +345,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                         </div>
                         <h4 className="text-sm font-black text-slate-300 mb-1 uppercase tracking-widest">Sin coincidencias</h4>
                         <p className="text-xs text-slate-500 max-w-sm text-center leading-relaxed">
-                          No se encontraron puertos que coincidan con los filtros seleccionados o la búsqueda actual. Intenta con otros parámetros.
+                          No se encontraron puertos que coincidan con los filtros seleccionados o la búsqueda actual.
                         </p>
                       </div>
                     </td>
@@ -391,13 +392,10 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
           </div>
         </div>
 
-        {/* ==============================================
-            COLUMNA DERECHA: FICHA TÉCNICA (AMPLIADA)
-            ============================================== */}
+        {/* COLUMNA DERECHA: FICHA TÉCNICA */}
         <div className="w-full lg:w-[550px] xl:w-[600px] shrink-0 flex flex-col min-h-0 bg-[#0b132b]/40 border border-slate-800 rounded-xl p-5 overflow-hidden shadow-xl">
           {puertoDetalle ? (
             <>
-              {/* Cabecera Fija */}
               <div className="shrink-0 flex justify-between items-center border-b border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-3">
                   <h3 className="text-xs font-black text-blue-400 tracking-widest">FICHA TÉCNICA</h3>
@@ -412,7 +410,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 </div>
               </div>
               
-              {/* Formulario Scrolleable */}
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6 text-xs">
                 
                 <div className="space-y-2">
@@ -557,8 +554,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                 </div>
               </div>
               
-              {/* Botón Inferior Fijo */}
-              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-4 shadow-lg transition">💾 Guardar Ficha</button>)}
+              {puedeEditar && (<button onClick={handleGuardarCambios} disabled={guardando} className="w-full bg-[#00a86b] hover:bg-[#008f5d] text-white text-xs font-black py-3 rounded-lg cursor-pointer shrink-0 uppercase tracking-widest mt-4 shadow-lg transition flex justify-center gap-2 items-center">{guardando ? <Loader2 className="w-4 h-4 animate-spin"/> : '💾 Guardar Ficha'}</button>)}
             </>
           ) : (
             <div className="h-full flex flex-col justify-center items-center text-center p-6 border-2 border-dashed border-slate-700/50 rounded-lg bg-slate-900/20">
