@@ -495,11 +495,14 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
                   </SeccionDesplegable>
 
-                  <SeccionDesplegable titulo="Lógica y Enrutamiento" icono={<Server className="w-3.5 h-3.5"/>} colorTexto="text-blue-400">
-                    <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
-                    <InfoRowIP label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
-                    <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
-                  </SeccionDesplegable>
+                  {/* NUEVO: Oculta este panel si se está buscando por RUTA */}
+                  {criterioBusqueda !== 'RUTA' && (
+                    <SeccionDesplegable titulo="Lógica y Enrutamiento" icono={<Server className="w-3.5 h-3.5"/>} colorTexto="text-blue-400">
+                      <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
+                      <InfoRowIP label="IP Cliente" value={puertoActivo.IP_CLIENTE} />
+                      <InfoRow label="BDI / VLAN" value={puertoActivo.BDI} />
+                    </SeccionDesplegable>
+                  )}
 
                   <SeccionDesplegable titulo="Planta Externa y Empalme" icono={<Activity className="w-3.5 h-3.5"/>} colorTexto="text-emerald-400" abiertoPorDefecto={true}>
                     <InfoRow label="Ruta OSP" value={puertoActivo.RUTA} />
