@@ -151,6 +151,38 @@ def update_port_data(port_id: int, data: PortUpdate, current_user: UserModel = D
     )
     return {"status": "success"}
 
+# NUEVO ENDPOINT: Subida de archivos de diseño KMZ/DWG
+@router.post("/ports/{port_id}/upload-designs")
+async def upload_port_designs(
+    port_id: int, 
+    file_kmz: UploadFile = File(None), 
+    file_dwg: UploadFile = File(None), 
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    if not can_edit_ports(current_user): 
+        raise HTTPException(status_code=403, detail="Sin permisos para editar")
+        
+    db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
+    if not db_port: 
+        raise HTTPException(status_code=404, detail="Puerto no encontrado")
+
+    if file_kmz:
+        db_port.archivo_kmz = await file_kmz.read()
+        db_port.kmz_filename = file_kmz.filename
+    
+    if file_dwg:
+        db_port.archivo_dwg = await file_dwg.read()
+        db_port.dwg_filename = file_dwg.filename
+
+    try:
+        db.commit()
+        registrar_auditoria(db, current_user.username, "CARGA DE DISEÑOS", "INVENTARIO", f"Subió archivos de diseño para el puerto {db_port.puerto} ({db_port.equipo_hotel_id}).")
+        return {"status": "success", "message": "Diseños subidos correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Error guardando el archivo en la base de datos")
+
 @router.post("/hubs/upload-excel")
 async def upload_hub_excel(
     id_hub: str = Query(...), 

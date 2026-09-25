@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, LargeBinary
 from database import Base
 
 class RegionModel(Base):
@@ -75,6 +75,10 @@ class PortModel(Base):
     comentarios = Column(Text)
     contacto_nombre = Column(String(150), nullable=True)
     contacto_telefono = Column(String(50), nullable=True)
+    archivo_kmz = Column(LargeBinary, nullable=True)
+    kmz_filename = Column(String(255), nullable=True)
+    archivo_dwg = Column(LargeBinary, nullable=True)
+    dwg_filename = Column(String(255), nullable=True)
 
 class CabezalModel(Base):
     __tablename__ = "inventario_cabezales"

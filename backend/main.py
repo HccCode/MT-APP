@@ -34,11 +34,22 @@ try:
         conn.commit()
 except Exception: pass
 
-# === NUEVO: PARCHE AUTOMÁTICO PARA UBICACIÓN EN ENLACES ===
+# Parche automático para ubicación en enlaces
 try:
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE inventario_microondas_ubq ADD COLUMN direccion TEXT"))
         conn.execute(text("ALTER TABLE inventario_microondas_ubq ADD COLUMN coordenadas VARCHAR(100)"))
+        conn.commit()
+except Exception: pass
+
+# === NUEVO: PARCHE AUTOMÁTICO PARA ARCHIVOS DE DISEÑO ===
+try:
+    with engine.connect() as conn:
+        # Nota: Asumo que la tabla se llama inventario_fo. Si tu PortModel tiene otro __tablename__, cámbialo aquí.
+        conn.execute(text("ALTER TABLE inventario_fo ADD COLUMN archivo_kmz LONGBLOB"))
+        conn.execute(text("ALTER TABLE inventario_fo ADD COLUMN kmz_filename VARCHAR(255)"))
+        conn.execute(text("ALTER TABLE inventario_fo ADD COLUMN archivo_dwg LONGBLOB"))
+        conn.execute(text("ALTER TABLE inventario_fo ADD COLUMN dwg_filename VARCHAR(255)"))
         conn.commit()
 except Exception: pass
 # ==========================================================
