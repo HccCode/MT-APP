@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, Inbox } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, Inbox, UploadCloud } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
@@ -37,6 +37,9 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
   const [mostrarModalMasivo, setMostrarModalMasivo] = useState(false);
   const [mostrarModalFalla, setMostrarModalFalla] = useState(false);
   const [mostrarModalVisualizar, setMostrarModalVisualizar] = useState(false);
+
+  // NUEVO: ESTADO PARA LOS ARCHIVOS DE DISEÑO
+  const [archivosDiseño, setArchivosDiseño] = useState({ KMZ: null, DWG: null });
 
   // ESTADO PARA NOTIFICACIONES (TOAST)
   const [msgInv, setMsgInv] = useState({ text: '', type: '' });
@@ -157,6 +160,8 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     });
 
     try {
+      // Nota: Si posteriormente se requiere subir los archivos al backend,
+      // se deberá cambiar esto de JSON a FormData para poder incluir archivosDiseño.KMZ y .DWG
       const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' }, 
@@ -183,7 +188,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     })).sort((a, b) => a.nombre.localeCompare(b.nombre));
   };
 
-  // Función para obtener el nombre limpio del nodo
   const getNombreNodo = (hubId) => {
     if (!hubId) return '-';
     const hubsCiudad = estructuraGeografica[inventarioReg]?.ciudades?.[inventarioCd]?.hubs || [];
@@ -191,7 +195,17 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     return nodo ? nodo.nombre : hubId;
   };
 
-  const seleccionarPuerto = (p) => { setPuertoDetalle(p); setEditCampos(p); };
+  const seleccionarPuerto = (p) => { 
+    setPuertoDetalle(p); 
+    setEditCampos(p); 
+    setArchivosDiseño({ KMZ: null, DWG: null }); // Limpiamos archivos al cambiar de puerto
+  };
+
+  const manejarArchivoDiseño = (e, tipo) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setArchivosDiseño(prev => ({ ...prev, [tipo]: e.target.files[0] }));
+    }
+  };
 
   const puertosFiltrados = datosHub?.puertos?.filter(p => {
     const est = String(p.ESTATUS || '').toUpperCase().trim();
@@ -466,6 +480,28 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     <div><label className="text-[10px] text-slate-500 block font-bold mb-1">HILOS</label><input type="text" disabled={!puedeEditar} value={editCampos.HILOS || ''} onChange={e=>setEditCampos({...editCampos, HILOS: e.target.value})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white" /></div>
                     <div><label className="text-[10px] text-slate-500 block font-bold mb-1">PARCHEO</label><input type="text" disabled={!puedeEditar} value={editCampos.PARCHEO || ''} onChange={e=>setEditCampos({...editCampos, PARCHEO: e.target.value})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white" /></div>
                   </div>
+                  
+                  {/* NUEVO SUB-BLOQUE: CARGA DE DISEÑOS */}
+                  <div className="mt-3 pt-2 border-t border-slate-800/50">
+                    <label className="text-[10px] text-slate-500 block font-bold mb-2">DISEÑOS (KMZ / DWG)</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <input type="file" id="file-kmz" accept=".kmz,.kml" className="hidden" disabled={!puedeEditar} onChange={(e) => manejarArchivoDiseño(e, 'KMZ')} />
+                        <label htmlFor="file-kmz" className={`flex items-center justify-center gap-2 border border-dashed rounded-lg p-2 text-[10px] font-bold cursor-pointer transition-colors ${archivosDiseño.KMZ ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-400' : 'bg-slate-950 border-slate-800 hover:border-slate-600 text-slate-400'} ${!puedeEditar && 'opacity-50 cursor-not-allowed'}`}>
+                          <UploadCloud className="w-3.5 h-3.5 shrink-0" /> 
+                          <span className="truncate">{archivosDiseño.KMZ ? archivosDiseño.KMZ.name : 'Cargar Archivo KMZ'}</span>
+                        </label>
+                      </div>
+                      <div>
+                        <input type="file" id="file-dwg" accept=".dwg,.dxf" className="hidden" disabled={!puedeEditar} onChange={(e) => manejarArchivoDiseño(e, 'DWG')} />
+                        <label htmlFor="file-dwg" className={`flex items-center justify-center gap-2 border border-dashed rounded-lg p-2 text-[10px] font-bold cursor-pointer transition-colors ${archivosDiseño.DWG ? 'bg-blue-950/30 border-blue-500/50 text-blue-400' : 'bg-slate-950 border-slate-800 hover:border-slate-600 text-slate-400'} ${!puedeEditar && 'opacity-50 cursor-not-allowed'}`}>
+                          <UploadCloud className="w-3.5 h-3.5 shrink-0" /> 
+                          <span className="truncate">{archivosDiseño.DWG ? archivosDiseño.DWG.name : 'Cargar Archivo DWG'}</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  
                 </div>
 
                 <div className="space-y-2">
