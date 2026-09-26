@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
@@ -46,7 +46,7 @@ def search_ports(q: str = Query(...), current_user: UserModel = Depends(get_curr
                     "POTENCIA_HUB": p.potencia_hub, "POTENCIA_CPE": p.potencia_cpe, "RUTA": p.ruta,
                     "DISTANCIA_CLIENTE": p.distancia_cliente, "LAMBDAS": p.lambdas, "BUFFER": p.buffer,
                     "HILOS": p.hilos, "COORDENADAS": p.coordenadas, "CONTACTO_NOMBRE": p.contacto_nombre,
-                    "CONTACTO_TELEFONO": p.contacto_telefono
+                    "CONTACTO_TELEFONO": p.contacto_telefono, "kmz_filename": p.kmz_filename, "dwg_filename": p.dwg_filename
                 })
                 if len(resultados) >= 40: break
         return {"status": "success", "data": resultados}
@@ -67,7 +67,8 @@ def get_hub_ports(id_hub: str = Query("CTC"), db: Session = Depends(get_db)):
             "MODELO_CPE": p.modelo_cpe, "SERIE_CPE": p.serie_cpe, "FECHA_DE_ENTREGA": p.fecha_entrega, 
             "SERIE_SFP_HUB": p.serie_sfp_hub, "SERIE_SFP_CLIENTE": p.serie_sfp_client, "EQUIPAMIENTO": p.equipamiento, 
             "SERIE": p.serie, "DIRECCION": p.direccion, "COORDENADAS": p.coordenadas, "COMENTARIOS": p.comentarios,
-            "CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono} for p in query_ports
+            "CONTACTO_NOMBRE": p.contacto_nombre, "CONTACTO_TELEFONO": p.contacto_telefono,
+            "kmz_filename": p.kmz_filename, "dwg_filename": p.dwg_filename} for p in query_ports
         ]
         return {
             "status": "success", "hub": id_hub, 
@@ -182,6 +183,36 @@ async def upload_port_designs(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail="Error guardando el archivo en la base de datos")
+
+# NUEVO ENDPOINT: Descargar archivos de diseño KMZ/DWG
+@router.get("/ports/{port_id}/download-design")
+def download_port_design(
+    port_id: int, 
+    tipo: str = Query(...), 
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    db_port = db.query(PortModel).filter(PortModel.id == port_id).first()
+    if not db_port:
+        raise HTTPException(status_code=404, detail="Puerto no encontrado")
+    
+    tipo = tipo.upper()
+    if tipo == "KMZ" and db_port.archivo_kmz:
+        filename = db_port.kmz_filename or f"diseno_{port_id}.kmz"
+        return Response(
+            content=db_port.archivo_kmz,
+            media_type="application/vnd.google-earth.kmz",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    elif tipo == "DWG" and db_port.archivo_dwg:
+        filename = db_port.dwg_filename or f"diseno_{port_id}.dwg"
+        return Response(
+            content=db_port.archivo_dwg,
+            media_type="application/x-dwg",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    
+    raise HTTPException(status_code=404, detail="El archivo solicitado no existe en este puerto.")
 
 @router.post("/hubs/upload-excel")
 async def upload_hub_excel(

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, UploadCloud, Loader2 } from 'lucide-react';
+import { Search, MapPin, Eye, AlertTriangle, Server, Download, CheckSquare, ShieldCheck, CheckCircle, X, Inbox, UploadCloud, Loader2 } from 'lucide-react';
 import { generarUrlGoogleMaps, formatFechaParaInput } from '../utils/helpers';
 import ModalFalla from '../components/modals/ModalFalla';
 import ModalVisualizar from '../components/modals/ModalVisualizar';
@@ -133,7 +133,35 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     }
   };
 
-  // --- FUNCIÓN ACTUALIZADA DE GUARDADO (DATOS + ARCHIVOS) ---
+  // --- NUEVA FUNCIÓN PARA DESCARGAR ARCHIVOS DE DISEÑO ---
+  const handleDescargarDiseno = async (tipo) => {
+    if (!puertoDetalle?.ID) return;
+    try {
+      setMsgInv({ text: `Descargando archivo ${tipo}...`, type: 'success' });
+      const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}/download-design?tipo=${tipo}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error(`El archivo ${tipo} no se encuentra disponible.`);
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      // Trata de usar el nombre original guardado en BD, si no hay, asigna uno por defecto
+      a.download = tipo === 'KMZ' 
+        ? (puertoDetalle.kmz_filename || `Diseno_${puertoDetalle.ID}.kmz`) 
+        : (puertoDetalle.dwg_filename || `Diseno_${puertoDetalle.ID}.dwg`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      setMsgInv({ text: error.message, type: 'error' });
+    }
+  };
+
   const handleGuardarCambios = async () => {
     if (!puertoDetalle?.ID) return;
     setGuardando(true);
@@ -158,7 +186,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
     });
 
     try {
-      // 1. Enviar datos de texto (JSON)
       const res = await fetch(`${API_URL}/api/ports/${puertoDetalle.ID}`, { 
         method: 'PUT', 
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`,credentials: 'include' }, 
@@ -168,7 +195,6 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       if (res.status === 401) { handleLogout(); return; }
       if (!res.ok) throw new Error("Error al guardar texto");
 
-      // 2. Enviar archivos de diseño (si el usuario seleccionó alguno)
       if (archivosDiseño.KMZ || archivosDiseño.DWG) {
         const formData = new FormData();
         if (archivosDiseño.KMZ) formData.append('file_kmz', archivosDiseño.KMZ);
@@ -187,7 +213,7 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
       
       setPuertoDetalle({...puertoDetalle, ...editCampos}); 
       await cargarDatosSistemas(); 
-      setArchivosDiseño({ KMZ: null, DWG: null }); // Limpiar campos de archivos
+      setArchivosDiseño({ KMZ: null, DWG: null }); 
       setMsgInv({ text: "Ficha técnica y archivos guardados exitosamente.", type: 'success' });
       
     } catch (err) { 
@@ -478,24 +504,49 @@ export default function Inventario({ token, usuario, puedeEditar, esRnoc, esMcmN
                     <div><label className="text-[10px] text-slate-500 block font-bold mb-1">PARCHEO</label><input type="text" disabled={!puedeEditar} value={editCampos.PARCHEO || ''} onChange={e=>setEditCampos({...editCampos, PARCHEO: e.target.value})} className="w-full bg-slate-950 p-2 rounded border border-slate-800 text-white" /></div>
                   </div>
                   
-                  {/* NUEVO SUB-BLOQUE: CARGA DE DISEÑOS */}
+                  {/* DISEÑOS KMZ/DWG - REDISEÑADO CON BOTÓN DE DESCARGA */}
                   <div className="mt-3 pt-2 border-t border-slate-800/50">
-                    <label className="text-[10px] text-slate-500 block font-bold mb-2">DISEÑOS (KMZ / DWG)</label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <label className="text-[10px] text-slate-500 block font-bold mb-2">DISEÑOS DE RED (KMZ / DWG)</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      
+                      {/* CAJA KMZ */}
                       <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] font-bold text-slate-400">Archivo KMZ</span>
+                          {puertoDetalle.kmz_filename && (
+                            <button onClick={() => handleDescargarDiseno('KMZ')} className="text-[9px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-emerald-950/40 px-2 py-0.5 rounded transition-colors">
+                              <Download className="w-3 h-3"/> Descargar
+                            </button>
+                          )}
+                        </div>
                         <input type="file" id="file-kmz" accept=".kmz,.kml" className="hidden" disabled={!puedeEditar} onChange={(e) => manejarArchivoDiseño(e, 'KMZ')} />
-                        <label htmlFor="file-kmz" className={`flex items-center justify-center gap-2 border border-dashed rounded-lg p-2 text-[10px] font-bold cursor-pointer transition-colors ${archivosDiseño.KMZ ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-400' : 'bg-slate-950 border-slate-800 hover:border-slate-600 text-slate-400'} ${!puedeEditar && 'opacity-50 cursor-not-allowed'}`}>
-                          <UploadCloud className="w-3.5 h-3.5 shrink-0" /> 
-                          <span className="truncate">{archivosDiseño.KMZ ? archivosDiseño.KMZ.name : 'Cargar Archivo KMZ'}</span>
+                        <label htmlFor="file-kmz" className={`flex flex-col items-center justify-center gap-1 border border-dashed rounded-lg p-2 text-center text-[10px] font-bold cursor-pointer transition-colors ${archivosDiseño.KMZ ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-400' : 'bg-slate-950 border-slate-800 hover:border-slate-600 text-slate-400'} ${!puedeEditar && 'opacity-50 cursor-not-allowed'}`}>
+                          <UploadCloud className="w-4 h-4 shrink-0 mb-0.5" /> 
+                          <span className="truncate w-full px-1">
+                            {archivosDiseño.KMZ ? archivosDiseño.KMZ.name : (puertoDetalle.kmz_filename ? 'Reemplazar KMZ: ' + puertoDetalle.kmz_filename : 'Subir Nuevo KMZ')}
+                          </span>
                         </label>
                       </div>
+
+                      {/* CAJA DWG */}
                       <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[9px] font-bold text-slate-400">Archivo DWG</span>
+                          {puertoDetalle.dwg_filename && (
+                            <button onClick={() => handleDescargarDiseno('DWG')} className="text-[9px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-950/40 px-2 py-0.5 rounded transition-colors">
+                              <Download className="w-3 h-3"/> Descargar
+                            </button>
+                          )}
+                        </div>
                         <input type="file" id="file-dwg" accept=".dwg,.dxf" className="hidden" disabled={!puedeEditar} onChange={(e) => manejarArchivoDiseño(e, 'DWG')} />
-                        <label htmlFor="file-dwg" className={`flex items-center justify-center gap-2 border border-dashed rounded-lg p-2 text-[10px] font-bold cursor-pointer transition-colors ${archivosDiseño.DWG ? 'bg-blue-950/30 border-blue-500/50 text-blue-400' : 'bg-slate-950 border-slate-800 hover:border-slate-600 text-slate-400'} ${!puedeEditar && 'opacity-50 cursor-not-allowed'}`}>
-                          <UploadCloud className="w-3.5 h-3.5 shrink-0" /> 
-                          <span className="truncate">{archivosDiseño.DWG ? archivosDiseño.DWG.name : 'Cargar Archivo DWG'}</span>
+                        <label htmlFor="file-dwg" className={`flex flex-col items-center justify-center gap-1 border border-dashed rounded-lg p-2 text-center text-[10px] font-bold cursor-pointer transition-colors ${archivosDiseño.DWG ? 'bg-blue-950/30 border-blue-500/50 text-blue-400' : 'bg-slate-950 border-slate-800 hover:border-slate-600 text-slate-400'} ${!puedeEditar && 'opacity-50 cursor-not-allowed'}`}>
+                          <UploadCloud className="w-4 h-4 shrink-0 mb-0.5" /> 
+                          <span className="truncate w-full px-1">
+                            {archivosDiseño.DWG ? archivosDiseño.DWG.name : (puertoDetalle.dwg_filename ? 'Reemplazar DWG: ' + puertoDetalle.dwg_filename : 'Subir Nuevo DWG')}
+                          </span>
                         </label>
                       </div>
+
                     </div>
                   </div>
                   
