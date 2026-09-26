@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, X, Activity, Server, Navigation, Users, ShieldAlert, Zap, 
   LogOut, ChevronDown, ChevronUp, Clock, Smartphone, Calculator, Wifi, 
-  MapPin, Map, Scissors, Layers 
+  MapPin, Map, Scissors, Layers, Download
 } from 'lucide-react';
 
 export default function Cuadrilla({ token, handleLogout, estructuraGeografica = {}, habilitarMW = false }) {
@@ -185,6 +185,30 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
       alert("Error de conexión al consultar la base de datos.");
     } finally {
       setCargando(false);
+    }
+  };
+
+  // --- DESCARGAR DISEÑOS (MODO CUADRILLA) ---
+  const handleDescargarDiseno = async (tipo, id, filename) => {
+    try {
+      const res = await fetch(`${API_URL}/api/ports/${id}/download-design?tipo=${tipo}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error(`El archivo ${tipo} no se encuentra disponible.`);
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `Diseno_${id}.${tipo.toLowerCase()}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error.message);
     }
   };
 
@@ -522,8 +546,29 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                   {/* NUEVA SECCIÓN DE DISEÑOS (SOLO VISIBLE EN RUTA FO) */}
                   {criterioBusqueda === 'RUTA' && (
                     <SeccionDesplegable titulo="Diseños de Red (Planos)" icono={<Layers className="w-3.5 h-3.5"/>} colorTexto="text-cyan-400" bgClass="bg-cyan-950/20" borderClass="border-cyan-900/30" abiertoPorDefecto={true}>
-                      <InfoRow label="Archivo KMZ" value={puertoActivo.kmz_filename || 'No disponible'} />
-                      <InfoRow label="Archivo DWG" value={puertoActivo.dwg_filename || 'No disponible'} />
+                      
+                      <div className="flex justify-between items-center py-2 border-b border-slate-800/50">
+                        <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1"><Map className="w-3 h-3"/> Archivo KMZ</span>
+                        {puertoActivo.kmz_filename ? (
+                          <button onClick={() => handleDescargarDiseno('KMZ', puertoActivo.ID, puertoActivo.kmz_filename)} className="text-[9px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 bg-emerald-950/40 px-2 py-1 rounded transition-colors active:scale-95 border border-emerald-500/30">
+                            <Download className="w-3 h-3"/> Descargar
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 font-mono font-bold text-right">No disponible</span>
+                        )}
+                      </div>
+                      
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1"><Layers className="w-3 h-3"/> Archivo DWG</span>
+                        {puertoActivo.dwg_filename ? (
+                          <button onClick={() => handleDescargarDiseno('DWG', puertoActivo.ID, puertoActivo.dwg_filename)} className="text-[9px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-blue-950/40 px-2 py-1 rounded transition-colors active:scale-95 border border-blue-500/30">
+                            <Download className="w-3 h-3"/> Descargar
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 font-mono font-bold text-right">No disponible</span>
+                        )}
+                      </div>
+
                     </SeccionDesplegable>
                   )}
 
