@@ -495,7 +495,6 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                     <InfoRow label="Potencia CPE" value={puertoActivo.POTENCIA_CPE ? `${puertoActivo.POTENCIA_CPE} dBm` : '-'} />
                   </SeccionDesplegable>
 
-                  {/* NUEVO: Oculta este panel si se está buscando por RUTA */}
                   {criterioBusqueda !== 'RUTA' && (
                     <SeccionDesplegable titulo="Lógica y Enrutamiento" icono={<Server className="w-3.5 h-3.5"/>} colorTexto="text-blue-400">
                       <InfoRowIP label="IP Gestión" value={puertoActivo.IP_GESTION} />
@@ -519,6 +518,14 @@ export default function Cuadrilla({ token, handleLogout, estructuraGeografica = 
                       <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase flex items-center gap-1 ${obtenerColorFibra(puertoActivo.HILOS)}`}><Scissors className="w-2.5 h-2.5" /> {puertoActivo.HILOS || '-'}</span>
                     </div>
                   </SeccionDesplegable>
+
+                  {/* NUEVA SECCIÓN DE DISEÑOS (SOLO VISIBLE EN RUTA FO) */}
+                  {criterioBusqueda === 'RUTA' && (
+                    <SeccionDesplegable titulo="Diseños de Red (Planos)" icono={<Layers className="w-3.5 h-3.5"/>} colorTexto="text-cyan-400" bgClass="bg-cyan-950/20" borderClass="border-cyan-900/30" abiertoPorDefecto={true}>
+                      <InfoRow label="Archivo KMZ" value={puertoActivo.kmz_filename || 'No disponible'} />
+                      <InfoRow label="Archivo DWG" value={puertoActivo.dwg_filename || 'No disponible'} />
+                    </SeccionDesplegable>
+                  )}
 
                   <SeccionDesplegable titulo="Contacto y Sitio" icono={<Users className="w-3.5 h-3.5"/>} colorTexto="text-pink-400">
                     <InfoRow label="Nombre Contacto" value={puertoActivo.CONTACTO_NOMBRE} />
